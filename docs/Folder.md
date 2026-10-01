@@ -25,6 +25,9 @@ dineflow/
 │   │   │   │   ├── special-request.tsx
 │   │   │   │   └── confirmation.tsx
 │   │   │   │
+│   │   │   ├── reservation/
+│   │   │   │   └── [reservationId].tsx
+│   │   │   │
 │   │   │   ├── queue/
 │   │   │   │   ├── join.tsx
 │   │   │   │   ├── status.tsx
@@ -44,18 +47,21 @@ dineflow/
 │   │   │   └── index.tsx
 │   │   │
 │   │   ├── components/
-│   │   │   ├── common/
 │   │   │   ├── auth/
 │   │   │   ├── reservation/
 │   │   │   ├── queue/
 │   │   │   ├── menu/
+│   │   │   ├── cart/
+│   │   │   ├── notifications/
 │   │   │   └── profile/
 │   │   │
 │   │   ├── services/
 │   │   │   ├── auth.service.ts
+│   │   │   ├── restaurant.service.ts
 │   │   │   ├── reservation.service.ts
 │   │   │   ├── queue.service.ts
 │   │   │   ├── menu.service.ts
+│   │   │   ├── order.service.ts
 │   │   │   └── notification.service.ts
 │   │   │
 │   │   ├── stores/
@@ -64,17 +70,28 @@ dineflow/
 │   │   │   └── cart.store.ts
 │   │   │
 │   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useReservations.ts
+│   │   │   ├── useQueue.ts
+│   │   │   └── useRealtime.ts
+│   │   │
 │   │   ├── lib/
 │   │   │   ├── api.ts
-│   │   │   └── supabase.ts
+│   │   │   ├── supabase.ts
+│   │   │   └── query-client.ts
+│   │   │
 │   │   ├── utils/
 │   │   ├── constants/
 │   │   ├── types/
+│   │   │
 │   │   ├── assets/
 │   │   │   ├── images/
 │   │   │   ├── icons/
 │   │   │   └── fonts/
+│   │   │
 │   │   ├── app.json
+│   │   ├── babel.config.js
+│   │   ├── metro.config.js
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
@@ -117,18 +134,22 @@ dineflow/
 │       │   │       ├── booking-settings.tsx
 │       │   │       └── capacity.tsx
 │       │   │
+│       │   ├── reservation/
+│       │   │   └── [reservationId].tsx
+│       │   │
 │       │   ├── _layout.tsx
 │       │   └── index.tsx
 │       │
 │       ├── components/
-│       │   ├── common/
 │       │   ├── dashboard/
 │       │   ├── reservations/
 │       │   ├── walk-ins/
 │       │   ├── queue/
 │       │   ├── tables/
 │       │   ├── staff/
-│       │   └── products/
+│       │   ├── products/
+│       │   ├── settings/
+│       │   └── analytics/
 │       │
 │       ├── services/
 │       │   ├── auth.service.ts
@@ -137,6 +158,7 @@ dineflow/
 │       │   ├── table.service.ts
 │       │   ├── staff.service.ts
 │       │   ├── product.service.ts
+│       │   ├── settings.service.ts
 │       │   └── analytics.service.ts
 │       │
 │       ├── stores/
@@ -144,17 +166,29 @@ dineflow/
 │       │   └── operations.store.ts
 │       │
 │       ├── hooks/
+│       │   ├── useAuth.ts
+│       │   ├── useReservations.ts
+│       │   ├── useQueue.ts
+│       │   ├── useTables.ts
+│       │   └── useRealtime.ts
+│       │
 │       ├── lib/
 │       │   ├── api.ts
-│       │   └── supabase.ts
+│       │   ├── supabase.ts
+│       │   └── query-client.ts
+│       │
 │       ├── utils/
 │       ├── constants/
 │       ├── types/
+│       │
 │       ├── assets/
 │       │   ├── images/
 │       │   ├── icons/
 │       │   └── fonts/
+│       │
 │       ├── app.json
+│       ├── babel.config.js
+│       ├── metro.config.js
 │       ├── package.json
 │       └── tsconfig.json
 │
@@ -167,9 +201,16 @@ dineflow/
 │   │   ├── middleware/
 │   │   │   ├── auth.middleware.ts
 │   │   │   ├── role.middleware.ts
+│   │   │   ├── validation.middleware.ts
 │   │   │   └── error.middleware.ts
 │   │   │
 │   │   ├── modules/
+│   │   │   ├── restaurants/
+│   │   │   │   ├── restaurant.controller.ts
+│   │   │   │   ├── restaurant.service.ts
+│   │   │   │   ├── restaurant.routes.ts
+│   │   │   │   └── restaurant.schema.ts
+│   │   │   │
 │   │   │   ├── reservations/
 │   │   │   │   ├── reservation.controller.ts
 │   │   │   │   ├── reservation.service.ts
@@ -185,24 +226,35 @@ dineflow/
 │   │   │   ├── tables/
 │   │   │   │   ├── table.controller.ts
 │   │   │   │   ├── table.service.ts
-│   │   │   │   └── table.routes.ts
+│   │   │   │   ├── table.routes.ts
+│   │   │   │   └── table.schema.ts
 │   │   │   │
 │   │   │   ├── products/
 │   │   │   │   ├── product.controller.ts
 │   │   │   │   ├── product.service.ts
-│   │   │   │   └── product.routes.ts
+│   │   │   │   ├── product.routes.ts
+│   │   │   │   └── product.schema.ts
+│   │   │   │
+│   │   │   ├── orders/
+│   │   │   │   ├── order.controller.ts
+│   │   │   │   ├── order.service.ts
+│   │   │   │   ├── order.routes.ts
+│   │   │   │   └── order.schema.ts
 │   │   │   │
 │   │   │   ├── staff/
 │   │   │   │   ├── staff.controller.ts
 │   │   │   │   ├── staff.service.ts
-│   │   │   │   └── staff.routes.ts
+│   │   │   │   ├── staff.routes.ts
+│   │   │   │   └── staff.schema.ts
 │   │   │   │
 │   │   │   ├── settings/
 │   │   │   │   ├── settings.controller.ts
 │   │   │   │   ├── settings.service.ts
-│   │   │   │   └── settings.routes.ts
+│   │   │   │   ├── settings.routes.ts
+│   │   │   │   └── settings.schema.ts
 │   │   │   │
 │   │   │   ├── notifications/
+│   │   │   │   ├── notification.controller.ts
 │   │   │   │   ├── notification.service.ts
 │   │   │   │   └── notification.routes.ts
 │   │   │   │
@@ -212,18 +264,89 @@ dineflow/
 │   │   │       └── analytics.routes.ts
 │   │   │
 │   │   ├── utils/
+│   │   │   ├── api-response.ts
+│   │   │   └── errors.ts
+│   │   │
 │   │   ├── app.ts
 │   │   └── server.ts
 │   │
 │   ├── api/
 │   │   └── index.ts
 │   │
+│   ├── .env.example
 │   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example
+│   └── tsconfig.json
 │
 ├── packages/
 │   └── shared/
+│       │
+│       ├── theme/
+│       │   ├── colors.ts
+│       │   ├── typography.ts
+│       │   ├── spacing.ts
+│       │   ├── radius.ts
+│       │   ├── shadows.ts
+│       │   ├── breakpoints.ts
+│       │   └── index.ts
+│       │
+│       ├── ui/
+│       │   ├── Button/
+│       │   │   ├── Button.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── Input/
+│       │   │   ├── Input.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── PasswordInput/
+│       │   │   ├── PasswordInput.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── SearchInput/
+│       │   │   ├── SearchInput.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── Card/
+│       │   │   ├── Card.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── Badge/
+│       │   │   ├── Badge.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── StatusBadge/
+│       │   │   ├── StatusBadge.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── ScreenContainer/
+│       │   │   ├── ScreenContainer.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── LoadingState/
+│       │   │   ├── LoadingState.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── EmptyState/
+│       │   │   ├── EmptyState.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── ErrorState/
+│       │   │   ├── ErrorState.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   ├── Modal/
+│       │   │   ├── Modal.tsx
+│       │   │   └── index.ts
+│       │   │
+│       │   └── index.ts
+│       │
+│       ├── assets/
+│       │   └── branding/
+│       │       ├── logo.png
+│       │       ├── logo-mark.png
+│       │       ├── logo-light.png
+│       │       └── logo-dark.png
+│       │
 │       ├── types/
 │       │   ├── user.ts
 │       │   ├── restaurant.ts
@@ -232,29 +355,57 @@ dineflow/
 │       │   ├── table.ts
 │       │   ├── product.ts
 │       │   ├── order.ts
-│       │   └── notification.ts
+│       │   ├── notification.ts
+│       │   └── api.ts
 │       │
 │       ├── schemas/
+│       │   ├── auth.schema.ts
+│       │   ├── reservation.schema.ts
+│       │   ├── queue.schema.ts
+│       │   ├── product.schema.ts
+│       │   └── order.schema.ts
+│       │
 │       ├── constants/
-│       └── utils/
+│       │   ├── roles.ts
+│       │   ├── reservation-status.ts
+│       │   ├── queue-status.ts
+│       │   ├── table-status.ts
+│       │   └── routes.ts
+│       │
+│       ├── utils/
+│       │   ├── format-date.ts
+│       │   ├── format-time.ts
+│       │   └── format-currency.ts
+│       │
+│       ├── index.ts
+│       ├── package.json
+│       └── tsconfig.json
 │
 ├── supabase/
 │   ├── migrations/
-│   │   ├── profiles.sql
-│   │   ├── restaurants.sql
-│   │   ├── restaurant_staff.sql
-│   │   ├── tables.sql
-│   │   ├── reservations.sql
-│   │   ├── queue_entries.sql
-│   │   ├── products.sql
-│   │   ├── orders.sql
-│   │   ├── notifications.sql
-│   │   └── policies.sql
+│   │   ├── 001_profiles.sql
+│   │   ├── 002_restaurants.sql
+│   │   ├── 003_restaurant_staff.sql
+│   │   ├── 004_tables.sql
+│   │   ├── 005_reservations.sql
+│   │   ├── 006_queue_entries.sql
+│   │   ├── 007_products.sql
+│   │   ├── 008_orders.sql
+│   │   ├── 009_order_items.sql
+│   │   ├── 010_notifications.sql
+│   │   ├── 011_restaurant_settings.sql
+│   │   ├── 012_indexes.sql
+│   │   ├── 013_realtime.sql
+│   │   └── 014_policies.sql
 │   │
 │   ├── seed.sql
 │   └── config.toml
 │
 ├── docs/
+│   ├── 01_FUNCTIONAL_REQUIREMENTS.md
+│   ├── 02_PROJECT_BLUEPRINT.md
+│   ├── 03_VIBE_CODING_MASTER_PROMPT.md
+│   │
 │   ├── requirements/
 │   ├── architecture/
 │   ├── database/
@@ -262,6 +413,10 @@ dineflow/
 │   ├── testing/
 │   └── screenshots/
 │
+├── .github/
+│   └── workflows/
+│
 ├── .gitignore
+├── .env.example
 ├── README.md
 └── package.json
