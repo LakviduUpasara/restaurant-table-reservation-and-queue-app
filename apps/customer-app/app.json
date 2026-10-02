@@ -1,1 +1,1 @@
-{}
+{ "expo": { "name": "DineFlow Customer", "slug": "dineflow-customer", "scheme": "dineflow-customer", "version": "1.0.0", "orientation": "portrait", "userInterfaceStyle": "dark", "plugins": ["expo-router", "expo-notifications"], "android": { "package": "lk.dineflow.customer", "permissions": ["POST_NOTIFICATIONS"] }, "ios": { "bundleIdentifier": "lk.dineflow.customer" }, "experiments": { "typedRoutes": true } } }

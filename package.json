@@ -1,1 +1,13 @@
-{}
+{
+  "name": "dineflow",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": ["apps/*", "backend", "packages/*"],
+  "scripts": {
+    "api": "npm run dev -w @dineflow/backend",
+    "customer": "npm run start -w @dineflow/customer-app",
+    "operations": "npm run start -w @dineflow/operations-app",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test -w @dineflow/backend"
+  }
+}
