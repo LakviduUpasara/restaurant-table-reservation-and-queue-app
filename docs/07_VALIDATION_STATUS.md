@@ -17,4 +17,8 @@ This is a record of checks actually completed on `feature/dineflow-milestone-03`
 
 Docker Desktop was started and the reduced Supabase stack reached healthy status for PostgreSQL, Auth, REST, Realtime, Kong, and Mailpit. A read-only database query confirmed one seeded restaurant. The API launched with a locally configured, ignored `backend/.env`, and `GET /health` returned success. The local app `.env` files were configured with the machine's LAN host for physical-phone testing; their values are ignored by Git. Expo SDK dependency checks, TypeScript checks, web exports, and Android JavaScript exports passed for both apps. These checks do not replace authenticated end-to-end journeys or an APK installation test.
 
+## Expo Go startup follow-up — 2026-10-02
+
+An Android Expo Go launch reported that SDK 53+ cannot initialize remote push notifications and failed before rendering the root layout. Push code now loads only outside Expo Go; Realtime queue status and the API-backed notification centre remain available in Expo Go. TypeScript, Customer Android export, and Customer web export pass after the change. A fresh Expo Go device launch is still required to confirm the startup error is gone; push delivery requires a development build and credentials.
+
 Use `05_TEST_CASES.md` for the live test script. Add actual outcomes, screenshots, defect references, and device/build identifiers before marking any pending item complete.
