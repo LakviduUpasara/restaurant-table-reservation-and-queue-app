@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
 process.env.SUPABASE_URL ??= 'https://example.supabase.co';
-process.env.SUPABASE_ANON_KEY ??= 'test-anon-key';
-process.env.SUPABASE_SERVICE_ROLE_KEY ??= 'test-service-key';
+process.env.SUPABASE_PUBLISHABLE_KEY ??= 'sb_publishable_test-key';
+process.env.SUPABASE_SECRET_KEY ??= 'sb_secret_test-key';
 const { app } = await import('./app.js');
 test('health is available while business routes require a bearer token', async () => {
   const server=app.listen(0);
