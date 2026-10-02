@@ -3,11 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "main": "expo-router/entry",
-  "scripts": {"start": "expo start", "android": "expo start --android", "typecheck": "tsc --noEmit"},
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "typecheck": "tsc --noEmit"
+  },
   "dependencies": {
     "@dineflow/shared": "*",
-    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@expo/metro-runtime": "~57.0.16",
     "@hookform/resolvers": "^5.0.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.0.0",
     "@tanstack/react-query": "^5.0.0",
     "expo": "~57.0.0",
@@ -17,13 +22,18 @@
     "expo-router": "~57.0.23",
     "expo-status-bar": "^57.0.0",
     "react": "19.2.3",
+    "react-dom": "19.2.3",
     "react-hook-form": "^7.0.0",
-    "react-native": "0.86.0",
-    "react-native-safe-area-context": "^5.0.0",
-    "react-native-screens": "^4.26.0",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
     "react-native-url-polyfill": "^3.0.0",
+    "react-native-web": "^0.21.2",
     "zod": "^4.0.0",
     "zustand": "^5.0.0"
   },
-  "devDependencies": {"@types/react": "^19.0.0", "typescript": "^5.9.0"}
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
+  }
 }

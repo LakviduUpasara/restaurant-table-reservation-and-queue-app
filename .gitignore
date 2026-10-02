@@ -3,6 +3,9 @@ node_modules/
 dist/
 coverage/
 .artifacts/
+expo-env.d.ts
+supabase/.branches/
+supabase/.temp/
 .env
 .env.*
 !.env.example

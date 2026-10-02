@@ -13,4 +13,8 @@ This is a record of checks actually completed on `feature/dineflow-milestone-03`
 | Figma frame fidelity | Pending | The linked overview rendered, but detailed layer context was blocked by the Figma Starter plan MCP call limit. Screen-by-screen visual review and asset checks remain. |
 | Five working-app usability sessions | Pending | Real or proxy participants, consent, results, defects, and retests must be recorded from the configured working apps. Milestone 02 prototype results are not reused. |
 
+## Local startup follow-up — 2026-10-02
+
+Docker Desktop was started and the reduced Supabase stack reached healthy status for PostgreSQL, Auth, REST, Realtime, Kong, and Mailpit. A read-only database query confirmed one seeded restaurant. The API launched with a locally configured, ignored `backend/.env`, and `GET /health` returned success. The local app `.env` files were configured with the machine's LAN host for physical-phone testing; their values are ignored by Git. Expo SDK dependency checks, TypeScript checks, web exports, and Android JavaScript exports passed for both apps. These checks do not replace authenticated end-to-end journeys or an APK installation test.
+
 Use `05_TEST_CASES.md` for the live test script. Add actual outcomes, screenshots, defect references, and device/build identifiers before marking any pending item complete.
