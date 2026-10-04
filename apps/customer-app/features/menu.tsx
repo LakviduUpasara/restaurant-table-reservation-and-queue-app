@@ -492,7 +492,7 @@ const styles = StyleSheet.create({
   detailFooter: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    paddingBottom: 14,
+    paddingBottom: 28,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
