@@ -295,7 +295,14 @@ export function ProductDetail() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <Header onBack={() => router.back()} onCart={() => router.push('/cart')} count={itemCount} />
+      <Header
+        onBack={() => {
+          if (router.canGoBack()) router.back();
+          else router.replace('/menu');
+        }}
+        onCart={() => router.push('/cart')}
+        count={itemCount}
+      />
       <ScrollView contentContainerStyle={styles.detailScroll} showsVerticalScrollIndicator={false}>
         {products.error ? (
           <ProductListState error={products.error.message} onRetry={() => void products.refetch()} />
