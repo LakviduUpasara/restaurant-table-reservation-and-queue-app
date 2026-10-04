@@ -72,7 +72,7 @@ function Header({
   dark = false,
 }: {
   onBack?: () => void;
-  onCart: () => void;
+  onCart?: () => void;
   count: number;
   dark?: boolean;
 }) {
@@ -87,16 +87,22 @@ function Header({
         >
           <Ionicons name="chevron-back" size={23} color={dark ? colors.ink : colors.ink} />
         </Pressable>
-      ) : <View style={styles.headerIcon} />}
+      ) : (
+        <View style={styles.headerIcon}>
+          <Ionicons name="cart-outline" size={25} color={dark ? colors.paper : colors.ink} />
+        </View>
+      )}
       <Brand dark={!dark} />
-      <Pressable accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`} onPress={onCart} style={styles.headerIcon}>
-        <Ionicons name="cart-outline" size={25} color={dark ? colors.paper : colors.ink} />
-        {count > 0 && (
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{count}</Text>
-          </View>
-        )}
-      </Pressable>
+      {onCart ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`} onPress={onCart} style={styles.headerIcon}>
+          <Ionicons name="cart-outline" size={25} color={dark ? colors.paper : colors.ink} />
+          {count > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{count}</Text>
+            </View>
+          )}
+        </Pressable>
+      ) : <View style={styles.headerIcon} />}
     </View>
   );
 }
@@ -205,33 +211,32 @@ export function Menu() {
         onCart={() => router.push('/cart')}
         count={itemCount}
       />
-      <ScrollView contentContainerStyle={styles.menuScroll} showsVerticalScrollIndicator={false}>
-        <View style={styles.banner}>
-          {preOrderBannerImage ? (
-            <Image source={preOrderBannerImage} resizeMode="cover" style={styles.photo} />
-          ) : (
-            <View style={styles.bannerPlaceholder}>
-              <Ionicons name="image-outline" size={30} color="#FFFFFFB0" />
-              <Text style={styles.bannerHint}>Add a menu banner image here</Text>
-            </View>
-          )}
-          <View style={styles.searchBar}>
-            <Ionicons name="search-outline" size={18} color={colors.ink} />
-            <TextInput
-              accessibilityLabel="Search menu"
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search Menu"
-              placeholderTextColor="#999999"
-              style={styles.searchInput}
-              returnKeyType="search"
-            />
-            <View accessibilityLabel="Menu filters" style={styles.filterButton}>
-              <Ionicons name="options-outline" size={19} color={colors.ink} />
-            </View>
+      <View style={styles.banner}>
+        {preOrderBannerImage ? (
+          <Image source={preOrderBannerImage} resizeMode="cover" style={styles.photo} />
+        ) : (
+          <View style={styles.bannerPlaceholder}>
+            <Ionicons name="image-outline" size={30} color="#FFFFFFB0" />
+            <Text style={styles.bannerHint}>Add a menu banner image here</Text>
+          </View>
+        )}
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={colors.ink} />
+          <TextInput
+            accessibilityLabel="Search menu"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search Menu"
+            placeholderTextColor="#999999"
+            style={styles.searchInput}
+            returnKeyType="search"
+          />
+          <View accessibilityLabel="Menu filters" style={styles.filterButton}>
+            <Ionicons name="options-outline" size={19} color={colors.ink} />
           </View>
         </View>
-
+      </View>
+      <ScrollView contentContainerStyle={styles.menuScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.menuContent}>
           <Text style={styles.sectionTitle}>Pre-order your favorites</Text>
           {products.error ? (
@@ -349,8 +354,103 @@ export function ProductDetail() {
 export function Cart() {
   const router = useRouter();
   const items = useCart(state => state.items);
-  const remove = useCart(state => state.remove);
-  return <Screen title="Your cart" subtitle="Review your pre-order before placing it.">{items.length?items.map(i=><Card key={i.product.id}><Heading>{i.product.name}</Heading><Label>{i.quantity} × {money(i.product.price_cents)}</Label><Button title="Remove" kind="danger" onPress={()=>remove(i.product.id)}/></Card>):<State empty="Your cart is empty."/>}<Heading>Total: {money(items.reduce((n,i)=>n+i.product.price_cents*i.quantity,0))}</Heading><Button title="Continue" disabled={!items.length} onPress={()=>router.push('/cart/checkout')}/></Screen>;
+  const add = useCart(state => state.add);
+  const decrease = useCart(state => state.decrease);
+  const subtotal = items.reduce((total, item) => total + item.product.price_cents * item.quantity, 0);
+  const itemCount = items.reduce((count, item) => count + item.quantity, 0);
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <Header
+        dark
+        onBack={() => router.canGoBack() ? router.back() : router.replace('/menu')}
+        count={itemCount}
+      />
+      <ScrollView contentContainerStyle={styles.cartPage} showsVerticalScrollIndicator={false}>
+        {items.length ? (
+          <>
+            <View style={styles.cartItems}>
+              {items.map(item => (
+                <View key={item.product.id} style={styles.cartLine}>
+                  <MenuPhoto product={item.product} style={styles.cartLinePhoto} />
+                  <View style={styles.cartLineInfo}>
+                    <Text numberOfLines={1} style={styles.cartLineName}>{item.product.name}</Text>
+                    <Text style={styles.cartLinePrice}>Unit Price : {money(item.product.price_cents)}</Text>
+                    <View style={styles.cartQuantityRow}>
+                      <Text style={styles.cartLineQty}>Qty : {item.quantity}</Text>
+                      <View style={styles.quantityControls}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove one ${item.product.name}`}
+                          onPress={() => decrease(item.product.id)}
+                          style={styles.quantityButton}
+                        >
+                          <Ionicons name="remove" size={17} color={colors.ink} />
+                        </Pressable>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add one ${item.product.name}`}
+                          onPress={() => add(item.product)}
+                          style={styles.quantityButton}
+                        >
+                          <Ionicons name="add" size={17} color={colors.ink} />
+                        </Pressable>
+                      </View>
+                    </View>
+                    <Text style={styles.cartLinePrice}>Total Price : {money(item.product.price_cents * item.quantity)}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.summaryCard}>
+              <View style={styles.promoRow}>
+                <TextInput
+                  accessibilityLabel="Promo code"
+                  placeholder="Promo code"
+                  placeholderTextColor="#D0D0D0"
+                  style={styles.promoInput}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => Alert.alert('Promo codes unavailable', 'Promo code discounts are not configured yet.')}
+                >
+                  <Text style={styles.promoStatus}>Apply</Text>
+                </Pressable>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryValue}>{money(subtotal)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                <Text style={styles.summaryValue}>—</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Discount</Text>
+                <Text style={styles.summaryValue}>—</Text>
+              </View>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.replace('/home')}
+              style={styles.returnButton}
+            >
+              <Text style={styles.returnButtonText}>Return To Home</Text>
+            </Pressable>
+          </>
+        ) : (
+          <View style={styles.emptyCart}>
+            <ProductListState empty="Your cart is empty." />
+            <Pressable onPress={() => router.replace('/menu')} style={styles.returnButton}>
+              <Text style={styles.returnButtonText}>Browse Menu</Text>
+            </Pressable>
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 export function Checkout() {
@@ -499,7 +599,7 @@ const styles = StyleSheet.create({
   detailFooter: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    paddingBottom: 28,
+    paddingBottom: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -523,6 +623,35 @@ const styles = StyleSheet.create({
   cartItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.line },
   cartPhoto: { width: 64, height: 64, borderRadius: 10 },
   cartItemText: { flex: 1 },
+  cartPage: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 26, gap: 30 },
+  cartItems: { gap: 12 },
+  cartLine: {
+    minHeight: 112,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 10,
+    borderRadius: 26,
+    backgroundColor: colors.ink,
+    overflow: 'hidden',
+  },
+  cartLinePhoto: { width: '34%', height: 112, borderRadius: 24 },
+  cartLineInfo: { flex: 1, minWidth: 0, paddingLeft: 13, paddingVertical: 7 },
+  cartLineName: { color: colors.paper, fontSize: 17, fontWeight: '700', marginBottom: 2 },
+  cartLinePrice: { color: colors.paper, fontSize: 13, fontWeight: '600', lineHeight: 20 },
+  cartLineQty: { color: colors.paper, fontSize: 13, fontWeight: '600' },
+  cartQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  quantityButton: { width: 27, height: 27, borderRadius: 14, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
+  summaryCard: { padding: 15, borderRadius: 22, backgroundColor: colors.ink, gap: 12 },
+  promoRow: { minHeight: 38, paddingHorizontal: 10, borderWidth: 1, borderColor: '#484848', borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 1 },
+  promoInput: { flex: 1, minWidth: 35, color: colors.paper, fontSize: 13, paddingVertical: 5 },
+  promoStatus: { color: colors.accent, fontSize: 12, fontWeight: '600' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryLabel: { color: colors.paper, fontSize: 12 },
+  summaryValue: { color: colors.paper, fontSize: 12 },
+  returnButton: { height: 46, borderRadius: 24, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F8' },
+  returnButtonText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  emptyCart: { paddingTop: 60, gap: 25 },
   cartFooter: { padding: 20, gap: 14, borderTopWidth: 1, borderColor: colors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { color: colors.ink, fontSize: 15 },
