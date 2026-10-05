@@ -45,8 +45,7 @@ function SettingsHeader({ welcomeName }: { welcomeName: string }) {
         <Text style={styles.brand}>Dine<Text style={styles.brandAccent}>Flow</Text></Text>
         <View style={styles.headerSpacer} />
       </View>
-      <Text style={styles.welcome}>Welcome</Text>
-      <Text numberOfLines={1} style={styles.welcomeName}>{welcomeName || 'there'}</Text>
+      <Text numberOfLines={1} style={styles.welcome}>Welcome {welcomeName || 'there'}</Text>
     </View>
   );
 }
@@ -146,12 +145,6 @@ export function AccountSettings() {
               subtitle="Change your name and profile details"
               onPress={() => router.push('/update-profile')}
             />
-            <SettingsAction
-              icon="call-outline"
-              title="Enter Phone Number"
-              subtitle={profile?.phone ? 'Update your phone number' : 'Add a phone number to your profile'}
-              onPress={() => router.push('/enter-phone')}
-            />
           </View>
 
           <View style={styles.section}>
@@ -248,6 +241,7 @@ function AccountForm({
   onChangeText,
   placeholder,
   keyboardType,
+  secondaryField,
   onSave,
   busy,
 }: {
@@ -258,6 +252,13 @@ function AccountForm({
   onChangeText: (value: string) => void;
   placeholder: string;
   keyboardType?: 'default' | 'phone-pad';
+  secondaryField?: {
+    label: string;
+    value: string;
+    onChangeText: (value: string) => void;
+    placeholder: string;
+    keyboardType?: 'default' | 'phone-pad';
+  };
   onSave: () => void;
   busy: boolean;
 }) {
@@ -286,6 +287,22 @@ function AccountForm({
           style={styles.formInput}
           value={value}
         />
+        {secondaryField && (
+          <>
+            <Text style={styles.formLabel}>{secondaryField.label}</Text>
+            <TextInput
+              accessibilityLabel={secondaryField.label}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType={secondaryField.keyboardType}
+              onChangeText={secondaryField.onChangeText}
+              placeholder={secondaryField.placeholder}
+              placeholderTextColor="#929292"
+              style={styles.formInput}
+              value={secondaryField.value}
+            />
+          </>
+        )}
         <Pressable accessibilityRole="button" disabled={busy} onPress={onSave} style={[styles.saveButton, busy && styles.saveButtonBusy]}>
           {busy ? <ActivityIndicator color={palette.dark} /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
         </Pressable>
@@ -334,6 +351,7 @@ export function EnterPhoneNumber() {
 export function UpdateUserProfile() {
   const { profile, refresh } = useAuth();
   const [name, setName] = useState(profile?.full_name ?? '');
+  const [phone, setPhone] = useState(profile?.phone ?? '');
   const [busy, setBusy] = useState(false);
 
   const saveProfile = async () => {
@@ -341,11 +359,16 @@ export function UpdateUserProfile() {
       Alert.alert('Enter your name', 'Your name must have at least 2 characters.');
       return;
     }
+    const normalizedPhone = phone.trim();
+    if (normalizedPhone && normalizedPhone.replace(/\D/g, '').length < 7) {
+      Alert.alert('Enter a valid phone number', 'Please enter at least 7 digits or leave the phone number empty.');
+      return;
+    }
     setBusy(true);
     try {
-      await api('/me', { method: 'PATCH', body: { full_name: name.trim() } });
+      await api('/me', { method: 'PATCH', body: { full_name: name.trim(), phone: normalizedPhone || null } });
       await refresh();
-      Alert.alert('Profile updated', 'Your profile details have been saved.');
+      Alert.alert('Profile updated', 'Your name and phone number have been saved.');
     } catch (error) {
       Alert.alert('Could not update profile', String((error as Error).message));
     } finally {
@@ -356,11 +379,18 @@ export function UpdateUserProfile() {
   return (
     <AccountForm
       title="Update User Profile"
-      description="Keep your account profile details up to date."
+      description="Update the name and phone number on your account."
       label="Full name"
       value={name}
       onChangeText={setName}
       placeholder="Your full name"
+      secondaryField={{
+        label: 'Phone number',
+        value: phone,
+        onChangeText: setPhone,
+        placeholder: '+94 71 234 5678',
+        keyboardType: 'phone-pad',
+      }}
       onSave={() => void saveProfile()}
       busy={busy}
     />
@@ -375,8 +405,7 @@ const styles = StyleSheet.create({
   brand: { color: '#FFFFFF', fontSize: 23, fontWeight: '800', fontStyle: 'italic' },
   brandAccent: { color: palette.yellow },
   headerSpacer: { width: 34 },
-  welcome: { color: '#FFFFFF', fontSize: 14, textAlign: 'center', marginTop: 2 },
-  welcomeName: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', textAlign: 'center', marginTop: 1 },
+  welcome: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center', marginTop: 5 },
   scrollContent: { flexGrow: 1 },
   settingsPanel: {
     flexGrow: 1,
