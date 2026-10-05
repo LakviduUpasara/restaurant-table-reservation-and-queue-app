@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Table, TableStatus } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
+import { useStaffDrawer } from './staff-drawer';
 
 const colors = {
   background: '#F2F2F2',
@@ -87,6 +88,7 @@ function ArrowIcon() {
 
 export function StaffTables() {
   const router = useRouter();
+  const { openDrawer } = useStaffDrawer();
   const restaurantId = useRestaurant();
   const [viewMode, setViewMode] = useState<ViewMode>('floor');
 
@@ -112,10 +114,10 @@ export function StaffTables() {
           <View style={styles.contentWidth}>
             <View style={styles.headerRow}>
               <Pressable
-                accessibilityLabel="Open staff account"
+                accessibilityLabel="Open staff menu"
                 accessibilityRole="button"
                 hitSlop={12}
-                onPress={() => router.push('/(staff)/profile' as never)}
+                onPress={openDrawer}
               >
                 <MenuIcon />
               </Pressable>

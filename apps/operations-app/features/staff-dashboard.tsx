@@ -7,6 +7,7 @@ import type { QueueEntry, Reservation, Restaurant, Table } from '@dineflow/share
 import { api } from '../lib/api';
 import { useAuth } from '../stores/auth.store';
 import { useRealtime, useRestaurant } from './common';
+import { useStaffDrawer } from './staff-drawer';
 
 const dashboardColors = {
   background: '#F2F2F2',
@@ -225,6 +226,7 @@ export function StaffBottomNav({
 
 export function StaffDashboard() {
   const router = useRouter();
+  const { openDrawer } = useStaffDrawer();
   const restaurantId = useRestaurant();
   const profile = useAuth((state) => state.profile);
   const day = colomboDay();
@@ -285,10 +287,10 @@ export function StaffDashboard() {
           <View style={styles.contentWidth}>
             <View style={styles.headerRow}>
               <Pressable
-                accessibilityLabel="Open staff account"
+                accessibilityLabel="Open staff menu"
                 accessibilityRole="button"
                 hitSlop={12}
-                onPress={() => router.push('/(staff)/profile' as never)}
+                onPress={openDrawer}
               >
                 <MenuIcon />
               </Pressable>

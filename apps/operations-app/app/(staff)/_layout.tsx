@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen, State } from '@dineflow/shared';
 import { StaffBottomNav } from '../../features/staff-dashboard';
+import { StaffDrawerProvider } from '../../features/staff-drawer';
 import { useAuth } from '../../stores/auth.store';
 
 type StaffMainRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservations' | '/(staff)/queue';
@@ -42,22 +43,24 @@ export default function StaffLayout() {
         : 'dashboard';
 
   return (
-    <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="dashboard" />
-        <Stack.Screen name="tables" />
-        <Stack.Screen name="reservations" />
-        <Stack.Screen name="queue" />
-        <Stack.Screen name="walk-ins" options={{ animation: 'slide_from_right' }} />
-        <Stack.Screen name="profile" />
-      </Stack>
-      {!isSecondaryRoute ? (
-        <StaffBottomNav
-          active={active}
-          bottomInset={insets.bottom}
-          onNavigate={(path: StaffMainRoute) => router.replace(path as never)}
-        />
-      ) : null}
-    </View>
+    <StaffDrawerProvider>
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="dashboard" />
+          <Stack.Screen name="tables" />
+          <Stack.Screen name="reservations" />
+          <Stack.Screen name="queue" />
+          <Stack.Screen name="walk-ins" options={{ animation: 'slide_from_right' }} />
+          <Stack.Screen name="profile" />
+        </Stack>
+        {!isSecondaryRoute ? (
+          <StaffBottomNav
+            active={active}
+            bottomInset={insets.bottom}
+            onNavigate={(path: StaffMainRoute) => router.replace(path as never)}
+          />
+        ) : null}
+      </View>
+    </StaffDrawerProvider>
   );
 }

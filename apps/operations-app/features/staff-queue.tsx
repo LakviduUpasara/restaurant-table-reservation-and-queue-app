@@ -10,13 +10,14 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { QueueEntry, Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
+import { useStaffDrawer } from './staff-drawer';
 
 type QueueTab = 'waiting' | 'seated';
 
@@ -167,7 +168,7 @@ function QueueCard({
 }
 
 export function StaffQueue() {
-  const router = useRouter();
+  const { openDrawer } = useStaffDrawer();
   const client = useQueryClient();
   const restaurantId = useRestaurant();
   const { width } = useWindowDimensions();
@@ -246,10 +247,10 @@ export function StaffQueue() {
           <View style={[styles.contentWidth, width < 400 && styles.contentWidthCompact]}>
             <View style={styles.menuRow}>
               <Pressable
-                accessibilityLabel="Open staff account"
+                accessibilityLabel="Open staff menu"
                 accessibilityRole="button"
                 hitSlop={12}
-                onPress={() => router.push('/(staff)/profile' as never)}
+                onPress={openDrawer}
                 style={({ pressed }) => pressed && styles.pressed}
               >
                 <MenuIcon />
