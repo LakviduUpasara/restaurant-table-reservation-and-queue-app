@@ -45,7 +45,8 @@ function SettingsHeader({ welcomeName }: { welcomeName: string }) {
         <Text style={styles.brand}>Dine<Text style={styles.brandAccent}>Flow</Text></Text>
         <View style={styles.headerSpacer} />
       </View>
-      <Text style={styles.welcome}>Welcome {welcomeName || 'to DineFlow'}</Text>
+      <Text style={styles.welcome}>Welcome</Text>
+      <Text numberOfLines={1} style={styles.welcomeName}>{welcomeName || 'there'}</Text>
     </View>
   );
 }
@@ -92,6 +93,8 @@ export function AccountSettings() {
   const router = useRouter();
   const { profile, signOut } = useAuth();
   const [email, setEmail] = useState('');
+  const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
   const client = useQueryClient();
   const orders = useQuery({ queryKey: ['orders'], queryFn: () => api<Order[]>('/orders') });
 
@@ -107,27 +110,22 @@ export function AccountSettings() {
     return () => { active = false; };
   }, []);
 
-  const onSignOut = () => {
-    Alert.alert('Sign out?', 'You will need to log in again to access your account.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await signOut();
-            router.replace('/login');
-          } catch (error) {
-            Alert.alert('Could not sign out', String((error as Error).message));
-          }
-        },
-      },
-    ]);
+  const onSignOut = async () => {
+    setSignOutError('');
+    setSigningOut(true);
+    try {
+      await signOut();
+      router.replace('/login');
+    } catch (error) {
+      setSignOutError(String((error as Error).message));
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
-      <SettingsHeader welcomeName={profile?.full_name?.split(' ')[0] ?? ''} />
+      <SettingsHeader welcomeName={profile?.full_name?.trim() ?? ''} />
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.settingsPanel}>
           <Text style={styles.pageTitle}>Account Settings</Text>
@@ -173,12 +171,20 @@ export function AccountSettings() {
             <Ionicons name="chevron-forward" size={18} color={palette.muted} />
           </Pressable>
 
-          <Pressable accessibilityRole="button" onPress={onSignOut} style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed]}>
+          <Pressable
+            accessibilityRole="button"
+            disabled={signingOut}
+            onPress={() => void onSignOut()}
+            style={({ pressed }) => [styles.signOutButton, pressed && styles.pressed, signingOut && styles.signOutBusy]}
+          >
             <View style={styles.signOutIcon}>
-              <Ionicons name="log-out-outline" size={21} color="#202544" />
+              {signingOut
+                ? <ActivityIndicator size="small" color="#202544" />
+                : <Ionicons name="log-out-outline" size={21} color="#202544" />}
             </View>
-            <Text style={styles.signOutText}>Sign Out</Text>
+            <Text style={styles.signOutText}>{signingOut ? 'Signing Out…' : 'Sign Out'}</Text>
           </Pressable>
+          {signOutError ? <Text style={styles.signOutError}>{signOutError}</Text> : null}
 
           <View style={styles.ordersSection}>
             <Text style={styles.sectionTitle}>Pre-orders</Text>
@@ -363,13 +369,14 @@ export function UpdateUserProfile() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.dark },
-  darkHeader: { height: 104, backgroundColor: palette.dark, paddingHorizontal: 22, paddingTop: 5 },
+  darkHeader: { height: 112, backgroundColor: palette.dark, paddingHorizontal: 22, paddingTop: 5 },
   headerRow: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerBack: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
   brand: { color: '#FFFFFF', fontSize: 23, fontWeight: '800', fontStyle: 'italic' },
   brandAccent: { color: palette.yellow },
   headerSpacer: { width: 34 },
-  welcome: { color: '#FFFFFF', fontSize: 15, textAlign: 'center', marginTop: 5 },
+  welcome: { color: '#FFFFFF', fontSize: 14, textAlign: 'center', marginTop: 2 },
+  welcomeName: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', textAlign: 'center', marginTop: 1 },
   scrollContent: { flexGrow: 1 },
   settingsPanel: {
     flexGrow: 1,
@@ -398,8 +405,10 @@ const styles = StyleSheet.create({
   notificationsButton: { width: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderColor: palette.line },
   notificationsText: { flex: 1, color: '#141414', fontSize: 14, fontWeight: '700' },
   signOutButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 17 },
+  signOutBusy: { opacity: 0.7 },
   signOutIcon: { width: 40, height: 38, borderRadius: 10, borderWidth: 1, borderColor: '#D2D2D8', alignItems: 'center', justifyContent: 'center' },
   signOutText: { color: '#111111', fontSize: 14, fontWeight: '800' },
+  signOutError: { color: '#B42318', fontSize: 13, lineHeight: 18, marginTop: 12 },
   ordersSection: { width: '100%', marginTop: 27, paddingTop: 19, borderTopWidth: 1, borderColor: palette.line, gap: 9 },
   orderRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: palette.line },
   orderPrice: { color: '#151515', fontSize: 13, fontWeight: '700' },

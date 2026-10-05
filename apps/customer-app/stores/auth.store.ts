@@ -8,5 +8,5 @@ export const useAuth = create<AuthState>((set,get)=>({
   refresh:async()=>{ const {data}=await supabase.auth.getSession(); if (!data.session) {set({profile:null,error:null,ready:true});return;} try {const profile=await api<Profile>('/me');set({profile,error:null,ready:true});} catch(e) {set({profile:null,error:String((e as Error).message),ready:true});} },
   signIn:async(email,password)=>{const {error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;await get().refresh();if(get().error)throw new Error(get().error!);},
   signUp:async(email,password,name)=>{const {error}=await supabase.auth.signUp({email,password,options:{data:{full_name:name}}});if(error)throw error;await get().refresh();},
-  signOut:async()=>{if(get().pushToken)await api('/push-tokens',{method:'DELETE',body:{token:get().pushToken}}).catch(()=>{});await supabase.auth.signOut();set({profile:null,pushToken:null,error:null,ready:true});}
+  signOut:async()=>{if(get().pushToken)await api('/push-tokens',{method:'DELETE',body:{token:get().pushToken}}).catch(()=>{});const {error}=await supabase.auth.signOut();if(error)throw error;set({profile:null,pushToken:null,error:null,ready:true});}
 }));
