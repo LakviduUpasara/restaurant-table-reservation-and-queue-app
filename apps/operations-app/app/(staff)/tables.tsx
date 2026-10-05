@@ -1,1 +1,1 @@
-export { Tables as default } from '../../features/operations';
+export { StaffTables as default } from '../../features/staff-tables';

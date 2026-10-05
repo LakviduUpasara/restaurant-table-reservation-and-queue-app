@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Profile } from '@dineflow/shared';
-import { api } from '../lib/api';
 import { withTimeout } from '../lib/promise';
 import { supabase } from '../lib/supabase';
 
@@ -37,8 +36,18 @@ export const useAuth = create<AuthState>((set, get) => ({
         return;
       }
 
-      const profile = await api<Profile>('/me');
-      set({ profile, error: null, ready: true });
+      const { data: profile, error: profileError } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('id,full_name,phone,role,restaurant_id')
+          .eq('id', data.session.user.id)
+          .single(),
+        SESSION_TIMEOUT_MS,
+        'Profile check timed out. Check your internet connection and try again.',
+      );
+      if (profileError) throw profileError;
+
+      set({ profile: profile as Profile, error: null, ready: true });
     } catch (error) {
       set({ profile: null, error: String((error as Error).message), ready: true });
     }

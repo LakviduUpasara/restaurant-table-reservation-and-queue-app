@@ -1,0 +1,288 @@
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useQueryClient } from '@tanstack/react-query';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { api } from '../lib/api';
+import { useRestaurant } from './common';
+
+const colors = {
+  background: '#F2F2F2',
+  surface: '#FFFFFF',
+  text: '#171717',
+  secondary: '#777777',
+  border: '#BDBDBD',
+  control: '#DEDEDE',
+  active: '#EDB913',
+  overlay: 'rgba(0,0,0,0.35)',
+  error: '#C62828',
+} as const;
+
+const waitOptions = [5, 10, 15, 20, 30, 45, 60];
+
+function waitLabel(minutes: number) {
+  if (minutes <= 5) return 'About 5 minutes';
+  if (minutes >= 60) return '60+ minutes';
+  return `${minutes} – ${minutes + 5} minutes`;
+}
+
+function BackIcon() {
+  return <View accessibilityElementsHidden style={styles.backIcon} />;
+}
+
+function ChevronDown() {
+  return <View accessibilityElementsHidden style={styles.chevronDown} />;
+}
+
+export function StaffWalkIn() {
+  const router = useRouter();
+  const client = useQueryClient();
+  const restaurantId = useRestaurant();
+  const { width } = useWindowDimensions();
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [guests, setGuests] = useState(4);
+  const [waitMinutes, setWaitMinutes] = useState(15);
+  const [specialRequest, setSpecialRequest] = useState('');
+  const [waitPickerOpen, setWaitPickerOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const trimmedName = name.trim();
+  const nameError = submitted && !trimmedName ? 'Customer name is required.' : null;
+  const canSubmit = !!restaurantId && !!trimmedName && !busy;
+
+  async function addToQueue() {
+    setSubmitted(true);
+    if (!restaurantId || !trimmedName || busy) return;
+
+    setBusy(true);
+    try {
+      await api('/queue', {
+        method: 'POST',
+        body: {
+          restaurant_id: restaurantId,
+          customer_name: trimmedName,
+          phone: phone.trim() || undefined,
+          party_size: guests,
+          estimated_wait_minutes: waitMinutes,
+          special_request: specialRequest.trim() || undefined,
+        },
+      });
+      await client.invalidateQueries({ queryKey: ['queue', restaurantId] });
+      router.replace('/(staff)/queue' as never);
+    } catch (error) {
+      Alert.alert('Could not add walk-in', String((error as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.page}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.contentWidth, width < 400 && styles.contentWidthCompact]}>
+            <View style={styles.header}>
+              <Pressable
+                accessibilityLabel="Back to virtual queue"
+                accessibilityRole="button"
+                hitSlop={12}
+                onPress={() => router.back()}
+                style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
+              >
+                <BackIcon />
+              </Pressable>
+              <Text style={styles.title}>Add Walk-in Customer</Text>
+            </View>
+
+            <View style={styles.form}>
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Customer name</Text>
+                <TextInput
+                  accessibilityLabel="Customer name"
+                  autoCapitalize="words"
+                  maxLength={100}
+                  onChangeText={setName}
+                  placeholder="Enter customer name"
+                  placeholderTextColor={colors.secondary}
+                  returnKeyType="next"
+                  style={[styles.input, nameError && styles.inputError]}
+                  value={name}
+                />
+                {nameError ? <Text style={styles.errorText}>{nameError}</Text> : null}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Phone number</Text>
+                <TextInput
+                  accessibilityLabel="Phone number"
+                  keyboardType="phone-pad"
+                  maxLength={30}
+                  onChangeText={setPhone}
+                  placeholder="07X XXX XXXX"
+                  placeholderTextColor={colors.secondary}
+                  style={styles.input}
+                  value={phone}
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Number of Guests</Text>
+                <View style={styles.stepper}>
+                  <Pressable
+                    accessibilityLabel="Decrease number of guests"
+                    accessibilityRole="button"
+                    disabled={guests <= 1}
+                    onPress={() => setGuests((current) => Math.max(1, current - 1))}
+                    style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed, guests <= 1 && styles.disabled]}
+                  >
+                    <View style={styles.minusIcon} />
+                  </Pressable>
+                  <Text accessibilityLabel={`${guests} guests`} style={styles.guestCount}>{guests}</Text>
+                  <Pressable
+                    accessibilityLabel="Increase number of guests"
+                    accessibilityRole="button"
+                    disabled={guests >= 20}
+                    onPress={() => setGuests((current) => Math.min(20, current + 1))}
+                    style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed, guests >= 20 && styles.disabled]}
+                  >
+                    <View style={styles.plusHorizontal} />
+                    <View style={styles.plusVertical} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Estimated Wait Time</Text>
+                <Pressable
+                  accessibilityLabel={`Estimated wait time, ${waitLabel(waitMinutes)}`}
+                  accessibilityRole="button"
+                  onPress={() => setWaitPickerOpen(true)}
+                  style={({ pressed }) => [styles.select, pressed && styles.pressed]}
+                >
+                  <Text style={styles.selectText}>{waitLabel(waitMinutes)}</Text>
+                  <ChevronDown />
+                </Pressable>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Special Requests (Optional)</Text>
+                <TextInput
+                  accessibilityLabel="Special requests"
+                  maxLength={500}
+                  multiline
+                  onChangeText={setSpecialRequest}
+                  placeholder="e.g. window seat, high chair"
+                  placeholderTextColor={colors.secondary}
+                  style={[styles.input, styles.requestInput]}
+                  textAlignVertical="top"
+                  value={specialRequest}
+                />
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canSubmit }}
+                disabled={!canSubmit}
+                onPress={() => void addToQueue()}
+                style={({ pressed }) => [styles.submitButton, (!canSubmit || pressed) && styles.pressed]}
+              >
+                {busy ? <ActivityIndicator color={colors.text} /> : <Text style={styles.submitText}>Add to Queue</Text>}
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setWaitPickerOpen(false)}
+        transparent
+        visible={waitPickerOpen}
+      >
+        <View style={styles.modalBackdrop}>
+          <Pressable accessibilityLabel="Close wait time selector" onPress={() => setWaitPickerOpen(false)} style={StyleSheet.absoluteFill} />
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Estimated Wait Time</Text>
+            {waitOptions.map((minutes) => {
+              const selected = minutes === waitMinutes;
+              return (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: selected }}
+                  key={minutes}
+                  onPress={() => { setWaitMinutes(minutes); setWaitPickerOpen(false); }}
+                  style={({ pressed }) => [styles.waitOption, selected && styles.waitOptionSelected, pressed && styles.pressed]}
+                >
+                  <Text style={[styles.waitOptionText, selected && styles.waitOptionTextSelected]}>{waitLabel(minutes)}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  page: { flex: 1, backgroundColor: colors.background },
+  scrollContent: { alignItems: 'center', paddingBottom: 30 },
+  contentWidth: { width: '100%', maxWidth: 430, paddingHorizontal: 28 },
+  contentWidthCompact: { paddingHorizontal: 20 },
+  header: { minHeight: 80, flexDirection: 'row', alignItems: 'center' },
+  backButton: { width: 24, height: 40, justifyContent: 'center' },
+  backIcon: { width: 10, height: 10, borderLeftWidth: 2, borderBottomWidth: 2, borderColor: colors.text, transform: [{ rotate: '45deg' }] },
+  title: { marginLeft: 8, color: '#383838', fontSize: 24, fontWeight: '700', lineHeight: 30 },
+  form: { marginTop: 43 },
+  fieldGroup: { marginBottom: 17 },
+  label: { marginLeft: 3, marginBottom: 9, color: colors.text, fontSize: 15, fontWeight: '500' },
+  input: { minHeight: 45, borderRadius: 12, borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 14, paddingHorizontal: 29, backgroundColor: 'transparent' },
+  inputError: { borderColor: colors.error },
+  errorText: { marginTop: 5, marginLeft: 3, color: colors.error, fontSize: 12 },
+  stepper: { height: 45, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  stepperButton: { width: 56, height: 45, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.control },
+  guestCount: { flex: 1, color: colors.text, fontSize: 30, fontWeight: '600', textAlign: 'center' },
+  minusIcon: { width: 22, height: 3, borderRadius: 2, backgroundColor: colors.secondary },
+  plusHorizontal: { position: 'absolute', width: 22, height: 3, borderRadius: 2, backgroundColor: colors.secondary },
+  plusVertical: { position: 'absolute', width: 3, height: 22, borderRadius: 2, backgroundColor: colors.secondary },
+  select: { height: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 12, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 29 },
+  selectText: { color: colors.text, fontSize: 14 },
+  chevronDown: { width: 11, height: 11, marginRight: 1, marginBottom: 5, borderRightWidth: 1.3, borderBottomWidth: 1.3, borderColor: colors.secondary, transform: [{ rotate: '45deg' }] },
+  requestInput: { minHeight: 165, paddingTop: 12, paddingHorizontal: 14 },
+  submitButton: { minHeight: 43, alignItems: 'center', justifyContent: 'center', marginHorizontal: 11, marginTop: 6, borderRadius: 11, backgroundColor: colors.active },
+  submitText: { color: colors.text, fontSize: 15, fontWeight: '500' },
+  modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.overlay, padding: 24 },
+  modalCard: { width: '100%', maxWidth: 380, borderRadius: 18, backgroundColor: colors.surface, padding: 20 },
+  modalTitle: { marginBottom: 12, color: colors.text, fontSize: 21, fontWeight: '700' },
+  waitOption: { minHeight: 47, justifyContent: 'center', borderRadius: 9, paddingHorizontal: 14 },
+  waitOptionSelected: { backgroundColor: colors.active },
+  waitOptionText: { color: colors.text, fontSize: 15 },
+  waitOptionTextSelected: { fontWeight: '700' },
+  disabled: { opacity: 0.35 },
+  pressed: { opacity: 0.65 },
+});

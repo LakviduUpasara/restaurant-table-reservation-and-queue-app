@@ -4,8 +4,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --port 8082",
-    "android": "expo start --android --port 8082",
+    "start": "node scripts/start-mobile.mjs",
+    "start:expo": "expo start --port 8082",
+    "android": "node scripts/start-mobile.mjs --android",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
