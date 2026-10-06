@@ -42,6 +42,13 @@ const colors = {
   accent: '#EDB813',
 };
 
+const textSizes = {
+  caption: 12,
+  body: 14,
+  control: 16,
+  title: 20,
+} as const;
+
 function MenuPhoto({ product, style }: { product: Product; style: StyleProp<ViewStyle> }) {
   const localImage = getMenuItemImage(product.name);
   const source = localImage ?? (product.image_url ? { uri: product.image_url } : null);
@@ -112,6 +119,37 @@ function HeaderIconButton({ icon, onPress, accessibilityLabel }: { icon: 'option
     <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={styles.addButton}>
       <Ionicons name={icon} size={icon === 'add' ? 18 : 19} color={colors.paper} />
     </Pressable>
+  );
+}
+
+function CartBottomNav({ router }: { router: ReturnType<typeof useRouter> }) {
+  const items = [
+    { label: 'Home', icon: 'home-outline' as const, route: '/home' },
+    { label: 'Menu', icon: 'search-outline' as const, route: '/menu', active: true },
+    { label: 'Queue', icon: 'chatbubble-ellipses-outline' as const, route: '/queue' },
+    { label: 'Account', icon: 'person-outline' as const, route: '/profile' },
+  ];
+
+  return (
+    <View style={styles.cartBottomNav}>
+      {items.map(item => (
+        <Pressable
+          key={item.label}
+          accessibilityRole="tab"
+          accessibilityLabel={item.label}
+          onPress={() => router.replace(item.route as '/home' | '/menu' | '/queue' | '/profile')}
+          style={styles.cartNavItem}
+        >
+          {item.active ? (
+            <View style={styles.cartActiveNavBubble}>
+              <Ionicons name={item.icon} size={28} color={colors.ink} />
+            </View>
+          ) : (
+            <Ionicons name={item.icon} size={28} color={colors.paper} />
+          )}
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -449,6 +487,7 @@ export function Cart() {
           </View>
         )}
       </ScrollView>
+      <CartBottomNav router={router} />
     </SafeAreaView>
   );
 }
@@ -513,7 +552,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F4F4F6',
   },
   headerIcon: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' },
-  brand: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', fontStyle: 'italic' },
+  brand: { color: '#FFFFFF', fontSize: textSizes.title, fontWeight: '800', fontStyle: 'italic' },
   brandDark: { color: colors.ink },
   brandAccent: { color: colors.accent },
   cartBadge: {
@@ -527,7 +566,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cartBadgeText: { color: colors.ink, fontSize: 11, fontWeight: '800' },
+  cartBadgeText: { color: colors.ink, fontSize: textSizes.caption, fontWeight: '800' },
   menuScroll: { paddingBottom: 14 },
   banner: {
     height: 132,
@@ -536,7 +575,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#56514B' },
-  bannerHint: { color: '#FFFFFFB0', fontSize: 12 },
+  bannerHint: { color: '#FFFFFFB0', fontSize: textSizes.caption, lineHeight: 17 },
   photoPlaceholder: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   photo: { width: '100%', height: '100%' },
   searchBar: {
@@ -557,7 +596,7 @@ const styles = StyleSheet.create({
     shadowRadius: 9,
     shadowOffset: { width: 0, height: 3 },
   },
-  searchInput: { flex: 1, height: '100%', color: colors.ink, fontSize: 14 },
+  searchInput: { flex: 1, height: '100%', color: colors.ink, fontSize: textSizes.control },
   filterButton: {
     width: 44,
     height: 44,
@@ -568,34 +607,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   menuContent: { paddingHorizontal: 20, paddingTop: 18 },
-  sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '700', marginBottom: 15 },
+  sectionTitle: { color: colors.ink, fontSize: textSizes.title, lineHeight: 28, fontWeight: '700', marginBottom: 15 },
   productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 20 },
   productCard: { width: '47%', minWidth: 0 },
   productPhotoWrap: { height: 142, position: 'relative' },
   productPhoto: { width: '100%', height: '100%', borderRadius: 12 },
-  productName: { color: '#373737', fontSize: 15, fontWeight: '700', marginTop: 9 },
-  productSubtitle: { color: colors.muted, fontSize: 14, lineHeight: 19, marginTop: 3 },
+  productName: { color: '#373737', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginTop: 9 },
+  productSubtitle: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, marginTop: 3 },
   productBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  productPrice: { color: '#31525A', fontSize: 16, fontWeight: '700' },
+  productPrice: { color: '#31525A', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700' },
   addButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   listState: { minHeight: 115, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  listStateText: { color: colors.muted, fontSize: 14, textAlign: 'center' },
+  listStateText: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, textAlign: 'center' },
   retryButton: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  retryText: { color: colors.ink, fontWeight: '700', fontSize: 14 },
+  retryText: { color: colors.ink, fontWeight: '700', fontSize: textSizes.control },
   menuFooter: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8, gap: 9, backgroundColor: colors.paper },
   footerButton: { height: 46, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   cartFooterButton: { backgroundColor: colors.ink },
-  cartFooterText: { color: colors.paper, fontWeight: '700', fontSize: 14 },
+  cartFooterText: { color: colors.paper, fontWeight: '700', fontSize: textSizes.control },
   skipFooterButton: { backgroundColor: '#F5F5F8', borderWidth: 1, borderColor: colors.ink },
-  skipFooterText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  skipFooterText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
   footerDisabled: { opacity: 0.45 },
   detailScroll: { paddingHorizontal: 18, paddingTop: 2, paddingBottom: 25 },
   detailPhoto: { width: '100%', height: 210, borderRadius: 8 },
-  detailTitle: { color: '#111111', fontSize: 20, fontWeight: '700', marginTop: 20 },
-  detailSubtitle: { color: '#414141', fontSize: 14, lineHeight: 20, marginTop: 5 },
+  detailTitle: { color: '#111111', fontSize: textSizes.title, lineHeight: 28, fontWeight: '700', marginTop: 20 },
+  detailSubtitle: { color: '#414141', fontSize: textSizes.body, lineHeight: 20, marginTop: 5 },
   descriptionSection: { marginTop: 40 },
-  descriptionTitle: { color: '#111111', fontSize: 17, fontWeight: '700', marginBottom: 16 },
-  detailDescription: { color: '#363636', fontSize: 14, lineHeight: 23 },
+  descriptionTitle: { color: '#111111', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginBottom: 16 },
+  detailDescription: { color: '#363636', fontSize: textSizes.body, lineHeight: 21 },
   detailFooter: {
     paddingHorizontal: 24,
     paddingTop: 12,
@@ -606,8 +645,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#F1F1F1',
   },
-  priceLabel: { color: colors.muted, fontSize: 14, lineHeight: 19, marginBottom: 4 },
-  detailPrice: { color: colors.ink, fontSize: 17, fontWeight: '700' },
+  priceLabel: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, marginBottom: 4 },
+  detailPrice: { color: colors.ink, fontSize: textSizes.control, lineHeight: 22, fontWeight: '700' },
   addToCartButton: {
     minWidth: 160,
     height: 48,
@@ -617,8 +656,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addToCartText: { color: colors.paper, fontSize: 14, fontWeight: '700' },
-  cartTitle: { color: colors.ink, fontSize: 18, fontWeight: '700' },
+  addToCartText: { color: colors.paper, fontSize: textSizes.control, fontWeight: '700' },
+  cartTitle: { color: colors.ink, fontSize: textSizes.title, lineHeight: 28, fontWeight: '700' },
   cartContent: { padding: 20, gap: 14 },
   cartItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.line },
   cartPhoto: { width: 64, height: 64, borderRadius: 10 },
@@ -636,24 +675,49 @@ const styles = StyleSheet.create({
   },
   cartLinePhoto: { width: '34%', height: 112, borderRadius: 24 },
   cartLineInfo: { flex: 1, minWidth: 0, paddingLeft: 13, paddingVertical: 7 },
-  cartLineName: { color: colors.paper, fontSize: 17, fontWeight: '700', marginBottom: 2 },
-  cartLinePrice: { color: colors.paper, fontSize: 14, fontWeight: '600', lineHeight: 20 },
-  cartLineQty: { color: colors.paper, fontSize: 14, fontWeight: '600' },
+  cartLineName: { color: colors.paper, fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginBottom: 2 },
+  cartLinePrice: { color: colors.paper, fontSize: textSizes.body, fontWeight: '600', lineHeight: 20 },
+  cartLineQty: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20, fontWeight: '600' },
   cartQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
   quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   quantityButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
   summaryCard: { padding: 15, borderRadius: 22, backgroundColor: colors.ink, gap: 12 },
   promoRow: { minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: '#484848', borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 1 },
-  promoInput: { flex: 1, minWidth: 35, color: colors.paper, fontSize: 14, paddingVertical: 5 },
-  promoStatus: { color: colors.accent, fontSize: 13, fontWeight: '600' },
+  promoInput: { flex: 1, minWidth: 35, color: colors.paper, fontSize: textSizes.control, paddingVertical: 5 },
+  promoStatus: { color: colors.accent, fontSize: textSizes.body, lineHeight: 20, fontWeight: '600' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryLabel: { color: colors.paper, fontSize: 14 },
-  summaryValue: { color: colors.paper, fontSize: 14 },
+  summaryLabel: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
+  summaryValue: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
   returnButton: { height: 46, borderRadius: 24, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F8' },
-  returnButtonText: { color: colors.ink, fontSize: 14, fontWeight: '600' },
+  returnButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
   emptyCart: { paddingTop: 60, gap: 25 },
+  cartBottomNav: {
+    height: 61,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 18,
+    backgroundColor: colors.ink,
+  },
+  cartNavItem: {
+    width: 64,
+    height: 61,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartActiveNavBubble: {
+    width: 48,
+    height: 48,
+    marginTop: -22,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 4,
+    borderColor: colors.paper,
+  },
   cartFooter: { padding: 20, gap: 14, borderTopWidth: 1, borderColor: colors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { color: colors.ink, fontSize: 15 },
+  totalLabel: { color: colors.ink, fontSize: textSizes.body, lineHeight: 20 },
   checkoutContent: { padding: 24, gap: 10 },
 });
