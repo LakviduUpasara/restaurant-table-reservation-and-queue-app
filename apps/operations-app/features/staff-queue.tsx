@@ -18,6 +18,7 @@ import type { QueueEntry, Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
+import { StaffIcon } from './staff-icons';
 
 type QueueTab = 'waiting' | 'seated';
 
@@ -37,63 +38,27 @@ const colors = {
 } as const;
 
 function MenuIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}>
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="menu-outline" size={25} />;
 }
 
 function PlusIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.plusIcon}>
-      <View style={styles.plusHorizontal} />
-      <View style={styles.plusVertical} />
-    </View>
-  );
+  return <StaffIcon color={colors.surface} name="add" size={21} />;
 }
 
 function PersonIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.personIcon}>
-      <View style={styles.personHead} />
-      <View style={styles.personBody} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="person-outline" size={22} />;
 }
 
 function ClockIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.clockIcon}>
-      <View style={styles.clockHandVertical} />
-      <View style={styles.clockHandHorizontal} />
-      <View style={styles.clockTopLeft} />
-      <View style={styles.clockTopRight} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="time-outline" size={22} />;
 }
 
 function BellIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.bellIcon}>
-      <View style={styles.bellBody} />
-      <View style={styles.bellLip} />
-      <View style={styles.bellClapper} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="notifications-outline" size={22} />;
 }
 
 function ChairIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.chairIcon}>
-      <View style={styles.chairBack} />
-      <View style={styles.chairSeat} />
-      <View style={styles.chairLegLeft} />
-      <View style={styles.chairLegRight} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="restaurant-outline" size={22} />;
 }
 
 function waitingMinutes(entry: QueueEntry) {

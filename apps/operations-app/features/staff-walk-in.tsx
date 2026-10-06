@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../lib/api';
 import { useRestaurant } from './common';
+import { StaffIcon } from './staff-icons';
 
 const colors = {
   background: '#F5F3EE',
@@ -42,11 +43,11 @@ function waitLabel(minutes: number) {
 }
 
 function BackIcon() {
-  return <View accessibilityElementsHidden style={styles.backIcon} />;
+  return <StaffIcon color={colors.text} name="chevron-back" size={24} />;
 }
 
 function ChevronDown() {
-  return <View accessibilityElementsHidden style={styles.chevronDown} />;
+  return <StaffIcon color={colors.secondary} name="chevron-down" size={20} />;
 }
 
 export function StaffWalkIn() {
@@ -160,7 +161,7 @@ export function StaffWalkIn() {
                     onPress={() => setGuests((current) => Math.max(1, current - 1))}
                     style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed, guests <= 1 && styles.disabled]}
                   >
-                    <View style={styles.minusIcon} />
+                    <StaffIcon color={colors.secondary} name="remove" size={25} />
                   </Pressable>
                   <Text accessibilityLabel={`${guests} guests`} style={styles.guestCount}>{guests}</Text>
                   <Pressable
@@ -170,8 +171,7 @@ export function StaffWalkIn() {
                     onPress={() => setGuests((current) => Math.min(20, current + 1))}
                     style={({ pressed }) => [styles.stepperButton, pressed && styles.pressed, guests >= 20 && styles.disabled]}
                   >
-                    <View style={styles.plusHorizontal} />
-                    <View style={styles.plusVertical} />
+                    <StaffIcon color={colors.secondary} name="add" size={27} />
                   </Pressable>
                 </View>
               </View>

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { QueueEntry, Reservation, Table, TableStatus } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
+import { StaffIcon } from './staff-icons';
 
 type ReservationWithCustomer = Reservation & {
   profiles?: { full_name: string; phone: string | null };
@@ -16,6 +17,7 @@ type Guest = {
   name: string;
   phone: string | null;
   partySize: number;
+  eventAt: string;
   source: 'reservation' | 'queue';
   reservation?: ReservationWithCustomer;
 };
@@ -61,42 +63,31 @@ const formatStatus = (status: string) => status.replaceAll('_', ' ').toLowerCase
 const formatTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
 function BackIcon() {
-  return <View accessibilityElementsHidden style={styles.backIcon} />;
+  return <StaffIcon color={colors.secondaryText} name="chevron-back" size={24} />;
 }
 
 function ChevronDown() {
-  return <View accessibilityElementsHidden style={styles.chevronDown} />;
+  return <StaffIcon color={colors.secondaryText} name="chevron-down" size={20} />;
 }
 
 function PersonIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.personIcon}>
-      <View style={styles.personHead} />
-      <View style={styles.personBody} />
-    </View>
-  );
+  return <StaffIcon color={colors.secondaryText} name="person-circle-outline" size={56} />;
 }
 
 function GuestsIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.guestsIcon}>
-      <View style={[styles.guestHead, { left: 1 }]} />
-      <View style={[styles.guestHead, { left: 9 }]} />
-      <View style={[styles.guestHead, { right: 1 }]} />
-      <View style={styles.guestsBody} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="people-outline" size={18} />;
 }
 
 function PhoneIcon() {
-  return <Text accessibilityElementsHidden style={styles.detailGlyph}>●</Text>;
+  return <StaffIcon color={colors.text} name="call-outline" size={17} />;
 }
 
-function CalendarIcon() {
+function CalendarIcon({ value }: { value: string }) {
+  const day = new Intl.DateTimeFormat('en-US', { day: 'numeric', timeZone: 'Asia/Colombo' }).format(new Date(value));
   return (
     <View accessibilityElementsHidden style={styles.detailCalendar}>
       <View style={styles.detailCalendarTop} />
-      <Text style={styles.detailCalendarNumber}>18</Text>
+      <Text style={styles.detailCalendarNumber}>{day}</Text>
     </View>
   );
 }
@@ -104,7 +95,7 @@ function CalendarIcon() {
 function ProgressIcon({ state }: { state: 'complete' | 'current' | 'pending' }) {
   return (
     <View style={[styles.progressIcon, state === 'complete' ? styles.progressComplete : styles.progressPending]}>
-      <Text style={styles.progressMark}>{state === 'complete' ? '✓' : '−'}</Text>
+      <StaffIcon color={colors.surface} name={state === 'complete' ? 'checkmark' : 'remove'} size={17} />
     </View>
   );
 }
@@ -183,6 +174,7 @@ export function StaffTableProfile() {
         name: activeReservation.profiles?.full_name || 'Guest',
         phone: activeReservation.profiles?.phone ?? null,
         partySize: activeReservation.party_size,
+        eventAt: activeReservation.starts_at,
         source: 'reservation',
         reservation: activeReservation,
       }
@@ -191,6 +183,7 @@ export function StaffTableProfile() {
           name: seatedQueueEntry.customer_name,
           phone: seatedQueueEntry.phone,
           partySize: seatedQueueEntry.party_size,
+          eventAt: seatedQueueEntry.created_at,
           source: 'queue',
         }
       : null;
@@ -198,16 +191,25 @@ export function StaffTableProfile() {
   const nextStatuses = table ? validTransitions[table.status] : [];
   const effectiveSelectedStatus = selectedStatus && nextStatuses.includes(selectedStatus)
     ? selectedStatus
-    : nextStatuses[0] ?? null;
+    : null;
 
   async function updateStatus() {
     if (!table || !effectiveSelectedStatus) return;
     setSaving(true);
     try {
-      await api(`/tables/${table.id}`, { method: 'PATCH', body: { status: effectiveSelectedStatus } });
+      const updatedTable = await api<Table>(`/tables/${table.id}`, {
+        method: 'PATCH',
+        body: { status: effectiveSelectedStatus },
+      });
+      queryClient.setQueryData(['table', table.id], updatedTable);
+      queryClient.setQueriesData<Table[]>({ queryKey: ['tables', restaurantId] }, (current) =>
+        current?.map((item) => item.id === updatedTable.id ? updatedTable : item),
+      );
       setSelectedStatus(null);
-      await queryClient.invalidateQueries({ queryKey: ['table', table.id] });
-      await queryClient.invalidateQueries({ queryKey: ['tables', restaurantId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['table', table.id] }),
+        queryClient.invalidateQueries({ queryKey: ['tables', restaurantId] }),
+      ]);
     } catch (error) {
       Alert.alert('Could not update table', String((error as Error).message));
     } finally {
@@ -215,8 +217,10 @@ export function StaffTableProfile() {
     }
   }
 
-  const isLoading = tableQuery.isLoading || reservations.isLoading || queue.isLoading;
-  const hasError = tableQuery.error || reservations.error || queue.error;
+  const isLoading = tableQuery.isLoading;
+  const hasError = tableQuery.error;
+  const customerDataLoading = reservations.isLoading || queue.isLoading;
+  const customerDataError = reservations.error || queue.error;
 
   return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
@@ -255,7 +259,19 @@ export function StaffTableProfile() {
             <>
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Current Customer</Text>
-                {guest ? (
+                {customerDataLoading ? (
+                  <ActivityIndicator color={colors.primary} style={styles.relatedLoader} />
+                ) : customerDataError ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      void reservations.refetch();
+                      void queue.refetch();
+                    }}
+                  >
+                    <Text style={styles.emptyText}>Customer details are unavailable. Tap to retry.</Text>
+                  </Pressable>
+                ) : guest ? (
                   <View style={styles.customerRow}>
                     <PersonIcon />
                     <View style={styles.customerDetails}>
@@ -263,7 +279,7 @@ export function StaffTableProfile() {
                       <View style={styles.detailRow}><GuestsIcon /><Text style={styles.detailText}>{guest.partySize} Guests</Text></View>
                       <View style={styles.detailRow}><PhoneIcon /><Text style={styles.detailText}>{guest.phone || 'No phone number'}</Text></View>
                       <View style={styles.detailRow}>
-                        <CalendarIcon />
+                        <CalendarIcon value={guest.eventAt} />
                         <Text style={styles.detailText}>
                           {guest.source === 'reservation' && guest.reservation
                             ? `Reservation · ${formatTime(guest.reservation.starts_at)}`
@@ -279,7 +295,13 @@ export function StaffTableProfile() {
 
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>Booking Status</Text>
-                {activeReservation ? <BookingProgress reservation={activeReservation} /> : <EmptyBookingProgress />}
+                {reservations.isLoading ? (
+                  <ActivityIndicator color={colors.primary} style={styles.relatedLoader} />
+                ) : reservations.error ? (
+                  <Pressable accessibilityRole="button" onPress={() => void reservations.refetch()}>
+                    <Text style={styles.emptyText}>Booking status is unavailable. Tap to retry.</Text>
+                  </Pressable>
+                ) : activeReservation ? <BookingProgress reservation={activeReservation} /> : <EmptyBookingProgress />}
               </View>
 
               <View style={styles.card}>
@@ -291,8 +313,11 @@ export function StaffTableProfile() {
                   onPress={() => setPickerOpen(true)}
                   style={({ pressed }) => [styles.statusSelector, pressed && styles.pressed]}
                 >
-                  <View style={[styles.selectorDot, { backgroundColor: effectiveSelectedStatus ? tableStatusColor[effectiveSelectedStatus] : tableStatusColor[table.status] }]} />
-                  <Text style={styles.selectorText}>{formatStatus(effectiveSelectedStatus ?? table.status)}</Text>
+                  <View style={[styles.selectorDot, { backgroundColor: tableStatusColor[effectiveSelectedStatus ?? table.status] }]} />
+                  <View style={styles.selectorCopy}>
+                    <Text style={styles.selectorCaption}>{effectiveSelectedStatus ? 'New status' : 'Current status'}</Text>
+                    <Text style={styles.selectorText}>{formatStatus(effectiveSelectedStatus ?? table.status)}</Text>
+                  </View>
                   <ChevronDown />
                 </Pressable>
               </View>
@@ -351,6 +376,7 @@ const styles = StyleSheet.create({
   statusPillPlaceholder: { width: 116 },
   statusPillText: { fontSize: 13, fontWeight: '800' },
   loader: { marginTop: 100 },
+  relatedLoader: { marginTop: 18, alignSelf: 'flex-start' },
   card: { marginTop: 14, paddingHorizontal: 20, paddingTop: 19, paddingBottom: 20, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.05, shadowRadius: 13, elevation: 2 },
   cardTitle: { color: colors.text, fontSize: 17, fontWeight: '800', letterSpacing: -0.2 },
   customerRow: { flexDirection: 'row', alignItems: 'center', marginTop: 16 },
@@ -380,7 +406,9 @@ const styles = StyleSheet.create({
   emptyText: { marginTop: 14, color: colors.muted, fontSize: 14, lineHeight: 21 },
   statusSelector: { minHeight: 52, flexDirection: 'row', alignItems: 'center', marginTop: 14, paddingHorizontal: 15, borderRadius: 15, borderColor: colors.border, borderWidth: 1.5, backgroundColor: '#FCFCFA' },
   selectorDot: { width: 13, height: 13, borderRadius: 7 },
-  selectorText: { flex: 1, marginLeft: 12, color: colors.secondaryText, fontSize: 15, fontWeight: '700' },
+  selectorCopy: { flex: 1, marginLeft: 12 },
+  selectorCaption: { color: colors.muted, fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  selectorText: { marginTop: 2, color: colors.secondaryText, fontSize: 15, fontWeight: '700' },
   chevronDown: { width: 10, height: 10, marginRight: 5, borderRightWidth: 1, borderBottomWidth: 1, borderColor: colors.secondaryText, transform: [{ rotate: '45deg' }] },
   primaryButton: { minHeight: 54, alignItems: 'center', justifyContent: 'center', marginTop: 30, borderRadius: 17, backgroundColor: colors.primary, shadowColor: colors.primary, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.22, shadowRadius: 12, elevation: 4 },
   primaryButtonPressed: { backgroundColor: colors.primaryPressed },

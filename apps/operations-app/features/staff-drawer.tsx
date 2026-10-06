@@ -11,6 +11,7 @@ import {
 import { useRouter, useSegments } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../stores/auth.store';
+import { StaffIcon, type StaffIconName } from './staff-icons';
 
 type DrawerRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservations' | '/(staff)/queue' | '/(staff)/profile';
 type DrawerIcon = 'dashboard' | 'tables' | 'reservations' | 'queue' | 'profile' | 'settings' | 'logout';
@@ -38,64 +39,24 @@ export function useStaffDrawer() {
 
 function initials(name?: string) {
   const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'DF';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '—';
 }
 
 function CloseIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.closeIcon}>
-      <View style={[styles.closeLine, styles.closeLineOne]} />
-      <View style={[styles.closeLine, styles.closeLineTwo]} />
-    </View>
-  );
+  return <StaffIcon color={drawerColors.muted} name="close" size={22} />;
 }
 
 function DrawerIconView({ kind, color }: { kind: DrawerIcon; color: string }) {
-  if (kind === 'dashboard') {
-    return <View style={styles.gridIcon}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.gridSquare, { borderColor: color }]} />)}</View>;
-  }
-  if (kind === 'tables') {
-    return (
-      <View style={[styles.tableIcon, { borderColor: color }]}>
-        <View style={[styles.iconLine, styles.tableVertical, { backgroundColor: color }]} />
-        <View style={[styles.iconLine, styles.tableHorizontalOne, { backgroundColor: color }]} />
-        <View style={[styles.iconLine, styles.tableHorizontalTwo, { backgroundColor: color }]} />
-      </View>
-    );
-  }
-  if (kind === 'reservations') {
-    return (
-      <View style={[styles.calendarIcon, { borderColor: color }]}>
-        <View style={[styles.calendarTop, { backgroundColor: color }]} />
-        <View style={styles.calendarRings}><View style={[styles.ring, { backgroundColor: color }]} /><View style={[styles.ring, { backgroundColor: color }]} /></View>
-      </View>
-    );
-  }
-  if (kind === 'queue') {
-    return <View style={styles.queueIcon}><View style={[styles.queueLine, { width: 20, backgroundColor: color }]} /><View style={[styles.queueLine, { width: 13, backgroundColor: color }]} /><View style={[styles.queueLine, { width: 6, backgroundColor: color }]} /></View>;
-  }
-  if (kind === 'profile') {
-    return (
-      <View style={styles.profileIcon}>
-        <View style={[styles.profileHead, { borderColor: color }]} />
-        <View style={[styles.profileBody, { borderColor: color }]} />
-      </View>
-    );
-  }
-  if (kind === 'settings') {
-    return (
-      <View style={[styles.settingsIcon, { borderColor: color }]}>
-        <View style={[styles.settingsCenter, { borderColor: color }]} />
-      </View>
-    );
-  }
-  return (
-    <View style={styles.logoutIcon}>
-      <View style={[styles.logoutDoor, { borderColor: color }]} />
-      <View style={[styles.logoutArrow, { borderColor: color }]} />
-      <View style={[styles.logoutShaft, { backgroundColor: color }]} />
-    </View>
-  );
+  const names: Record<DrawerIcon, StaffIconName> = {
+    dashboard: 'grid-outline',
+    tables: 'restaurant-outline',
+    reservations: 'calendar-outline',
+    queue: 'filter-outline',
+    profile: 'person-outline',
+    settings: 'settings-outline',
+    logout: 'log-out-outline',
+  };
+  return <StaffIcon color={color} name={names[kind]} size={22} />;
 }
 
 function DrawerItem({
@@ -130,7 +91,8 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
   const signOut = useAuth((state) => state.signOut);
   const translateX = useRef(new Animated.Value(-350)).current;
   const route = segments[1] ?? 'dashboard';
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Team member';
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Profile name unavailable';
+  const roleLabel = profile?.role === 'OWNER' ? 'Owner' : profile?.role === 'STAFF' ? 'Staff' : 'Role unavailable';
 
   useEffect(() => {
     Animated.timing(translateX, {
@@ -180,7 +142,7 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
               <View style={styles.avatar}><Text style={styles.avatarText}>{initials(profile?.full_name)}</Text></View>
               <View style={styles.profileCopy}>
                 <Text numberOfLines={1} style={styles.profileName}>{firstName}</Text>
-                <Text style={styles.profileRole}>Staff · Waiter</Text>
+                <Text style={styles.profileRole}>{roleLabel}</Text>
               </View>
             </View>
 

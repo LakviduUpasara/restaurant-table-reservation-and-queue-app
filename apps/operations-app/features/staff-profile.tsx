@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
 import { useStaffDrawer } from './staff-drawer';
+import { StaffIcon } from './staff-icons';
 
 const colors = {
   background: '#F5F3EE',
@@ -23,17 +24,11 @@ const colors = {
 
 function initials(name?: string) {
   const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'DF';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '—';
 }
 
 function MenuIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}>
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="menu-outline" size={25} />;
 }
 
 function AccountField({ label }: { label: string }) {
@@ -45,7 +40,7 @@ function AccountField({ label }: { label: string }) {
 }
 
 function ChevronIcon() {
-  return <View accessibilityElementsHidden style={styles.chevronIcon} />;
+  return <StaffIcon color={colors.active} name="chevron-forward" size={18} />;
 }
 
 function SettingsRow({ title, description, onPress }: { title: string; description: string; onPress: () => void }) {
@@ -79,7 +74,7 @@ export function StaffProfile() {
     return () => { active = false; };
   }, []);
 
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Staff member';
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Profile name unavailable';
   const phone = profile?.phone?.trim() || 'Phone number not added';
 
   return (

@@ -18,6 +18,7 @@ import type { Reservation, ReservationStatus } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
+import { StaffIcon } from './staff-icons';
 
 type ReservationWithDetails = Reservation & {
   profiles?: { full_name: string; phone: string | null } | null;
@@ -106,26 +107,15 @@ function transitionLabel(status: ReservationStatus) {
 }
 
 function MenuIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}>
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="menu-outline" size={25} />;
 }
 
 function SearchIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.searchIcon}>
-      <View style={styles.searchCircle} />
-      <View style={styles.searchHandle} />
-    </View>
-  );
+  return <StaffIcon color={colors.muted} name="search-outline" size={21} />;
 }
 
 function Chevron() {
-  return <View accessibilityElementsHidden style={styles.chevron} />;
+  return <StaffIcon color={colors.muted} name="chevron-forward" size={20} />;
 }
 
 function ReservationCard({

@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Screen } from '@dineflow/shared';
 import { useAuth } from '../stores/auth.store';
 import { supabase } from '../lib/supabase';
+import { StaffIcon } from './staff-icons';
 
 const loginColors = {
   background: '#F4F4F4',
@@ -32,23 +33,11 @@ const loginColors = {
 } as const;
 
 function UserIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={loginStyles.userIcon}>
-      <View style={loginStyles.userIconHead} />
-      <View style={loginStyles.userIconBody} />
-    </View>
-  );
+  return <StaffIcon color={loginColors.icon} name="person-outline" size={22} />;
 }
 
 function LockIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={loginStyles.lockIcon}>
-      <View style={loginStyles.lockShackle} />
-      <View style={loginStyles.lockBody}>
-        <View style={loginStyles.lockKeyhole} />
-      </View>
-    </View>
-  );
+  return <StaffIcon color={loginColors.icon} name="lock-closed-outline" size={22} />;
 }
 
 export function Login() {

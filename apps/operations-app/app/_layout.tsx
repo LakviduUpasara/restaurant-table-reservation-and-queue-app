@@ -8,7 +8,16 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5_000,
+      refetchInterval: 15_000,
+      refetchIntervalInBackground: false,
+      refetchOnMount: 'always',
+      refetchOnReconnect: true,
+    },
+  },
 });
 
 export default function RootLayout() {
@@ -26,8 +35,10 @@ export default function RootLayout() {
     const appStateSubscription = Platform.OS === 'web'
       ? null
       : AppState.addEventListener('change', (state) => {
-          if (state === 'active') supabase.auth.startAutoRefresh();
-          else supabase.auth.stopAutoRefresh();
+          if (state === 'active') {
+            supabase.auth.startAutoRefresh();
+            void queryClient.invalidateQueries({ refetchType: 'active' });
+          } else supabase.auth.stopAutoRefresh();
         });
 
     if (Platform.OS !== 'web' && AppState.currentState === 'active') {

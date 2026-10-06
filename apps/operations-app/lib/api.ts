@@ -35,40 +35,68 @@ function resolveApiRoot() {
 
 const root = resolveApiRoot();
 
-export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
-  if (!root) throw new Error('Set EXPO_PUBLIC_API_URL in apps/operations-app/.env');
+async function accessToken(forceRefresh = false) {
+  const result = forceRefresh
+    ? await withTimeout(
+        supabase.auth.refreshSession(),
+        API_TIMEOUT_MS,
+        'Session refresh timed out. Check your internet connection and try again.',
+      )
+    : await withTimeout(
+        supabase.auth.getSession(),
+        API_TIMEOUT_MS,
+        'Session lookup timed out. Check your internet connection and try again.',
+      );
 
-  const { data, error: sessionError } = await withTimeout(
-    supabase.auth.getSession(),
-    API_TIMEOUT_MS,
-    'Session lookup timed out. Check your internet connection and try again.',
-  );
-  if (sessionError) throw sessionError;
+  if (result.error) throw result.error;
+  const session = result.data.session;
+  if (!session) throw new Error('Your session has expired. Sign in again to continue.');
 
+  const expiresSoon = (session.expires_at ?? 0) * 1000 <= Date.now() + 60_000;
+  if (!forceRefresh && expiresSoon) return accessToken(true);
+  return session.access_token;
+}
+
+async function request(path: string, method: string, body: string | undefined, token: string) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  let response: Response;
 
   try {
-    response = await fetch(`${root}${path}`, {
-      method: options.method ?? 'GET',
+    return await fetch(`${root}${path}`, {
+      method,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${data.session?.access_token ?? ''}`,
+        Authorization: `Bearer ${token}`,
       },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      body,
       signal: controller.signal,
     });
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error('Cannot reach the DineFlow API. Start it with "npm run api" and keep this device on the same network.');
+      throw new Error('Cannot reach the DineFlow API. Run "npm run operations" and keep this device on the same network.');
     }
-    throw error;
+    throw new Error(`Cannot reach the DineFlow API: ${String((error as Error).message)}`);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  if (!root) throw new Error('Set EXPO_PUBLIC_API_URL in apps/operations-app/.env');
+
+  const method = options.method ?? 'GET';
+  const body = options.body === undefined ? undefined : JSON.stringify(options.body);
+  let response = await request(path, method, body, await accessToken());
+
+  // A token can expire between lookup and the API authorization check. Refresh once
+  // and replay the same idempotent request body instead of making the user retry.
+  if (response.status === 401) {
+    response = await request(path, method, body, await accessToken(true));
+  }
 
   const json = await response.json().catch(() => null);
-  if (!response.ok || !json.success) throw new Error(json.error?.message??'Request failed');
+  if (!response.ok || !json?.success) {
+    throw new Error(json?.error?.message ?? `Request failed with HTTP ${response.status}`);
+  }
   return json.data as T;
 }

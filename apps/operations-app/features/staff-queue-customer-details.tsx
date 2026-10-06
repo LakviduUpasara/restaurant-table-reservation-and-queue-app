@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { QueueEntry, QueueStatus, Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
+import { StaffIcon, type StaffIconName } from './staff-icons';
 
 const activeStatuses: QueueStatus[] = ['WAITING', 'NOTIFIED', 'TABLE_READY'];
 const colors = {
@@ -62,59 +63,21 @@ function statusLabel(status: QueueStatus) {
 }
 
 function BackIcon() {
-  return <View accessibilityElementsHidden style={styles.backIcon} />;
-}
-
-function PeopleIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.peopleIcon}>
-      <View style={[styles.personHead, styles.personOne]} />
-      <View style={[styles.personHead, styles.personTwo]} />
-      <View style={[styles.personHead, styles.personThree]} />
-      <View style={[styles.personBody, styles.bodyOne]} />
-      <View style={[styles.personBody, styles.bodyTwo]} />
-      <View style={[styles.personBody, styles.bodyThree]} />
-    </View>
-  );
-}
-
-function PhoneIcon() {
-  return <Text accessibilityElementsHidden style={styles.symbolIcon}>⌕</Text>;
-}
-
-function ClockIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.clockIcon}>
-      <View style={styles.clockHandOne} />
-      <View style={styles.clockHandTwo} />
-    </View>
-  );
-}
-
-function HourglassIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.hourglassIcon}>
-      <View style={styles.hourglassTop} />
-      <View style={styles.hourglassBottom} />
-    </View>
-  );
-}
-
-function TableIcon() {
-  return (
-    <View accessibilityElementsHidden style={styles.tableIcon}>
-      <View style={styles.tableTop} />
-      <View style={styles.tableLegLeft} />
-      <View style={styles.tableLegRight} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="chevron-back" size={24} />;
 }
 
 function DetailRow({ icon, label, value }: { icon: 'people' | 'phone' | 'clock' | 'wait' | 'table'; label?: string; value: string }) {
+  const names: Record<typeof icon, StaffIconName> = {
+    people: 'people-outline',
+    phone: 'call-outline',
+    clock: 'time-outline',
+    wait: 'hourglass-outline',
+    table: 'restaurant-outline',
+  };
   return (
     <View style={styles.detailRow}>
       <View style={styles.detailIcon}>
-        {icon === 'people' ? <PeopleIcon /> : icon === 'phone' ? <PhoneIcon /> : icon === 'clock' ? <ClockIcon /> : icon === 'wait' ? <HourglassIcon /> : <TableIcon />}
+        <StaffIcon color={colors.text} name={names[icon]} size={20} />
       </View>
       {label ? <Text style={styles.detailLabel}>{label}</Text> : null}
       <Text numberOfLines={1} style={[styles.detailValue, !label && styles.detailValueWide]}>{value}</Text>
@@ -125,14 +88,17 @@ function DetailRow({ icon, label, value }: { icon: 'people' | 'phone' | 'clock' 
 function ActionButton({
   backgroundColor,
   disabled,
+  icon,
   label,
   onPress,
 }: {
   backgroundColor: string;
   disabled: boolean;
+  icon: StaffIconName;
   label: string;
   onPress: () => void;
 }) {
+  const foreground = backgroundColor === colors.dark ? colors.surface : colors.text;
   return (
     <Pressable
       accessibilityRole="button"
@@ -141,6 +107,7 @@ function ActionButton({
       onPress={onPress}
       style={({ pressed }) => [styles.actionButton, { backgroundColor }, (disabled || pressed) && styles.disabled]}
     >
+      <StaffIcon color={foreground} name={icon} size={19} />
       <Text style={[styles.actionText, backgroundColor === colors.dark && styles.actionTextLight]}>{label}</Text>
     </Pressable>
   );
@@ -254,12 +221,13 @@ export function StaffQueueCustomerDetails() {
 
               <Text style={styles.actionsHeading}>Update Customer Status</Text>
               <View style={styles.actionsGrid}>
-                <ActionButton backgroundColor={colors.yellow} disabled={!canNotify} label="Notify Table Ready" onPress={() => void updateStatus('TABLE_READY')} />
-                <ActionButton backgroundColor={colors.green} disabled={!canMarkArrived} label="Mark as Arrived" onPress={() => void updateStatus('NOTIFIED')} />
-                <ActionButton backgroundColor={colors.dark} disabled={!canUpdate} label="Mark as Seated" onPress={() => setSeatPickerOpen(true)} />
+                <ActionButton backgroundColor={colors.yellow} disabled={!canNotify} icon="notifications-outline" label="Notify Table Ready" onPress={() => void updateStatus('TABLE_READY')} />
+                <ActionButton backgroundColor={colors.green} disabled={!canMarkArrived} icon="checkmark-circle-outline" label="Mark as Arrived" onPress={() => void updateStatus('NOTIFIED')} />
+                <ActionButton backgroundColor={colors.dark} disabled={!canUpdate} icon="restaurant-outline" label="Mark as Seated" onPress={() => setSeatPickerOpen(true)} />
                 <ActionButton
                   backgroundColor={colors.red}
                   disabled={!canUpdate}
+                  icon="close-circle-outline"
                   label="Mark as No-show"
                   onPress={() => Alert.alert('Mark as no-show?', entry.customer_name, [
                     { text: 'Cancel', style: 'cancel' },
@@ -342,7 +310,7 @@ const styles = StyleSheet.create({
   tableLegRight: { position: 'absolute', top: 5, right: 2, width: 2, height: 10, backgroundColor: colors.text, transform: [{ rotate: '-8deg' }] },
   actionsHeading: { marginTop: 28, color: colors.text, fontSize: 25, fontWeight: '800', letterSpacing: -0.5 },
   actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 16 },
-  actionButton: { width: '48%', minHeight: 54, flexGrow: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 16, paddingHorizontal: 8 },
+  actionButton: { width: '48%', minHeight: 54, flexGrow: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderRadius: 16, paddingHorizontal: 8 },
   actionText: { color: colors.text, fontSize: 14, fontWeight: '800', textAlign: 'center' },
   actionTextLight: { color: colors.surface },
   loader: { marginTop: 90 },

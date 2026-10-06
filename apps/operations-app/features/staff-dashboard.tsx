@@ -8,6 +8,7 @@ import { api } from '../lib/api';
 import { useAuth } from '../stores/auth.store';
 import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
+import { StaffIcon, type StaffIconName } from './staff-icons';
 
 const colors = {
   background: '#F5F3EE', surface: '#FFFFFF', ink: '#17211D', secondary: '#606A65', muted: '#939B97',
@@ -39,33 +40,25 @@ function greetingForCurrentTime() {
 
 function initials(name?: string) {
   const parts = name?.trim().split(/\s+/).filter(Boolean) ?? [];
-  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'DF';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || '—';
 }
 
 function MenuIcon() {
-  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}><View style={styles.menuLineLong} /><View style={styles.menuLineShort} /></View>;
+  return <StaffIcon color={colors.ink} name="menu-outline" size={25} />;
 }
 
 function Chevron({ color = colors.muted }: { color?: string }) {
-  return <View accessibilityElementsHidden style={[styles.chevron, { borderColor: color }]} />;
-}
-
-function CalendarIcon({ color }: { color: string }) {
-  return <View style={[styles.calendarIcon, { borderColor: color }]}><View style={[styles.calendarBar, { backgroundColor: color }]} /><View style={styles.calendarDots}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.calendarDot, { backgroundColor: color }]} />)}</View></View>;
-}
-
-function PeopleIcon({ color }: { color: string }) {
-  return <View style={styles.peopleIcon}><View style={[styles.personHead, styles.personHeadLeft, { backgroundColor: color }]} /><View style={[styles.personHead, styles.personHeadCenter, { backgroundColor: color }]} /><View style={[styles.personHead, styles.personHeadRight, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyLeft, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyCenter, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyRight, { backgroundColor: color }]} /></View>;
-}
-
-function TableIcon({ color }: { color: string }) {
-  return <View style={styles.tableIcon}><View style={[styles.tableTop, { borderColor: color }]} /><View style={[styles.tableLeg, styles.tableLegLeft, { backgroundColor: color }]} /><View style={[styles.tableLeg, styles.tableLegRight, { backgroundColor: color }]} /><View style={[styles.chair, styles.chairLeft, { borderColor: color }]} /><View style={[styles.chair, styles.chairRight, { borderColor: color }]} /></View>;
+  return <StaffIcon color={color} name="chevron-forward" size={18} />;
 }
 
 function MetricGlyph({ kind, color }: { kind: MetricIcon; color: string }) {
-  if (kind === 'calendar') return <CalendarIcon color={color} />;
-  if (kind === 'queue') return <PeopleIcon color={color} />;
-  return <TableIcon color={color} />;
+  const names: Record<MetricIcon, StaffIconName> = {
+    calendar: 'calendar-outline',
+    queue: 'people-outline',
+    occupied: 'restaurant-outline',
+    available: 'checkmark-circle-outline',
+  };
+  return <StaffIcon color={color} name={names[kind]} size={25} />;
 }
 
 function MetricCard({ icon, label, onPress, tint, value, accent }: { icon: MetricIcon; label: string; onPress: () => void; tint: string; value: number; accent: string }) {
@@ -79,9 +72,12 @@ function MetricCard({ icon, label, onPress, tint, value, accent }: { icon: Metri
 }
 
 function TaskGlyph({ kind, color }: { kind: TaskIcon; color: string }) {
-  if (kind === 'queue') return <PeopleIcon color={color} />;
-  if (kind === 'reservation') return <CalendarIcon color={color} />;
-  return <View style={styles.sparkleIcon}><View style={[styles.sparkleVertical, { backgroundColor: color }]} /><View style={[styles.sparkleHorizontal, { backgroundColor: color }]} /><View style={[styles.sparkleSmall, { backgroundColor: color }]} /></View>;
+  const names: Record<TaskIcon, StaffIconName> = {
+    reservation: 'calendar-outline',
+    queue: 'people-outline',
+    cleaning: 'sparkles-outline',
+  };
+  return <StaffIcon color={color} name={names[kind]} size={24} />;
 }
 
 function TaskRow({ accent, detail, icon, onPress, title }: { accent: string; detail: string; icon: TaskIcon; onPress: () => void; title: string }) {
@@ -95,10 +91,13 @@ function TaskRow({ accent, detail, icon, onPress, title }: { accent: string; det
 
 function DashboardNavIcon({ kind, active }: { kind: 'dashboard' | 'tables' | 'reservations' | 'queue'; active: boolean }) {
   const color = active ? colors.forest : colors.muted;
-  if (kind === 'dashboard') return <View style={styles.dashboardNavIcon}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.dashboardNavSquare, { backgroundColor: color }]} />)}</View>;
-  if (kind === 'tables') return <View style={[styles.tablesNavIcon, { borderColor: color }]}><View style={[styles.navLine, styles.navLineVertical, { backgroundColor: color }]} /><View style={[styles.navLine, styles.navLineHorizontalOne, { backgroundColor: color }]} /><View style={[styles.navLine, styles.navLineHorizontalTwo, { backgroundColor: color }]} /></View>;
-  if (kind === 'reservations') return <View style={styles.reservationNavScale}><CalendarIcon color={color} /></View>;
-  return <View style={styles.queueNavIcon}><View style={[styles.queueNavLine, { width: 22, backgroundColor: color }]} /><View style={[styles.queueNavLine, { width: 14, backgroundColor: color }]} /><View style={[styles.queueNavLine, { width: 7, backgroundColor: color }]} /></View>;
+  const names: Record<typeof kind, StaffIconName> = {
+    dashboard: active ? 'grid' : 'grid-outline',
+    tables: active ? 'restaurant' : 'restaurant-outline',
+    reservations: active ? 'calendar' : 'calendar-outline',
+    queue: active ? 'filter' : 'filter-outline',
+  };
+  return <StaffIcon color={color} name={names[kind]} size={22} />;
 }
 
 export function StaffBottomNav({ onNavigate, bottomInset, active }: { onNavigate: (route: MainRoute) => void; bottomInset: number; active: 'dashboard' | 'tables' | 'reservations' | 'queue' | null }) {
@@ -123,15 +122,25 @@ export function StaffDashboard() {
   const queue = useQuery({ queryKey: ['queue', restaurantId], enabled: !!restaurantId, queryFn: () => api<QueueEntry[]>(`/queue?restaurant_id=${restaurantId}`) });
   const reservations = useQuery({ queryKey: ['reservations', restaurantId, day], enabled: !!restaurantId, queryFn: () => api<Reservation[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`) });
 
-  const activeReservations = reservations.data?.filter((item) => activeReservationStatuses.includes(item.status)) ?? [];
-  const activeQueue = queue.data?.filter((item) => activeQueueStatuses.includes(item.status)) ?? [];
-  const occupiedTables = tables.data?.filter((item) => item.status === 'OCCUPIED').length ?? 0;
-  const availableTables = tables.data?.filter((item) => item.status === 'AVAILABLE').length ?? 0;
-  const cleaningTables = tables.data?.filter((item) => item.status === 'CLEANING').length ?? 0;
   const now = Date.now();
-  const upcomingReservations = activeReservations.filter((item) => { const startsAt = new Date(item.starts_at).getTime(); return startsAt >= now && startsAt <= now + 60 * 60_000; }).length;
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Team';
-  const restaurantName = restaurant.data?.name || 'DineFlow';
+  const liveData = tables.data && queue.data && reservations.data ? (() => {
+    const activeReservations = reservations.data.filter((item) => activeReservationStatuses.includes(item.status));
+    const activeQueue = queue.data.filter((item) => activeQueueStatuses.includes(item.status));
+    return {
+      activeReservations,
+      activeQueue,
+      occupiedTables: tables.data.filter((item) => item.status === 'OCCUPIED').length,
+      availableTables: tables.data.filter((item) => item.status === 'AVAILABLE').length,
+      cleaningTables: tables.data.filter((item) => item.status === 'CLEANING').length,
+      upcomingReservations: activeReservations.filter((item) => {
+        const startsAt = new Date(item.starts_at).getTime();
+        return startsAt >= now && startsAt <= now + 60 * 60_000;
+      }).length,
+    };
+  })() : null;
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || '';
+  const roleLabel = profile?.role === 'OWNER' ? 'Owner' : profile?.role === 'STAFF' ? 'Staff' : '';
+  const roleLine = [roleLabel, restaurant.data?.name].filter(Boolean).join(' · ');
   const hasError = !!(restaurant.error || tables.error || queue.error || reservations.error);
   const refreshing = restaurant.isRefetching || tables.isRefetching || queue.isRefetching || reservations.isRefetching;
   const navigate = (route: MainRoute) => router.push(route as never);
@@ -144,28 +153,33 @@ export function StaffDashboard() {
         <View style={styles.contentWidth}>
           <View style={styles.appBar}>
             <Pressable accessibilityLabel="Open staff menu" accessibilityRole="button" hitSlop={10} onPress={openDrawer} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><MenuIcon /></Pressable>
-            <Pressable accessibilityLabel="Open staff profile" accessibilityRole="button" onPress={() => router.push('/(staff)/profile' as never)} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}><Text style={styles.avatarText}>{initials(profile?.full_name)}</Text><View style={styles.onlineDot} /></Pressable>
+            <Pressable accessibilityLabel="Open staff profile" accessibilityRole="button" onPress={() => router.push('/(staff)/profile' as never)} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}><Text style={styles.avatarText}>{initials(profile?.full_name)}</Text></Pressable>
           </View>
 
           <View style={styles.greetingBlock}>
             <Text style={styles.greeting}>{greetingForCurrentTime()}</Text>
-            <Text numberOfLines={1} style={styles.name}>{firstName}</Text>
-            <Text numberOfLines={1} style={styles.roleLine}>Staff · {restaurantName}</Text>
+            <Text numberOfLines={1} style={styles.name}>{firstName || 'Profile name unavailable'}</Text>
+            {roleLine ? <Text numberOfLines={1} style={styles.roleLine}>{roleLine}</Text> : null}
           </View>
 
-          {!restaurantId ? <View style={styles.noticeCard}><Text style={styles.noticeText}>Your account is not assigned to a restaurant.</Text></View> : <>
+          {!restaurantId ? <View style={styles.noticeCard}><Text style={styles.noticeText}>Your account is not assigned to a restaurant.</Text></View> : !liveData ? (
+            <Pressable accessibilityRole={hasError ? 'button' : undefined} disabled={!hasError} onPress={() => void refreshAll()} style={({ pressed }) => [styles.noticeCard, pressed && styles.cardPressed]}>
+              <Text style={styles.noticeTitle}>{hasError ? 'Live operations data is unavailable' : 'Loading live operations data…'}</Text>
+              {hasError ? <Text style={styles.noticeText}>Tap to try again.</Text> : null}
+            </Pressable>
+          ) : <>
             <View style={styles.metricsGrid}>
-              <MetricCard accent={colors.coral} icon="calendar" label="Today’s Reservations" onPress={() => navigate('/(staff)/reservations')} tint={colors.coralSoft} value={activeReservations.length} />
-              <MetricCard accent={colors.berry} icon="queue" label="Waiting in Queue" onPress={() => navigate('/(staff)/queue')} tint={colors.berrySoft} value={activeQueue.length} />
-              <MetricCard accent={colors.violet} icon="occupied" label="Occupied Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.violetSoft} value={occupiedTables} />
-              <MetricCard accent={colors.forest} icon="available" label="Available Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.forestLight} value={availableTables} />
+              <MetricCard accent={colors.coral} icon="calendar" label="Today’s Reservations" onPress={() => navigate('/(staff)/reservations')} tint={colors.coralSoft} value={liveData.activeReservations.length} />
+              <MetricCard accent={colors.berry} icon="queue" label="Waiting in Queue" onPress={() => navigate('/(staff)/queue')} tint={colors.berrySoft} value={liveData.activeQueue.length} />
+              <MetricCard accent={colors.violet} icon="occupied" label="Occupied Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.violetSoft} value={liveData.occupiedTables} />
+              <MetricCard accent={colors.forest} icon="available" label="Available Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.forestLight} value={liveData.availableTables} />
             </View>
 
             <View style={styles.tasksHeader}><Text style={styles.tasksHeading}>Today’s Tasks</Text><Pressable accessibilityRole="button" onPress={() => navigate('/(staff)/reservations')} style={({ pressed }) => pressed && styles.pressed}><Text style={styles.viewAll}>View All</Text></Pressable></View>
             <View style={styles.tasksCard}>
-              <TaskRow accent={colors.coral} detail="Arriving within the next hour" icon="reservation" onPress={() => navigate('/(staff)/reservations')} title={`${upcomingReservations} upcoming ${upcomingReservations === 1 ? 'reservation' : 'reservations'}`} /><View style={styles.taskDivider} />
-              <TaskRow accent={colors.berry} detail={`${activeQueue.length} ${activeQueue.length === 1 ? 'party' : 'parties'} currently waiting`} icon="queue" onPress={() => navigate('/(staff)/queue')} title="Serve waiting customers" /><View style={styles.taskDivider} />
-              <TaskRow accent={colors.blue} detail={cleaningTables ? `${cleaningTables} ${cleaningTables === 1 ? 'table needs' : 'tables need'} attention` : 'All tables are up to date'} icon="cleaning" onPress={() => navigate('/(staff)/tables')} title="Check table readiness" />
+              <TaskRow accent={colors.coral} detail="Arriving within the next hour" icon="reservation" onPress={() => navigate('/(staff)/reservations')} title={`${liveData.upcomingReservations} upcoming ${liveData.upcomingReservations === 1 ? 'reservation' : 'reservations'}`} /><View style={styles.taskDivider} />
+              <TaskRow accent={colors.berry} detail={`${liveData.activeQueue.length} ${liveData.activeQueue.length === 1 ? 'party' : 'parties'} currently waiting`} icon="queue" onPress={() => navigate('/(staff)/queue')} title="Serve waiting customers" /><View style={styles.taskDivider} />
+              <TaskRow accent={colors.blue} detail={liveData.cleaningTables ? `${liveData.cleaningTables} ${liveData.cleaningTables === 1 ? 'table needs' : 'tables need'} attention` : 'All tables are up to date'} icon="cleaning" onPress={() => navigate('/(staff)/tables')} title="Check table readiness" />
             </View>
 
             {hasError ? <Pressable accessibilityRole="button" onPress={() => void refreshAll()} style={({ pressed }) => [styles.noticeCard, pressed && styles.cardPressed]}><Text style={styles.noticeTitle}>Some live data is unavailable</Text><Text style={styles.noticeText}>Tap to try again.</Text></Pressable> : null}
@@ -180,7 +194,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background }, scrollContent: { alignItems: 'center', paddingBottom: 30 }, contentWidth: { width: '100%', maxWidth: 460, paddingHorizontal: 20 },
   appBar: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, roundButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   menuIcon: { width: 20, height: 15, justifyContent: 'space-between', paddingVertical: 2 }, menuLineLong: { width: 20, height: 2, borderRadius: 2, backgroundColor: colors.ink }, menuLineShort: { width: 13, height: 2, borderRadius: 2, backgroundColor: colors.ink },
-  avatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#6B391D' }, avatarText: { color: colors.white, fontSize: 14, fontWeight: '800' }, onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background, backgroundColor: '#42C878' },
+  avatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#6B391D' }, avatarText: { color: colors.white, fontSize: 14, fontWeight: '800' },
   greetingBlock: { marginTop: 20, marginBottom: 29, paddingHorizontal: 4 },
   greeting: { color: colors.secondary, fontSize: 18, fontWeight: '500', lineHeight: 24 },
   name: { marginTop: 1, color: colors.ink, fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40 },

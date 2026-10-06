@@ -8,6 +8,7 @@ import type { Table, TableStatus } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
+import { StaffIcon } from './staff-icons';
 
 const colors = {
   background: '#F5F3EE',
@@ -38,24 +39,11 @@ const statusColor: Record<TableStatus, string> = {
 };
 
 function MenuIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}>
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-    </View>
-  );
+  return <StaffIcon color={colors.text} name="menu-outline" size={25} />;
 }
 
 function HeaderCalendarIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.headerCalendar}>
-      <View style={styles.headerCalendarTop} />
-      <View style={styles.headerCalendarGrid}>
-        {[0, 1, 2, 3, 4, 5].map((item) => <View key={item} style={styles.headerCalendarDot} />)}
-      </View>
-    </View>
-  );
+  return <StaffIcon color={colors.occupied} name="calendar-outline" size={24} />;
 }
 
 function LegendItem({ color, label }: { color: string; label: string }) {
@@ -67,24 +55,26 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   );
 }
 
-function TableShape({ color }: { color: string }) {
+function TableShape({ capacity, color }: { capacity: number; color: string }) {
   return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.tableShape}>
-      <View style={[styles.tableConnector, styles.connectorTopLeft, { backgroundColor: color }]} />
-      <View style={[styles.tableConnector, styles.connectorTopRight, { backgroundColor: color }]} />
-      <View style={[styles.tableConnector, styles.connectorBottomLeft, { backgroundColor: color }]} />
-      <View style={[styles.tableConnector, styles.connectorBottomRight, { backgroundColor: color }]} />
-      <View style={[styles.tableChair, styles.chairTopLeft, { backgroundColor: color }]} />
-      <View style={[styles.tableChair, styles.chairTopRight, { backgroundColor: color }]} />
-      <View style={[styles.tableChair, styles.chairBottomLeft, { backgroundColor: color }]} />
-      <View style={[styles.tableChair, styles.chairBottomRight, { backgroundColor: color }]} />
-      <View style={[styles.tableCircle, { backgroundColor: color }]} />
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.tableShape, { backgroundColor: `${color}18` }]}
+    >
+      <View style={[styles.tableChair, styles.chairTop, { backgroundColor: color }]} />
+      <View style={[styles.tableChair, styles.chairRight, { backgroundColor: color }]} />
+      <View style={[styles.tableChair, styles.chairBottom, { backgroundColor: color }]} />
+      <View style={[styles.tableChair, styles.chairLeft, { backgroundColor: color }]} />
+      <View style={[styles.tableTop, { backgroundColor: color }]}>
+        <Text style={styles.tableCapacity}>{capacity}</Text>
+      </View>
     </View>
   );
 }
 
 function ArrowIcon() {
-  return <View accessibilityElementsHidden style={styles.arrowIcon} />;
+  return <StaffIcon color={colors.muted} name="chevron-forward" size={20} />;
 }
 
 export function StaffTables() {
@@ -192,7 +182,7 @@ export function StaffTables() {
                       onPress={() => openTable(table.id)}
                       style={({ pressed }) => [styles.floorTable, pressed && styles.tablePressed]}
                     >
-                      <TableShape color={statusColor[table.status]} />
+                      <TableShape capacity={table.capacity} color={statusColor[table.status]} />
                       <Text style={styles.tableLabel}>{table.label}</Text>
                     </Pressable>
                   ))}
@@ -207,7 +197,7 @@ export function StaffTables() {
                       onPress={() => openTable(table.id)}
                       style={({ pressed }) => [styles.listRow, pressed && styles.tablePressed]}
                     >
-                      <TableShape color={statusColor[table.status]} />
+                      <TableShape capacity={table.capacity} color={statusColor[table.status]} />
                       <View style={styles.listCopy}>
                         <Text style={styles.listTitle}>{table.label}</Text>
                         <Text style={[styles.listStatus, { color: statusColor[table.status] }]}>
@@ -393,66 +383,60 @@ const styles = StyleSheet.create({
     paddingTop: 7,
   },
   tableShape: {
-    width: 58,
-    height: 58,
+    width: 64,
+    height: 64,
+    overflow: 'hidden',
+    borderRadius: 20,
   },
-  tableCircle: {
+  tableTop: {
     position: 'absolute',
-    top: 11,
-    left: 11,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    zIndex: 2,
+    top: 17,
+    left: 15,
+    width: 34,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 11,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.13,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tableCapacity: {
+    color: colors.surface,
+    fontSize: 12,
+    fontWeight: '900',
   },
   tableChair: {
     position: 'absolute',
-    zIndex: 2,
-    width: 10,
-    height: 10,
+    zIndex: 1,
     borderRadius: 5,
   },
-  chairTopLeft: {
-    top: 3,
-    left: 2,
-  },
-  chairTopRight: {
-    top: 3,
-    right: 2,
-  },
-  chairBottomLeft: {
-    bottom: 3,
-    left: 2,
-  },
-  chairBottomRight: {
-    right: 2,
-    bottom: 3,
-  },
-  tableConnector: {
-    position: 'absolute',
-    zIndex: 1,
+  chairTop: {
+    top: 7,
+    left: 23,
     width: 18,
-    height: 5,
-    borderRadius: 3,
+    height: 7,
   },
-  connectorTopLeft: {
-    top: 10,
-    left: 5,
-    transform: [{ rotate: '45deg' }],
-  },
-  connectorTopRight: {
-    top: 10,
+  chairRight: {
+    top: 23,
     right: 5,
-    transform: [{ rotate: '-45deg' }],
+    width: 7,
+    height: 18,
   },
-  connectorBottomLeft: {
+  chairBottom: {
+    bottom: 7,
+    left: 23,
+    width: 18,
+    height: 7,
+  },
+  chairLeft: {
+    top: 23,
     left: 5,
-    bottom: 10,
-    transform: [{ rotate: '-45deg' }],
-  },
-  connectorBottomRight: {
-    right: 5,
-    bottom: 10,
-    transform: [{ rotate: '45deg' }],
+    width: 7,
+    height: 18,
   },
   tableLabel: {
     marginTop: 5,
