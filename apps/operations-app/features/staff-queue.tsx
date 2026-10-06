@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -108,66 +108,76 @@ function QueueCard({
   busy,
   entry,
   onNotify,
+  onOpen,
   onSeat,
 }: {
   busy: boolean;
   entry: QueueEntry;
   onNotify: () => void;
+  onOpen: () => void;
   onSeat: () => void;
 }) {
   const isReady = entry.status === 'TABLE_READY';
 
   return (
     <View style={styles.queueCard}>
-      <View style={styles.positionBadge}>
-        <Text style={styles.positionText}>#{entry.position ?? '—'}</Text>
-      </View>
+      <Pressable
+        accessibilityHint="Opens customer details"
+        accessibilityLabel={`View ${entry.customer_name}`}
+        accessibilityRole="button"
+        onPress={onOpen}
+        style={({ pressed }) => [styles.cardDetails, pressed && styles.pressed]}
+      >
+        <View style={styles.positionBadge}>
+          <Text style={styles.positionText}>#{entry.position ?? '—'}</Text>
+        </View>
 
-      <View style={styles.cardContent}>
-        <View style={styles.cardTopRow}>
-          <Text numberOfLines={1} style={styles.customerName}>{entry.customer_name}</Text>
-          <View style={styles.estimateBadge}>
-            <Text style={styles.estimateText}>{estimateLabel(entry.estimated_wait_minutes)}</Text>
+        <View style={styles.cardContent}>
+          <View style={styles.cardTopRow}>
+            <Text numberOfLines={1} style={styles.customerName}>{entry.customer_name}</Text>
+            <View style={styles.estimateBadge}>
+              <Text style={styles.estimateText}>{estimateLabel(entry.estimated_wait_minutes)}</Text>
+            </View>
+          </View>
+          <View style={styles.metaRow}>
+            <PersonIcon />
+            <Text style={styles.metaText}>{entry.party_size} {entry.party_size === 1 ? 'Guest' : 'Guests'}</Text>
+          </View>
+          <View style={styles.metaRow}>
+            <ClockIcon />
+            <Text style={styles.metaText}>Waiting {waitingMinutes(entry)} min</Text>
           </View>
         </View>
+      </Pressable>
 
-        <View style={styles.metaRow}>
-          <PersonIcon />
-          <Text style={styles.metaText}>{entry.party_size} {entry.party_size === 1 ? 'Guest' : 'Guests'}</Text>
-        </View>
-        <View style={styles.metaRow}>
-          <ClockIcon />
-          <Text style={styles.metaText}>Waiting {waitingMinutes(entry)} min</Text>
-        </View>
-
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityLabel={isReady ? `${entry.customer_name} has been notified` : `Notify ${entry.customer_name}`}
-            accessibilityRole="button"
-            disabled={busy || isReady}
-            onPress={onNotify}
-            style={({ pressed }) => [styles.actionButton, (pressed || busy) && styles.pressed]}
-          >
-            <BellIcon />
-            <Text style={styles.actionText}>{isReady ? 'Ready' : 'Notify'}</Text>
-          </Pressable>
-          <Pressable
-            accessibilityLabel={`Seat ${entry.customer_name}`}
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={onSeat}
-            style={({ pressed }) => [styles.actionButton, (pressed || busy) && styles.pressed]}
-          >
-            {busy ? <ActivityIndicator color={colors.text} size="small" /> : <ChairIcon />}
-            <Text style={styles.actionText}>Seat</Text>
-          </Pressable>
-        </View>
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityLabel={isReady ? `${entry.customer_name} has been notified` : `Notify ${entry.customer_name}`}
+          accessibilityRole="button"
+          disabled={busy || isReady}
+          onPress={onNotify}
+          style={({ pressed }) => [styles.actionButton, (pressed || busy) && styles.pressed]}
+        >
+          <BellIcon />
+          <Text style={styles.actionText}>{isReady ? 'Ready' : 'Notify'}</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel={`Seat ${entry.customer_name}`}
+          accessibilityRole="button"
+          disabled={busy}
+          onPress={onSeat}
+          style={({ pressed }) => [styles.actionButton, (pressed || busy) && styles.pressed]}
+        >
+          {busy ? <ActivityIndicator color={colors.text} size="small" /> : <ChairIcon />}
+          <Text style={styles.actionText}>Seat</Text>
+        </Pressable>
       </View>
     </View>
   );
 }
 
 export function StaffQueue() {
+  const router = useRouter();
   const { openDrawer } = useStaffDrawer();
   const client = useQueryClient();
   const restaurantId = useRestaurant();
@@ -310,6 +320,7 @@ export function StaffQueue() {
                     entry={entry}
                     key={entry.id}
                     onNotify={() => void notify(entry)}
+                    onOpen={() => router.push({ pathname: '/(staff)/queue/[queueId]', params: { queueId: entry.id } })}
                     onSeat={() => setSeatEntry(entry)}
                   />
                 ) : (
@@ -405,13 +416,13 @@ const styles = StyleSheet.create({
   queueList: { gap: 26, marginTop: 32 },
   queueCard: {
     minHeight: 170,
-    flexDirection: 'row',
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     padding: 11,
   },
+  cardDetails: { flexDirection: 'row' },
   positionBadge: {
     width: 46,
     height: 45,
@@ -436,7 +447,7 @@ const styles = StyleSheet.create({
   clockHandHorizontal: { position: 'absolute', top: 10, left: 10, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '-35deg' }] },
   clockTopLeft: { position: 'absolute', top: -4, left: 2, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '-35deg' }] },
   clockTopRight: { position: 'absolute', top: -4, right: 2, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '35deg' }] },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 7 },
+  actions: { flexDirection: 'row', gap: 12, marginTop: 7, marginLeft: 71 },
   actionButton: { minHeight: 40, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 13, borderRadius: 10, backgroundColor: colors.control },
   actionText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   bellIcon: { width: 21, height: 23 },

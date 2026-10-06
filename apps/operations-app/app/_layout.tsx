@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { listenForAuthLinks } from '../lib/auth-link';
 import { supabase } from '../lib/supabase';
@@ -43,7 +44,25 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <View style={styles.appRoot}>
+        <StatusBar style="dark" />
+        <Stack
+          screenOptions={{
+            contentStyle: styles.screen,
+            headerShown: false,
+          }}
+        />
+      </View>
     </QueryClientProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+    backgroundColor: '#F4F4F4',
+  },
+  screen: {
+    backgroundColor: '#F4F4F4',
+  },
+});

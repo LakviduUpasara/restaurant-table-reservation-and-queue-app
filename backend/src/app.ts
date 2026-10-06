@@ -175,6 +175,12 @@ app.get('/api/queue', async (req,res) => {
     ok(res,entries.map((e:any)=>({...e,position:ranks.get(e.id)??null})));
   } else { let rank=0;ok(res,entries.map((e:any)=>({...e,position:active.includes(e.status)?++rank:null}))); }
 });
+app.get('/api/queue/:id', async (req,res) => {
+  const id=uuid.parse(req.params.id); const e=checked(await admin.from('queue_entries').select('*').eq('id',id).single()); const a=actor(req);
+  if (a.role==='CUSTOMER') { if (e.customer_id!==a.id) fail(403,'FORBIDDEN','This is not your queue entry'); }
+  else staffFor(req,e.restaurant_id);
+  ok(res,e);
+});
 app.post('/api/queue', async (req,res) => {
   const b=queueBody.parse(req.body); const a=actor(req);
   if (a.role==='CUSTOMER') b.customer_name=a.full_name || b.customer_name; else staffFor(req,b.restaurant_id);

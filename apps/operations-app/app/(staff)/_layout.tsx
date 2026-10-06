@@ -33,8 +33,10 @@ export default function StaffLayout() {
   }
 
   const route = segments[1] ?? 'dashboard';
-  const isSecondaryRoute = route === 'profile' || route === 'walk-ins' || (route === 'tables' && segments.length > 2);
-  const active = route === 'tables'
+  const isSecondaryRoute = route === 'walk-ins' || ((route === 'tables' || route === 'queue') && segments.length > 2);
+  const active = route === 'profile'
+    ? null
+    : route === 'tables'
     ? 'tables'
     : route === 'reservations'
       ? 'reservations'
@@ -50,6 +52,7 @@ export default function StaffLayout() {
           <Stack.Screen name="tables" />
           <Stack.Screen name="reservations" />
           <Stack.Screen name="queue" />
+          <Stack.Screen name="queue/[queueId]" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="walk-ins" options={{ animation: 'slide_from_right' }} />
           <Stack.Screen name="profile" />
         </Stack>

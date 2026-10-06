@@ -192,7 +192,7 @@ export function StaffBottomNav({
 }: {
   onNavigate: (route: MainRoute) => void;
   bottomInset: number;
-  active: 'dashboard' | 'tables' | 'reservations' | 'queue';
+  active: 'dashboard' | 'tables' | 'reservations' | 'queue' | null;
 }) {
   const items: { label: string; icon: 'dashboard' | 'tables' | 'reservations' | 'queue'; route: MainRoute }[] = [
     { label: 'Dashboard', icon: 'dashboard', route: '/(staff)/dashboard' },

@@ -8,6 +8,7 @@
     "customer": "npm run start -w @dineflow/customer-app",
     "operations": "npm run start -w @dineflow/operations-app",
     "check:hosted-db": "node scripts/check-hosted-db.mjs",
+    "seed:staff-demo": "node scripts/seed-staff-demo.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test -w @dineflow/backend"
   }
