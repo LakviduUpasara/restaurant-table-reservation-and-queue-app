@@ -1,9 +1,147 @@
 import { useState } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Field, Screen } from '@dineflow/shared';
-import { useAuth } from '../stores/auth.store';
-import { supabase } from '../lib/supabase';
-export function Login(){const router=useRouter();const signIn=useAuth(s=>s.signIn);const profile=useAuth(s=>s.profile);const [email,setEmail]=useState('');const [password,setPassword]=useState('');const [busy,setBusy]=useState(false);return <Screen title="Operations sign in" subtitle="For restaurant staff and owners."><Field label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail}/><Field label="Password" secureTextEntry value={password} onChangeText={setPassword}/><Button title="Log in" busy={busy} onPress={async()=>{setBusy(true);try{await signIn(email,password);const role=useAuth.getState().profile?.role;if(role==='OWNER')router.replace('/(owner)/dashboard');else if(role==='STAFF')router.replace('/(staff)/dashboard');else{await useAuth.getState().signOut();Alert.alert('Access denied','This app requires a staff or owner account.');}}catch(e){Alert.alert('Sign in failed',String((e as Error).message));}finally{setBusy(false);}}}/><Button title="Forgot password?" kind="ghost" onPress={()=>router.push('/forgot-password')}/></Screen>}
-export function ForgotPassword(){const [email,setEmail]=useState('');const router=useRouter();return <Screen title="Reset password" subtitle="We will email a reset link for your staff account."><Field label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail}/><Button title="Send reset link" onPress={async()=>{const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'dineflow-operations://reset-password'});if(error)Alert.alert('Could not send link',error.message);else{Alert.alert('Check your email');router.push('/reset-password');}}}/></Screen>}
-export function ResetPassword(){const [password,setPassword]=useState('');const router=useRouter();return <Screen title="Set new password"><Field label="New password" secureTextEntry value={password} onChangeText={setPassword}/><Button title="Save password" onPress={async()=>{const {error}=await supabase.auth.updateUser({password});if(error)Alert.alert('Could not reset password',error.message);else router.replace('/login');}}/></Screen>}
+
+export function Login() {
+  const router = useRouter();
+
+  const [staffId, setStaffId] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const handleLogin = async () => {
+    if (!staffId.trim() || !password.trim()) {
+      Alert.alert(
+        'Missing details',
+        'Please enter Staff ID and password.'
+      );
+      return;
+    }
+
+    setBusy(true);
+
+    try {
+      // TEMPORARY FRONTEND-ONLY LOGIN
+      // Real Supabase authentication will be restored later.
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      router.replace('/(owner)/dashboard');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Owner Login</Text>
+      <Text style={styles.subtitle}>
+        Access your restaurant management account
+      </Text>
+
+      <Text style={styles.label}>Staff ID</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter Staff ID"
+        value={staffId}
+        onChangeText={setStaffId}
+        autoCapitalize="characters"
+      />
+
+      <Text style={styles.label}>Password</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+      />
+
+      <Pressable
+        style={[styles.loginButton, busy && styles.disabled]}
+        onPress={handleLogin}
+        disabled={busy}
+      >
+        <Text style={styles.loginText}>
+          {busy ? 'Logging in...' : 'Login'}
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() =>
+          Alert.alert(
+            'Coming soon',
+            'Password reset will be connected during backend integration.'
+          )
+        }
+      >
+        <Text style={styles.forgotText}>Forgot password?</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+export function ForgotPassword() {
+  return null;
+}
+
+export function ResetPassword() {
+  return null;
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    maxWidth: 520,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: '#666666',
+    marginBottom: 32,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  input: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#D9D9D9',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    marginBottom: 18,
+    backgroundColor: '#FFFFFF',
+  },
+  loginButton: {
+    height: 50,
+    borderRadius: 10,
+    backgroundColor: '#E2B318',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
+  loginText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  forgotText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
