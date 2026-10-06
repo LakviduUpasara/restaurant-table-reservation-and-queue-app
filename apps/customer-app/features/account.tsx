@@ -147,31 +147,12 @@ export function Notifications() {
           )}
         </View>
       </ScrollView>
-      <View style={notificationStyles.bottomNav}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => router.push('/home')} style={notificationStyles.navItem}>
-          <Ionicons name="home-outline" size={24} color="#F5F5F5" />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Menu" onPress={() => router.push('/menu')} style={notificationStyles.navItem}>
-          <Ionicons name="search-outline" size={24} color="#F5F5F5" />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Queue" onPress={() => router.push('/queue')} style={notificationStyles.navItem}>
-          <Ionicons name="chatbubble-ellipses-outline" size={24} color="#F5F5F5" />
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Account" onPress={() => router.push('/profile')} style={notificationStyles.navItem}>
-          <View style={notificationStyles.profileBubble}>
-            <Ionicons name="person-outline" size={24} color="#F5F5F5" />
-          </View>
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }
 
 const notificationStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#262626' },
-  bottomNav: { height: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 32, backgroundColor: '#292929' },
-  navItem: { width: 46, height: 46, alignItems: 'center', justifyContent: 'center' },
-  profileBubble: { width: 46, height: 46, marginTop: -18, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EDB813', borderWidth: 3, borderColor: '#F5F5F5' },
   header: { height: 174, backgroundColor: '#262626', paddingHorizontal: 24, paddingTop: 5 },
   headerRow: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
