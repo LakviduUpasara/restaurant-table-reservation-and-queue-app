@@ -40,10 +40,10 @@ function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           >
             {route.name === 'profile' && focused ? (
               <View style={styles.profileBubble}>
-                <Ionicons name="person-outline" size={29} color={colors.lightText} />
+                <Ionicons name="person-outline" size={24} color={colors.lightText} />
               </View>
             ) : (
-              <Ionicons name={icon} size={29} color={focused ? colors.primary : '#F5F5F5'} />
+              <Ionicons name={icon} size={24} color={focused ? colors.primary : '#F5F5F5'} />
             )}
           </Pressable>
         );
@@ -71,30 +71,29 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   bar: {
-    height: 82,
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 18,
-    paddingBottom: 8,
+    paddingHorizontal: 32,
     backgroundColor: '#292929',
   },
   item: {
-    width: 64,
-    height: 58,
+    width: 46,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
   profileItem: { position: 'relative' },
   profileBubble: {
-    width: 66,
-    height: 66,
-    marginTop: -25,
-    borderRadius: 33,
+    width: 46,
+    height: 46,
+    marginTop: -18,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
-    borderWidth: 5,
+    borderWidth: 3,
     borderColor: '#F5F5F5',
   },
 });
