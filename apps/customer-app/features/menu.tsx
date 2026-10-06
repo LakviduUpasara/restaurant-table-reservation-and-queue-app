@@ -125,8 +125,8 @@ function HeaderIconButton({ icon, onPress, accessibilityLabel }: { icon: 'option
 function CartBottomNav({ router }: { router: ReturnType<typeof useRouter> }) {
   const items = [
     { label: 'Home', icon: 'home-outline' as const, route: '/home' },
-    { label: 'Menu', icon: 'search-outline' as const, route: '/menu', active: true },
     { label: 'Queue', icon: 'chatbubble-ellipses-outline' as const, route: '/queue' },
+    { label: 'Menu', icon: 'search-outline' as const, route: '/menu', active: true },
     { label: 'Account', icon: 'person-outline' as const, route: '/profile' },
   ];
 
@@ -142,10 +142,10 @@ function CartBottomNav({ router }: { router: ReturnType<typeof useRouter> }) {
         >
           {item.active ? (
             <View style={styles.cartActiveNavBubble}>
-              <Ionicons name={item.icon} size={28} color={colors.ink} />
+              <Ionicons name={item.icon} size={24} color={colors.ink} />
             </View>
           ) : (
-            <Ionicons name={item.icon} size={28} color={colors.paper} />
+            <Ionicons name={item.icon} size={24} color={colors.paper} />
           )}
         </Pressable>
       ))}
@@ -692,29 +692,29 @@ const styles = StyleSheet.create({
   returnButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
   emptyCart: { paddingTop: 60, gap: 25 },
   cartBottomNav: {
-    height: 61,
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    paddingHorizontal: 18,
-    backgroundColor: colors.ink,
+    paddingHorizontal: 32,
+    backgroundColor: '#292929',
   },
   cartNavItem: {
-    width: 64,
-    height: 61,
+    width: 46,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cartActiveNavBubble: {
-    width: 48,
-    height: 48,
-    marginTop: -22,
-    borderRadius: 24,
+    width: 46,
+    height: 46,
+    marginTop: -18,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.accent,
-    borderWidth: 4,
-    borderColor: colors.paper,
+    borderWidth: 3,
+    borderColor: '#F5F5F5',
   },
   cartFooter: { padding: 20, gap: 14, borderTopWidth: 1, borderColor: colors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
