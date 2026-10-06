@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../stores/auth.store';
 import { StaffIcon, type StaffIconName } from './staff-icons';
 
-type DrawerRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservations' | '/(staff)/queue' | '/(staff)/profile';
+type DrawerRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservations' | '/(staff)/queue' | '/(staff)/profile' | '/(staff)/settings';
 type DrawerIcon = 'dashboard' | 'tables' | 'reservations' | 'queue' | 'profile' | 'settings' | 'logout';
 
 const drawerColors = {
@@ -153,11 +153,7 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
               <DrawerItem active={route === 'reservations'} icon="reservations" label="Reservations" onPress={() => navigate('/(staff)/reservations')} />
               <DrawerItem active={route === 'queue'} icon="queue" label="Virtual Queue" onPress={() => navigate('/(staff)/queue')} />
               <DrawerItem active={route === 'profile'} icon="profile" label="Profile" onPress={() => navigate('/(staff)/profile')} />
-              <DrawerItem
-                icon="settings"
-                label="Settings"
-                onPress={() => Alert.alert('Settings', 'Staff settings are managed by the restaurant owner.')}
-              />
+              <DrawerItem active={route === 'settings'} icon="settings" label="Settings" onPress={() => navigate('/(staff)/settings')} />
             </View>
 
             <View style={styles.logoutArea}>
