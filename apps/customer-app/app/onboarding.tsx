@@ -30,6 +30,11 @@ const slides = [
   },
 ];
 
+const onboardingTypography = {
+  body: 14,
+  title: 24,
+} as const;
+
 export default function Onboarding() {
   const [step, setStep] = useState(0);
   const router = useRouter();
@@ -118,7 +123,8 @@ const styles = StyleSheet.create({
   textBlock: { marginTop: 50, alignItems: 'center' },
   textBlockCompact: { marginTop: 34 },
   title: {
-    fontSize: 24,
+    fontSize: onboardingTypography.title,
+    lineHeight: 31,
     fontWeight: '700',
     color: '#000000',
     textAlign: 'center',
@@ -126,8 +132,8 @@ const styles = StyleSheet.create({
   description: {
     marginTop: 18,
     maxWidth: 270,
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: onboardingTypography.body,
+    lineHeight: 21,
     color: '#333333',
     textAlign: 'center',
   },
