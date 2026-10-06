@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,6 +27,8 @@ export function ResetPasswordScreen(){
   const profile=useAuth(state=>state.profile);
   const [password,setPassword]=useState('');
   const [confirmPassword,setConfirmPassword]=useState('');
+  const [showPassword,setShowPassword]=useState(false);
+  const [showConfirmPassword,setShowConfirmPassword]=useState(false);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
 
@@ -55,52 +57,64 @@ export function ResetPasswordScreen(){
   };
 
   const goBack=()=>router.canGoBack()?router.back():router.replace('/profile');
+  const hasLength=password.length>=6;
+  const hasUppercase=/[A-Z]/.test(password);
+  const hasNumber=/\d/.test(password);
+  const passwordsMatch=password.length>0&&password===confirmPassword;
+  const strength=[hasLength,hasUppercase,hasNumber,passwordsMatch].filter(Boolean).length;
+  const passwordField=(value:string,onChangeText:(text:string)=>void,placeholder:string,visible:boolean,setVisible:(value:boolean)=>void,label:string)=>(
+    <View style={passwordStyles.inputWrap}>
+      <TextInput
+        accessibilityLabel={label}
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#929292"
+        secureTextEntry={!visible}
+        style={passwordStyles.input}
+        value={value}
+      />
+      <Pressable accessibilityRole="button" accessibilityLabel={`${visible?'Hide':'Show'} ${label}`} onPress={()=>setVisible(!visible)} style={passwordStyles.eyeButton}>
+        <Ionicons name={visible?'eye-outline':'eye-off-outline'} size={23} color="#3E3E3E" />
+      </Pressable>
+    </View>
+  );
+
   return <SafeAreaView style={passwordStyles.screen}>
     <View style={passwordStyles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={passwordStyles.backButton}>
-        <Text style={passwordStyles.backIcon}>‹</Text>
-      </Pressable>
-      <Text style={passwordStyles.headerTitle}>Update Password</Text>
-      <View style={passwordStyles.headerSpacer}/>
-    </View>
-    <View style={passwordStyles.content}>
-      <View style={passwordStyles.titleRow}>
-        <View style={passwordStyles.lockIcon}>
-          <Ionicons name="lock-closed-outline" size={27} color="#262626" />
+      <View style={passwordStyles.headerRow}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Go back" onPress={goBack} style={passwordStyles.backButton}>
+          <Ionicons name="chevron-back" size={28} color="#111111" />
+        </Pressable>
+        <View style={passwordStyles.brandBlock}>
+          <Text style={passwordStyles.brand}>Dine<Text style={passwordStyles.brandAccent}>Flow</Text></Text>
         </View>
-        <View style={passwordStyles.titleText}>
-          <Text style={passwordStyles.title}>Update Password</Text>
-          <Text style={passwordStyles.subtitle}>
-            Keep your DineFlow account secure{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}.
-          </Text>
-        </View>
+        <View style={passwordStyles.headerSpacer} />
       </View>
+      <Text style={passwordStyles.welcome}>Welcome <Text style={passwordStyles.welcomeName}>{profile?.full_name?.split(' ')[0] ?? 'there'}</Text></Text>
+    </View>
+    <ScrollView
+      style={passwordStyles.content}
+      contentContainerStyle={passwordStyles.contentInner}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={passwordStyles.title}>Update Password</Text>
+      <Text style={passwordStyles.subtitle}>Create a strong password you have not used before.</Text>
       <View style={passwordStyles.card}>
-        <Text style={passwordStyles.cardHint}>Choose a new password with at least 6 characters.</Text>
         <Text style={passwordStyles.label}>New password</Text>
-        <TextInput
-          accessibilityLabel="New password"
-          autoCapitalize="none"
-          autoCorrect={false}
-          onChangeText={setPassword}
-          placeholder="Enter new password"
-          placeholderTextColor="#929292"
-          secureTextEntry
-          style={passwordStyles.input}
-          value={password}
-        />
+        {passwordField(password,setPassword,'Enter new password',showPassword,setShowPassword,'New password')}
         <Text style={passwordStyles.label}>Confirm new password</Text>
-        <TextInput
-          accessibilityLabel="Confirm new password"
-          autoCapitalize="none"
-          autoCorrect={false}
-          onChangeText={setConfirmPassword}
-          placeholder="Re-enter new password"
-          placeholderTextColor="#929292"
-          secureTextEntry
-          style={passwordStyles.input}
-          value={confirmPassword}
-        />
+        {passwordField(confirmPassword,setConfirmPassword,'Re-enter new password',showConfirmPassword,setShowConfirmPassword,'Confirm new password')}
+        <View style={passwordStyles.strengthBars}>
+          {[0,1,2,3].map(index=><View key={index} style={[passwordStyles.strengthBar,index<strength&&passwordStyles.strengthBarActive]} />)}
+        </View>
+        <Text style={passwordStyles.strengthTitle}>{strength>=3?'Strong password':'Password strength'}</Text>
+        <PasswordRule valid={hasLength} text="At least 6 characters" />
+        <PasswordRule valid={hasUppercase} text="One uppercase letter" />
+        <PasswordRule valid={hasNumber} text="One number" />
+        <PasswordRule valid={passwordsMatch} text="New and confirm passwords match" />
         {error ? <Text accessibilityLiveRegion="polite" style={passwordStyles.error}>{error}</Text> : null}
         <Pressable
           accessibilityRole="button"
@@ -115,32 +129,56 @@ export function ResetPasswordScreen(){
         </Pressable>
       </View>
       <Text style={passwordStyles.footerNote}>You can update your password again anytime from Account Settings.</Text>
+    </ScrollView>
+    <View style={passwordStyles.bottomNav}>
+      <Pressable accessibilityRole="tab" accessibilityLabel="Home" onPress={()=>router.replace('/home')}><Ionicons name="home-outline" size={30} color="#FFFFFF" /></Pressable>
+      <Pressable accessibilityRole="tab" accessibilityLabel="Menu" onPress={()=>router.replace('/menu')}><Ionicons name="search-outline" size={31} color="#FFFFFF" /></Pressable>
+      <Pressable accessibilityRole="tab" accessibilityLabel="Queue" onPress={()=>router.replace('/queue')}><Ionicons name="chatbubble-ellipses-outline" size={29} color="#FFFFFF" /></Pressable>
+      <Pressable accessibilityRole="tab" accessibilityLabel="Account" style={passwordStyles.activeNav} onPress={()=>router.replace('/profile')}><Ionicons name="person-outline" size={29} color="#262626" /></Pressable>
     </View>
   </SafeAreaView>
 }
 
+function PasswordRule({ valid, text }: { valid: boolean; text: string }) {
+  return <View style={passwordStyles.rule}><View style={[passwordStyles.ruleIcon, !valid&&passwordStyles.ruleIconInactive]}><Ionicons name={valid?'checkmark':'ellipse-outline'} size={16} color="#FFFFFF" /></View><Text style={passwordStyles.ruleText}>{text}</Text></View>;
+}
+
 const passwordStyles=StyleSheet.create({
-  screen:{flex:1,backgroundColor:'#FFFFFF'},
-  header:{height:58,paddingHorizontal:20,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderBottomWidth:1,borderColor:'#E9E9E9'},
+  screen:{flex:1,backgroundColor:'#262626'},
+  header:{height:112,paddingHorizontal:22,paddingTop:5,backgroundColor:'#262626'},
+  headerRow:{height:46,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},
   backButton:{width:34,height:34,borderRadius:17,backgroundColor:'#F1F1F1',alignItems:'center',justifyContent:'center'},
-  backIcon:{color:'#262626',fontSize:30,lineHeight:30,marginTop:-3},
-  headerTitle:{fontFamily:'Inter_700Bold',color:'#151515',fontSize:16,fontWeight:'700'},
+  brandBlock:{flex:1,marginLeft:20},
+  brand:{fontFamily:'Inter_800ExtraBold',color:'#FFFFFF',fontSize:23,fontStyle:'italic'},
+  brandAccent:{color:'#EDB813'},
+  welcome:{fontFamily:'Inter_400Regular',color:'#FFFFFF',fontSize:15,lineHeight:20,fontWeight:'700',textAlign:'center',marginTop:5},
+  welcomeName:{fontFamily:'Inter_700Bold'},
   headerSpacer:{width:34},
-  content:{paddingHorizontal:24,paddingTop:30},
-  titleRow:{flexDirection:'row',alignItems:'center',marginBottom:24},
-  lockIcon:{width:52,height:52,borderRadius:16,backgroundColor:'#F8E7A8',alignItems:'center',justifyContent:'center'},
-  titleText:{flex:1,marginLeft:14},
-  title:{fontFamily:'Inter_800ExtraBold',color:'#111111',fontSize:23,fontWeight:'800'},
-  subtitle:{fontFamily:'Inter_400Regular',color:'#777777',fontSize:14,lineHeight:20,marginTop:4},
-  card:{borderWidth:1,borderColor:'#E9E9E9',borderRadius:18,padding:18,backgroundColor:'#FFFFFF'},
+  content:{flex:1,backgroundColor:'#FFFFFF',borderTopLeftRadius:48,borderTopRightRadius:48},
+  contentInner:{paddingHorizontal:25,paddingTop:30,paddingBottom:28},
+  title:{fontFamily:'Inter_800ExtraBold',color:'#111111',fontSize:28,lineHeight:36,fontWeight:'800'},
+  subtitle:{fontFamily:'Inter_400Regular',color:'#777777',fontSize:16,lineHeight:23,marginTop:4},
+  card:{paddingTop:30,backgroundColor:'#FFFFFF'},
   cardHint:{fontFamily:'Inter_400Regular',color:'#555555',fontSize:14,lineHeight:20,marginBottom:20},
-  label:{fontFamily:'Inter_700Bold',color:'#242424',fontSize:14,fontWeight:'700',marginBottom:8},
-  input:{fontFamily:'Inter_400Regular',height:52,borderWidth:1,borderColor:'#D1D1D1',borderRadius:10,paddingHorizontal:14,color:'#161616',fontSize:16,marginBottom:17},
-  error:{fontFamily:'Inter_400Regular',color:'#B42318',fontSize:13,lineHeight:18,marginTop:-5,marginBottom:10},
-  saveButton:{height:50,borderRadius:25,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center',marginTop:2},
+  label:{fontFamily:'Inter_700Bold',color:'#242424',fontSize:16,lineHeight:22,fontWeight:'700',marginBottom:8},
+  inputWrap:{height:56,marginBottom:17,position:'relative'},
+  input:{fontFamily:'Inter_400Regular',height:56,borderWidth:1,borderColor:'#E6E6E6',backgroundColor:'#F5F5F5',borderRadius:14,paddingHorizontal:16,paddingRight:52,color:'#161616',fontSize:16},
+  eyeButton:{position:'absolute',right:0,top:0,width:52,height:56,alignItems:'center',justifyContent:'center'},
+  strengthBars:{flexDirection:'row',gap:7,marginTop:4},
+  strengthBar:{flex:1,height:8,borderRadius:4,backgroundColor:'#E1E1E1'},
+  strengthBarActive:{backgroundColor:'#EDB813'},
+  strengthTitle:{fontFamily:'Inter_700Bold',color:'#C18E00',fontSize:16,lineHeight:22,marginTop:14,marginBottom:12},
+  rule:{flexDirection:'row',alignItems:'center',gap:10,marginBottom:10},
+  ruleIcon:{width:24,height:24,borderRadius:12,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center'},
+  ruleIconInactive:{backgroundColor:'#BDBDBD'},
+  ruleText:{fontFamily:'Inter_400Regular',color:'#363636',fontSize:14,lineHeight:20,flex:1},
+  error:{fontFamily:'Inter_400Regular',color:'#B42318',fontSize:14,lineHeight:20,marginTop:2,marginBottom:10},
+  saveButton:{height:56,borderRadius:28,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center',marginTop:8},
   busy:{opacity:0.75},
-  saveText:{fontFamily:'Inter_800ExtraBold',color:'#262626',fontSize:15,fontWeight:'800'},
-  cancelButton:{height:48,alignItems:'center',justifyContent:'center',marginTop:4},
-  cancelText:{fontFamily:'Inter_700Bold',color:'#555555',fontSize:15,fontWeight:'700'},
-  footerNote:{fontFamily:'Inter_400Regular',color:'#777777',fontSize:13,lineHeight:18,textAlign:'center',marginTop:20,paddingHorizontal:12},
+  saveText:{fontFamily:'Inter_800ExtraBold',color:'#262626',fontSize:16,fontWeight:'800'},
+  cancelButton:{height:56,borderRadius:28,borderWidth:2,borderColor:'#262626',alignItems:'center',justifyContent:'center',marginTop:12},
+  cancelText:{fontFamily:'Inter_700Bold',color:'#262626',fontSize:16,fontWeight:'700'},
+  footerNote:{fontFamily:'Inter_400Regular',color:'#777777',fontSize:14,lineHeight:20,textAlign:'center',marginTop:14,paddingHorizontal:12},
+  bottomNav:{height:72,paddingHorizontal:32,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#262626'},
+  activeNav:{width:58,height:58,borderRadius:29,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center',marginTop:-28,borderWidth:4,borderColor:'#FFFFFF'},
 });

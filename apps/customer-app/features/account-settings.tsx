@@ -43,7 +43,14 @@ function SettingsHeader({ welcomeName }: { welcomeName: string }) {
           <Ionicons name="chevron-back" size={22} color={palette.dark} />
         </Pressable>
         <Text style={styles.brand}>Dine<Text style={styles.brandAccent}>Flow</Text></Text>
-        <View style={styles.headerSpacer} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open notifications"
+          onPress={() => router.push('/notifications')}
+          style={styles.headerNotification}
+        >
+          <Ionicons name="notifications-outline" size={21} color={palette.dark} />
+        </Pressable>
       </View>
       <Text numberOfLines={1} style={styles.welcome}>Welcome {welcomeName || 'there'}</Text>
     </View>
@@ -157,12 +164,6 @@ export function AccountSettings() {
               onPress={() => router.push('/reset-password')}
             />
           </View>
-
-          <Pressable accessibilityRole="button" onPress={() => router.push('/notifications')} style={styles.notificationsButton}>
-            <Ionicons name="notifications-outline" size={19} color={palette.dark} />
-            <Text style={styles.notificationsText}>Notifications</Text>
-            <Ionicons name="chevron-forward" size={18} color={palette.muted} />
-          </Pressable>
 
           <Pressable
             accessibilityRole="button"
@@ -402,10 +403,11 @@ const styles = StyleSheet.create({
   darkHeader: { height: 112, backgroundColor: palette.dark, paddingHorizontal: 22, paddingTop: 5 },
   headerRow: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerBack: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
-  brand: { color: '#FFFFFF', fontSize: 23, fontWeight: '800', fontStyle: 'italic' },
+  brand: { fontFamily: 'Inter_800ExtraBold', color: '#FFFFFF', fontSize: 23, fontWeight: '800', fontStyle: 'italic' },
   brandAccent: { color: palette.yellow },
   headerSpacer: { width: 34 },
-  welcome: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', textAlign: 'center', marginTop: 5 },
+  headerNotification: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
+  welcome: { fontFamily: 'Inter_400Regular', color: '#FFFFFF', fontSize: 15, lineHeight: 20, fontWeight: '700', textAlign: 'center', marginTop: 5 },
   scrollContent: { flexGrow: 1 },
   settingsPanel: {
     flexGrow: 1,
@@ -417,12 +419,12 @@ const styles = StyleSheet.create({
     paddingBottom: 34,
     alignItems: 'center',
   },
-  pageTitle: { fontFamily: 'Inter_800ExtraBold', color: '#000000', fontSize: 25, fontWeight: '800', marginBottom: 23 },
+  pageTitle: { fontFamily: 'Inter_800ExtraBold', color: '#000000', fontSize: 28, lineHeight: 36, fontWeight: '800', marginBottom: 23 },
   avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#B4A18A', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImage: { width: '100%', height: '100%' },
   avatarInitials: { fontFamily: 'Inter_700Bold', color: '#FFFFFF', fontSize: 30, fontWeight: '700' },
   contactDetails: { width: '100%', gap: 12, marginTop: 18, marginBottom: 23 },
-  readOnlyField: { fontFamily: 'Inter_400Regular', height: 41, borderRadius: 9, backgroundColor: palette.pale, color: '#171717', paddingHorizontal: 16, paddingVertical: 11, fontSize: 15 },
+  readOnlyField: { fontFamily: 'Inter_400Regular', height: 41, borderRadius: 9, backgroundColor: palette.pale, color: '#171717', paddingHorizontal: 16, paddingVertical: 11, fontSize: 16 },
   section: { width: '100%', marginBottom: 19 },
   sectionTitle: { fontFamily: 'Inter_800ExtraBold', width: '100%', color: '#111111', fontSize: 16, fontWeight: '800', marginBottom: 5 },
   sectionDescription: { fontFamily: 'Inter_400Regular', width: '100%', color: '#3A3A3A', fontSize: 14, lineHeight: 20, marginBottom: 8 },
@@ -430,19 +432,17 @@ const styles = StyleSheet.create({
   actionIcon: { width: 34, height: 34, borderRadius: 10, backgroundColor: '#F5F5F7', alignItems: 'center', justifyContent: 'center' },
   actionTextBlock: { flex: 1 },
   actionTitle: { fontFamily: 'Inter_700Bold', color: '#141414', fontSize: 16, fontWeight: '700' },
-  actionSubtitle: { fontFamily: 'Inter_400Regular', color: '#777777', fontSize: 13, lineHeight: 18, marginTop: 3 },
-  notificationsButton: { width: '100%', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 9, borderBottomWidth: 1, borderColor: palette.line },
-  notificationsText: { fontFamily: 'Inter_700Bold', flex: 1, color: '#141414', fontSize: 14, fontWeight: '700' },
+  actionSubtitle: { fontFamily: 'Inter_400Regular', color: '#777777', fontSize: 14, lineHeight: 20, marginTop: 3 },
   signOutButton: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 17 },
   signOutBusy: { opacity: 0.7 },
   signOutIcon: { width: 40, height: 38, borderRadius: 10, borderWidth: 1, borderColor: '#D2D2D8', alignItems: 'center', justifyContent: 'center' },
   signOutText: { fontFamily: 'Inter_800ExtraBold', color: '#111111', fontSize: 14, fontWeight: '800' },
-  signOutError: { fontFamily: 'Inter_400Regular', color: '#B42318', fontSize: 13, lineHeight: 18, marginTop: 12 },
+  signOutError: { fontFamily: 'Inter_400Regular', color: '#B42318', fontSize: 14, lineHeight: 20, marginTop: 12 },
   ordersSection: { width: '100%', marginTop: 27, paddingTop: 19, borderTopWidth: 1, borderColor: palette.line, gap: 9 },
   orderRow: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderColor: palette.line },
-  orderPrice: { fontFamily: 'Inter_700Bold', color: '#151515', fontSize: 14, fontWeight: '700' },
+  orderPrice: { fontFamily: 'Inter_700Bold', color: '#151515', fontSize: 16, fontWeight: '700' },
   cancelOrder: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 7, backgroundColor: '#FFF0F0', justifyContent: 'center' },
-  cancelOrderText: { fontFamily: 'Inter_700Bold', color: '#A94343', fontSize: 13, fontWeight: '700' },
+  cancelOrderText: { fontFamily: 'Inter_700Bold', color: '#A94343', fontSize: 14, fontWeight: '700' },
   formScreen: { flex: 1, backgroundColor: '#FFFFFF' },
   formHeader: { height: 58, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderColor: palette.line },
   formHeaderTitle: { fontFamily: 'Inter_700Bold', color: '#151515', fontSize: 16, fontWeight: '700' },
