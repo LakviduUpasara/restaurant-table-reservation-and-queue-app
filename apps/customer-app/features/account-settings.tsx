@@ -139,7 +139,13 @@ export function AccountSettings() {
 
           <View style={styles.contactDetails}>
             <Text numberOfLines={1} style={styles.readOnlyField}>{profile?.full_name || 'Your name'}</Text>
-            <Text numberOfLines={1} style={styles.readOnlyField}>{profile?.phone || 'Add your phone number'}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={profile?.phone ? 'Edit phone number' : 'Add phone number'}
+              onPress={() => router.push('/enter-phone')}
+            >
+              <Text numberOfLines={1} style={styles.readOnlyField}>{profile?.phone || 'Add your phone number'}</Text>
+            </Pressable>
             <Text numberOfLines={1} style={styles.readOnlyField}>{email || 'Email not available'}</Text>
           </View>
 
