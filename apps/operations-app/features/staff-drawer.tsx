@@ -16,13 +16,18 @@ type DrawerRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservat
 type DrawerIcon = 'dashboard' | 'tables' | 'reservations' | 'queue' | 'profile' | 'settings' | 'logout';
 
 const drawerColors = {
-  surface: '#FBFBFD',
-  text: '#303136',
-  muted: '#747B88',
-  border: '#E0E3E8',
-  brand: '#D79D00',
-  danger: '#FF3F46',
-  overlay: 'rgba(0,0,0,0.72)',
+  surface: '#FCFCFA',
+  card: '#FFFFFF',
+  text: '#17211D',
+  muted: '#7E8782',
+  border: '#E5E2DA',
+  brand: '#E3AD18',
+  brandDark: '#173E35',
+  active: '#E7F0EC',
+  danger: '#E4585D',
+  dangerSoft: '#FFF0F0',
+  overlay: 'rgba(17,28,24,0.66)',
+  shadow: '#203129',
 } as const;
 
 const StaffDrawerContext = createContext({ openDrawer: () => {} });
@@ -104,14 +109,15 @@ function DrawerItem({
   label: string;
   onPress: () => void;
 }) {
-  const color = active ? drawerColors.brand : drawerColors.muted;
+  const color = active ? drawerColors.brandDark : drawerColors.muted;
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.drawerItem, active && styles.drawerItemActive, pressed && styles.pressed]}
     >
-      <View style={styles.drawerIconBox}><DrawerIconView color={color} kind={icon} /></View>
+      {active ? <View style={styles.activeIndicator} /> : null}
+      <View style={[styles.drawerIconBox, active && styles.drawerIconBoxActive]}><DrawerIconView color={color} kind={icon} /></View>
       <Text style={[styles.drawerItemText, active && styles.drawerItemTextActive]}>{label}</Text>
     </Pressable>
   );
@@ -162,7 +168,7 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
           <SafeAreaView edges={['top', 'bottom']} style={styles.drawerSafeArea}>
             <View style={styles.drawerHeader}>
               <View style={styles.brandRow}>
-                <View style={styles.brandMark} />
+                <View style={styles.brandMark}><Text style={styles.brandInitial}>D</Text></View>
                 <Text style={styles.brandText}>Dine</Text>
               </View>
               <Pressable accessibilityLabel="Close staff menu" accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
@@ -219,30 +225,33 @@ export function StaffDrawerProvider({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, flexDirection: 'row' },
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: drawerColors.overlay },
-  drawer: { width: 330, maxWidth: '86%', height: '100%', borderTopRightRadius: 30, borderBottomRightRadius: 30, overflow: 'hidden', backgroundColor: drawerColors.surface },
-  drawerSafeArea: { flex: 1, backgroundColor: drawerColors.surface, paddingHorizontal: 16 },
-  drawerHeader: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  drawer: { width: 344, maxWidth: '88%', height: '100%', borderTopRightRadius: 34, borderBottomRightRadius: 34, overflow: 'hidden', backgroundColor: drawerColors.surface, shadowColor: '#000000', shadowOffset: { width: 12, height: 0 }, shadowOpacity: 0.24, shadowRadius: 26, elevation: 24 },
+  drawerSafeArea: { flex: 1, backgroundColor: drawerColors.surface, paddingHorizontal: 20 },
+  drawerHeader: { minHeight: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandRow: { flexDirection: 'row', alignItems: 'center' },
-  brandMark: { width: 28, height: 28, borderRadius: 14, backgroundColor: drawerColors.brand },
-  brandText: { marginLeft: 8, color: drawerColors.text, fontSize: 20, fontWeight: '700' },
-  closeButton: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, borderWidth: 1, borderColor: drawerColors.border, backgroundColor: drawerColors.surface },
+  brandMark: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: drawerColors.brand, shadowColor: drawerColors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 2 },
+  brandInitial: { color: drawerColors.text, fontSize: 18, fontWeight: '900' },
+  brandText: { marginLeft: 11, color: drawerColors.text, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: drawerColors.border, backgroundColor: drawerColors.card },
   closeIcon: { width: 15, height: 15 },
   closeLine: { position: 'absolute', top: 6.5, left: 2, width: 11, height: 1.7, backgroundColor: drawerColors.muted },
   closeLineOne: { transform: [{ rotate: '45deg' }] },
   closeLineTwo: { transform: [{ rotate: '-45deg' }] },
-  profileCard: { minHeight: 80, flexDirection: 'row', alignItems: 'center', marginTop: 1, borderRadius: 17, borderWidth: 1, borderColor: drawerColors.border, paddingHorizontal: 16, backgroundColor: drawerColors.surface },
-  avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: '#633719' },
-  avatarText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
-  profileCopy: { flex: 1, marginLeft: 15 },
-  profileName: { color: drawerColors.text, fontSize: 18, fontWeight: '700' },
-  profileRole: { marginTop: 3, color: drawerColors.muted, fontSize: 14 },
-  divider: { height: 1, marginTop: 23, backgroundColor: drawerColors.border },
-  navigation: { marginTop: 20, gap: 2 },
-  drawerItem: { minHeight: 50, flexDirection: 'row', alignItems: 'center', borderRadius: 11, paddingHorizontal: 16 },
-  drawerItemActive: { backgroundColor: '#FFF8E1' },
-  drawerIconBox: { width: 24, alignItems: 'center' },
-  drawerItemText: { marginLeft: 16, color: drawerColors.text, fontSize: 16, fontWeight: '500' },
-  drawerItemTextActive: { color: drawerColors.brand, fontWeight: '700' },
+  profileCard: { minHeight: 96, flexDirection: 'row', alignItems: 'center', marginTop: 2, borderRadius: 22, borderWidth: 1, borderColor: drawerColors.border, paddingHorizontal: 16, backgroundColor: drawerColors.card, shadowColor: drawerColors.shadow, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.06, shadowRadius: 14, elevation: 2 },
+  avatar: { width: 54, height: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 27, borderWidth: 3, borderColor: '#F2C79E', backgroundColor: '#633719' },
+  avatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+  profileCopy: { flex: 1, marginLeft: 14 },
+  profileName: { color: drawerColors.text, fontSize: 18, fontWeight: '800' },
+  profileRole: { marginTop: 4, color: drawerColors.muted, fontSize: 13, fontWeight: '500' },
+  divider: { height: 1, marginTop: 24, backgroundColor: drawerColors.border },
+  navigation: { marginTop: 19, gap: 5 },
+  drawerItem: { minHeight: 56, flexDirection: 'row', alignItems: 'center', borderRadius: 17, paddingHorizontal: 10, overflow: 'hidden' },
+  drawerItemActive: { backgroundColor: drawerColors.active },
+  activeIndicator: { position: 'absolute', left: 0, width: 4, height: 24, borderTopRightRadius: 4, borderBottomRightRadius: 4, backgroundColor: drawerColors.brand },
+  drawerIconBox: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 13 },
+  drawerIconBoxActive: { backgroundColor: drawerColors.card },
+  drawerItemText: { marginLeft: 12, color: drawerColors.text, fontSize: 15, fontWeight: '600' },
+  drawerItemTextActive: { color: drawerColors.brandDark, fontWeight: '800' },
   gridIcon: { width: 18, height: 18, flexDirection: 'row', flexWrap: 'wrap', gap: 3 },
   gridSquare: { width: 7, height: 7, borderRadius: 1, borderWidth: 2 },
   tableIcon: { width: 18, height: 18, borderRadius: 2, borderWidth: 2 },
@@ -261,12 +270,12 @@ const styles = StyleSheet.create({
   profileBody: { position: 'absolute', left: 2, bottom: 0, width: 16, height: 10, borderTopLeftRadius: 9, borderTopRightRadius: 9, borderWidth: 2, borderBottomWidth: 0 },
   settingsIcon: { width: 18, height: 18, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 3 },
   settingsCenter: { width: 5, height: 5, borderRadius: 3, borderWidth: 1.5 },
-  logoutArea: { marginTop: 'auto' },
-  logoutButton: { minHeight: 66, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 17 },
-  logoutText: { marginLeft: 18, color: drawerColors.danger, fontSize: 16, fontWeight: '500' },
+  logoutArea: { marginTop: 'auto', paddingBottom: 4 },
+  logoutButton: { minHeight: 56, flexDirection: 'row', alignItems: 'center', marginTop: 12, marginBottom: 6, borderRadius: 17, backgroundColor: drawerColors.dangerSoft, paddingHorizontal: 17 },
+  logoutText: { marginLeft: 16, color: drawerColors.danger, fontSize: 15, fontWeight: '800' },
   logoutIcon: { width: 20, height: 20 },
   logoutDoor: { position: 'absolute', top: 2, left: 0, width: 10, height: 16, borderLeftWidth: 2, borderTopWidth: 2, borderBottomWidth: 2 },
   logoutArrow: { position: 'absolute', top: 6, right: 0, width: 7, height: 7, borderTopWidth: 2, borderRightWidth: 2, transform: [{ rotate: '45deg' }] },
   logoutShaft: { position: 'absolute', top: 9, left: 7, width: 11, height: 2 },
-  pressed: { opacity: 0.62 },
+  pressed: { opacity: 0.68, transform: [{ scale: 0.985 }] },
 });

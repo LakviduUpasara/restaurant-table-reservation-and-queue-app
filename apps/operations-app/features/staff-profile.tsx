@@ -7,12 +7,18 @@ import { useAuth } from '../stores/auth.store';
 import { useStaffDrawer } from './staff-drawer';
 
 const colors = {
-  background: '#F2F2F2',
-  surface: '#FFFFFF',
-  field: '#FAFAFA',
-  text: '#111111',
-  muted: '#6C6C6C',
+  background: '#F5F3EE',
+  surface: '#FCFCFA',
+  card: '#FFFFFF',
+  field: '#F8F7F3',
+  text: '#17211D',
+  muted: '#7E8782',
   avatar: '#613719',
+  accent: '#E3AD18',
+  accentSoft: '#FFF0BC',
+  active: '#173E35',
+  border: '#E5E2DA',
+  shadow: '#203129',
 } as const;
 
 function initials(name?: string) {
@@ -38,6 +44,10 @@ function AccountField({ label }: { label: string }) {
   );
 }
 
+function ChevronIcon() {
+  return <View accessibilityElementsHidden style={styles.chevronIcon} />;
+}
+
 function SettingsRow({ title, description, onPress }: { title: string; description: string; onPress: () => void }) {
   return (
     <Pressable
@@ -46,7 +56,10 @@ function SettingsRow({ title, description, onPress }: { title: string; descripti
       onPress={onPress}
       style={({ pressed }) => [styles.settingsRow, pressed && styles.pressed]}
     >
-      <Text style={styles.settingsTitle}>{title}</Text>
+      <View style={styles.settingsTitleRow}>
+        <Text style={styles.settingsTitle}>{title}</Text>
+        <View style={styles.chevronBox}><ChevronIcon /></View>
+      </View>
       <Text style={styles.settingsDescription}>{description}</Text>
     </Pressable>
   );
@@ -130,22 +143,25 @@ export function StaffProfile() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   page: { flex: 1, backgroundColor: colors.background },
-  headerWidth: { width: '100%', maxWidth: 430, minHeight: 104, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  compactWidth: { paddingHorizontal: 20 },
-  menuButton: { width: 32, height: 40, justifyContent: 'center' },
-  menuIcon: { width: 24, gap: 4 },
-  menuLine: { width: 24, height: 2, backgroundColor: colors.text },
-  profilePanel: { flex: 1, borderTopLeftRadius: 68, borderTopRightRadius: 68, overflow: 'hidden', backgroundColor: colors.surface },
-  scrollContent: { alignItems: 'center', paddingTop: 24, paddingBottom: 34 },
-  contentWidth: { width: '100%', maxWidth: 430, paddingHorizontal: 54 },
-  avatar: { width: 130, height: 130, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', borderRadius: 65, backgroundColor: colors.avatar, borderWidth: 4, borderColor: '#E8D5C5' },
-  avatarText: { color: colors.surface, fontSize: 40, fontWeight: '700', letterSpacing: 1 },
-  accountFields: { gap: 21, marginTop: 10 },
-  accountField: { minHeight: 43, justifyContent: 'center', borderRadius: 9, backgroundColor: colors.field, paddingHorizontal: 24 },
-  accountFieldText: { color: colors.text, fontSize: 20, lineHeight: 26 },
-  settingsSection: { gap: 4, marginTop: 24 },
-  settingsRow: { minHeight: 63, justifyContent: 'center', borderRadius: 10, paddingHorizontal: 1, paddingVertical: 8 },
-  settingsTitle: { color: colors.text, fontSize: 17, fontWeight: '700', lineHeight: 22 },
-  settingsDescription: { marginTop: 7, color: colors.text, fontSize: 13, lineHeight: 18 },
-  pressed: { opacity: 0.62 },
+  headerWidth: { width: '100%', maxWidth: 460, minHeight: 88, alignSelf: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  compactWidth: { paddingHorizontal: 16 },
+  menuButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 1 },
+  menuIcon: { width: 20, gap: 5 },
+  menuLine: { width: 20, height: 2, borderRadius: 2, backgroundColor: colors.text },
+  profilePanel: { flex: 1, borderTopLeftRadius: 36, borderTopRightRadius: 36, overflow: 'hidden', backgroundColor: colors.surface, shadowColor: colors.shadow, shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 4 },
+  scrollContent: { alignItems: 'center', paddingTop: 28, paddingBottom: 40 },
+  contentWidth: { width: '100%', maxWidth: 460, paddingHorizontal: 24 },
+  avatar: { width: 118, height: 118, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', borderRadius: 59, backgroundColor: colors.avatar, borderWidth: 5, borderColor: '#F2C79E', shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 16, elevation: 5 },
+  avatarText: { color: colors.card, fontSize: 38, fontWeight: '800', letterSpacing: 1 },
+  accountFields: { gap: 12, marginTop: 24 },
+  accountField: { minHeight: 58, justifyContent: 'center', borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 18, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+  accountFieldText: { color: colors.text, fontSize: 16, fontWeight: '600', lineHeight: 22 },
+  settingsSection: { gap: 12, marginTop: 24 },
+  settingsRow: { minHeight: 84, justifyContent: 'center', borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, paddingHorizontal: 18, paddingVertical: 14, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
+  settingsTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  settingsTitle: { color: colors.text, fontSize: 16, fontWeight: '800', lineHeight: 21 },
+  settingsDescription: { marginTop: 5, marginRight: 40, color: colors.muted, fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  chevronBox: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: colors.field },
+  chevronIcon: { width: 8, height: 8, marginRight: 3, borderTopWidth: 1.8, borderRightWidth: 1.8, borderColor: colors.active, transform: [{ rotate: '45deg' }] },
+  pressed: { opacity: 0.7, transform: [{ scale: 0.99 }] },
 });

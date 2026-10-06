@@ -10,19 +10,20 @@ import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
 
 const colors = {
-  background: '#F2F2F2',
+  background: '#F5F3EE',
   surface: '#FFFFFF',
-  text: '#111111',
-  secondaryText: '#444444',
-  muted: '#8A8A8A',
-  border: '#CCCCCC',
-  segment: '#E1E1E1',
-  active: '#FFC400',
-  available: '#10E629',
-  occupied: '#FF2D38',
-  reserved: '#FFC400',
-  cleaning: '#8A8A8A',
-  unavailable: '#4F4F4F',
+  text: '#17211D',
+  secondaryText: '#606A65',
+  muted: '#939B97',
+  border: '#E5E2DA',
+  segment: '#E8E6E0',
+  active: '#173E35',
+  available: '#2FA66F',
+  occupied: '#E35D63',
+  reserved: '#D9A91B',
+  cleaning: '#8C9490',
+  unavailable: '#4D5551',
+  shadow: '#203129',
 } as const;
 
 type ViewMode = 'floor' | 'list';
@@ -101,6 +102,9 @@ export function StaffTables() {
   });
 
   const navigate = (route: MainRoute) => router.push(route as never);
+  const displayTables = [...(tables.data ?? [])].sort((first, second) =>
+    first.label.localeCompare(second.label, undefined, { numeric: true }),
+  );
   const openTable = (tableId: string) => router.push({
     pathname: '/(staff)/tables/[tableId]',
     params: { tableId },
@@ -118,6 +122,7 @@ export function StaffTables() {
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={openDrawer}
+                style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
               >
                 <MenuIcon />
               </Pressable>
@@ -126,7 +131,7 @@ export function StaffTables() {
                 accessibilityRole="button"
                 hitSlop={10}
                 onPress={() => navigate('/(staff)/reservations')}
-                style={({ pressed }) => pressed && styles.pressed}
+                style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
               >
                 <HeaderCalendarIcon />
               </Pressable>
@@ -148,7 +153,7 @@ export function StaffTables() {
                 onPress={() => setViewMode('floor')}
                 style={[styles.segment, viewMode === 'floor' && styles.segmentActive]}
               >
-                <Text style={styles.segmentText}>Floor View</Text>
+                <Text style={[styles.segmentText, viewMode === 'floor' && styles.segmentTextActive]}>Floor View</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="tab"
@@ -156,7 +161,7 @@ export function StaffTables() {
                 onPress={() => setViewMode('list')}
                 style={[styles.segment, viewMode === 'list' && styles.segmentActive]}
               >
-                <Text style={styles.segmentText}>List View</Text>
+                <Text style={[styles.segmentText, viewMode === 'list' && styles.segmentTextActive]}>List View</Text>
               </Pressable>
             </View>
 
@@ -176,16 +181,16 @@ export function StaffTables() {
               >
                 <Text style={styles.stateText}>Could not load table status. Tap to retry.</Text>
               </Pressable>
-            ) : tables.data?.length ? (
+            ) : displayTables.length ? (
               viewMode === 'floor' ? (
                 <View style={styles.floorPanel}>
-                  {tables.data.map((table) => (
+                  {displayTables.map((table) => (
                     <Pressable
                       accessibilityLabel={`${table.label}, ${table.status.toLowerCase()}, ${table.capacity} seats`}
                       accessibilityRole="button"
                       key={table.id}
                       onPress={() => openTable(table.id)}
-                      style={({ pressed }) => [styles.floorTable, pressed && styles.pressed]}
+                      style={({ pressed }) => [styles.floorTable, pressed && styles.tablePressed]}
                     >
                       <TableShape color={statusColor[table.status]} />
                       <Text style={styles.tableLabel}>{table.label}</Text>
@@ -194,13 +199,13 @@ export function StaffTables() {
                 </View>
               ) : (
                 <View style={styles.listPanel}>
-                  {tables.data.map((table) => (
+                  {displayTables.map((table) => (
                     <Pressable
                       accessibilityLabel={`${table.label}, ${table.status.toLowerCase()}, ${table.capacity} seats`}
                       accessibilityRole="button"
                       key={table.id}
                       onPress={() => openTable(table.id)}
-                      style={({ pressed }) => [styles.listRow, pressed && styles.pressed]}
+                      style={({ pressed }) => [styles.listRow, pressed && styles.tablePressed]}
                     >
                       <TableShape color={statusColor[table.status]} />
                       <View style={styles.listCopy}>
@@ -237,31 +242,42 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: 'center',
-    paddingBottom: 28,
+    paddingBottom: 32,
   },
   contentWidth: {
     width: '100%',
-    maxWidth: 430,
-    paddingHorizontal: 30,
+    maxWidth: 460,
+    paddingHorizontal: 20,
   },
   headerRow: {
-    minHeight: 66,
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerButton: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
   menuIcon: {
-    width: 24,
-    gap: 4,
+    width: 20,
+    gap: 5,
   },
   menuLine: {
-    width: 24,
+    width: 20,
     height: 2,
+    borderRadius: 2,
     backgroundColor: colors.text,
   },
   headerCalendar: {
-    width: 27,
-    height: 25,
+    width: 25,
+    height: 23,
     overflow: 'hidden',
     borderRadius: 3,
     borderColor: colors.occupied,
@@ -285,88 +301,108 @@ const styles = StyleSheet.create({
     backgroundColor: colors.occupied,
   },
   title: {
-    marginTop: 7,
+    marginTop: 13,
+    paddingHorizontal: 3,
     color: colors.text,
-    fontSize: 30,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-    lineHeight: 37,
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.9,
+    lineHeight: 39,
   },
   legend: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    columnGap: 31,
-    rowGap: 12,
-    marginTop: 14,
-    paddingHorizontal: 2,
+    columnGap: 18,
+    rowGap: 14,
+    marginTop: 17,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 17,
+    paddingVertical: 16,
   },
   legendItem: {
-    minWidth: 98,
+    width: '45%',
+    flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 9,
   },
   legendDot: {
-    width: 15,
-    height: 15,
-    borderRadius: 8,
+    width: 11,
+    height: 11,
+    borderRadius: 6,
   },
   legendLabel: {
     color: colors.secondaryText,
-    fontSize: 15,
+    fontSize: 13,
+    fontWeight: '600',
   },
   segmentedControl: {
     flexDirection: 'row',
-    marginHorizontal: 8,
-    marginTop: 26,
-    borderRadius: 10,
+    marginTop: 18,
+    borderRadius: 16,
     backgroundColor: colors.segment,
+    padding: 4,
   },
   segment: {
-    minHeight: 34,
+    minHeight: 43,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 13,
   },
   segmentActive: {
     backgroundColor: colors.active,
   },
   segmentText: {
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: '500',
+    color: colors.secondaryText,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  segmentTextActive: {
+    color: colors.surface,
+    fontWeight: '800',
   },
   floorPanel: {
-    minHeight: 420,
+    minHeight: 430,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignContent: 'flex-start',
-    marginTop: 18,
-    paddingHorizontal: 5,
-    paddingTop: 24,
-    paddingBottom: 22,
-    borderRadius: 10,
+    marginTop: 16,
+    paddingHorizontal: 7,
+    paddingTop: 22,
+    paddingBottom: 12,
+    borderRadius: 24,
     borderColor: colors.border,
     borderWidth: 1,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: colors.surface,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 2,
   },
   floorTable: {
     width: '25%',
-    minHeight: 125,
+    minHeight: 112,
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    borderRadius: 16,
+    paddingTop: 7,
   },
   tableShape: {
-    width: 64,
-    height: 64,
+    width: 58,
+    height: 58,
   },
   tableCircle: {
     position: 'absolute',
-    top: 12,
-    left: 12,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: 11,
+    left: 11,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   tableChair: {
     position: 'absolute',
@@ -419,23 +455,30 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   tableLabel: {
-    marginTop: 6,
+    marginTop: 5,
     color: colors.text,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '700',
   },
   listPanel: {
-    gap: 12,
-    marginTop: 18,
+    gap: 10,
+    marginTop: 16,
   },
   listRow: {
-    minHeight: 88,
+    minHeight: 84,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 17,
     paddingVertical: 10,
-    borderRadius: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
   listCopy: {
     flex: 1,
@@ -443,8 +486,8 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     color: colors.text,
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '800',
   },
   listStatus: {
     marginTop: 4,
@@ -467,7 +510,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 18,
     padding: 24,
-    borderRadius: 10,
+    borderRadius: 22,
     borderColor: colors.border,
     borderWidth: 1,
     backgroundColor: colors.surface,
@@ -479,6 +522,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   pressed: {
-    opacity: 0.65,
+    opacity: 0.68,
+  },
+  tablePressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.97 }],
   },
 });

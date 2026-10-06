@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery } from '@tanstack/react-query';
@@ -9,32 +9,32 @@ import { useAuth } from '../stores/auth.store';
 import { useRealtime, useRestaurant } from './common';
 import { useStaffDrawer } from './staff-drawer';
 
-const dashboardColors = {
-  background: '#F2F2F2',
-  surface: '#FFFFFF',
-  text: '#111111',
-  secondaryText: '#505050',
-  muted: '#8A8A8A',
-  border: '#E0E0E0',
-  shadow: '#000000',
-  coral: '#FF5964',
-  pink: '#EF3D8F',
-  purple: '#CE54FF',
-  green: '#40D51A',
-  active: '#F5B400',
-  icon: '#565656',
+const colors = {
+  background: '#F5F3EE', surface: '#FFFFFF', ink: '#17211D', secondary: '#606A65', muted: '#939B97',
+  border: '#E7E4DC', forest: '#173E35', forestLight: '#DDEBE5', gold: '#E3AD18', goldSoft: '#FFF3CF',
+  coral: '#EF6A62', coralSoft: '#FDE7E4', berry: '#CE4D7D', berrySoft: '#F9E4EC', blue: '#5D75C9',
+  violet: '#8B65C8', violetSoft: '#EFE9F8', white: '#FFFFFF', shadow: '#203129',
 } as const;
 
-type MetricIconKind = 'calendar' | 'people' | 'occupied' | 'available';
+type MetricIcon = 'calendar' | 'queue' | 'occupied' | 'available';
+type TaskIcon = 'reservation' | 'queue' | 'cleaning';
 type MainRoute = '/(staff)/dashboard' | '/(staff)/tables' | '/(staff)/reservations' | '/(staff)/queue';
 
-const colomboDay = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+const COLOMBO_TIME_ZONE = 'Asia/Colombo';
+const activeReservationStatuses = ['PENDING', 'CONFIRMED', 'ARRIVED'];
+const activeQueueStatuses = ['WAITING', 'NOTIFIED', 'TABLE_READY'];
+
+function colomboDay() {
+  const parts = new Intl.DateTimeFormat('en-CA', { day: '2-digit', month: '2-digit', timeZone: COLOMBO_TIME_ZONE, year: 'numeric' }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
 
 function greetingForCurrentTime() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good Morning';
-  if (hour < 17) return 'Good Afternoon';
-  return 'Good Evening';
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hour12: false, timeZone: COLOMBO_TIME_ZONE }).format(new Date()));
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
 }
 
 function initials(name?: string) {
@@ -43,185 +43,70 @@ function initials(name?: string) {
 }
 
 function MenuIcon() {
-  return (
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}>
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-      <View style={styles.menuLine} />
-    </View>
-  );
+  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.menuIcon}><View style={styles.menuLineLong} /><View style={styles.menuLineShort} /></View>;
+}
+
+function Chevron({ color = colors.muted }: { color?: string }) {
+  return <View accessibilityElementsHidden style={[styles.chevron, { borderColor: color }]} />;
 }
 
 function CalendarIcon({ color }: { color: string }) {
-  return (
-    <View style={[styles.calendarIcon, { borderColor: color }]}>
-      <View style={[styles.calendarHeader, { backgroundColor: color }]} />
-      <View style={styles.calendarGrid}>
-        {[0, 1, 2, 3].map((item) => <View key={item} style={[styles.calendarDot, { backgroundColor: color }]} />)}
-      </View>
-    </View>
-  );
+  return <View style={[styles.calendarIcon, { borderColor: color }]}><View style={[styles.calendarBar, { backgroundColor: color }]} /><View style={styles.calendarDots}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.calendarDot, { backgroundColor: color }]} />)}</View></View>;
 }
 
 function PeopleIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.peopleIcon}>
-      <View style={[styles.personHead, styles.personHeadLeft, { backgroundColor: color }]} />
-      <View style={[styles.personHead, styles.personHeadCenter, { backgroundColor: color }]} />
-      <View style={[styles.personHead, styles.personHeadRight, { backgroundColor: color }]} />
-      <View style={[styles.personBody, styles.personBodyLeft, { backgroundColor: color }]} />
-      <View style={[styles.personBody, styles.personBodyCenter, { backgroundColor: color }]} />
-      <View style={[styles.personBody, styles.personBodyRight, { backgroundColor: color }]} />
-    </View>
-  );
+  return <View style={styles.peopleIcon}><View style={[styles.personHead, styles.personHeadLeft, { backgroundColor: color }]} /><View style={[styles.personHead, styles.personHeadCenter, { backgroundColor: color }]} /><View style={[styles.personHead, styles.personHeadRight, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyLeft, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyCenter, { backgroundColor: color }]} /><View style={[styles.personBody, styles.personBodyRight, { backgroundColor: color }]} /></View>;
 }
 
 function TableIcon({ color }: { color: string }) {
-  return (
-    <View style={styles.tableIcon}>
-      <View style={[styles.tableTop, { borderColor: color }]} />
-      <View style={[styles.tableLeg, styles.tableLegLeft, { backgroundColor: color }]} />
-      <View style={[styles.tableLeg, styles.tableLegRight, { backgroundColor: color }]} />
-      <View style={[styles.chair, styles.chairLeft, { borderColor: color }]} />
-      <View style={[styles.chair, styles.chairRight, { borderColor: color }]} />
-    </View>
-  );
+  return <View style={styles.tableIcon}><View style={[styles.tableTop, { borderColor: color }]} /><View style={[styles.tableLeg, styles.tableLegLeft, { backgroundColor: color }]} /><View style={[styles.tableLeg, styles.tableLegRight, { backgroundColor: color }]} /><View style={[styles.chair, styles.chairLeft, { borderColor: color }]} /><View style={[styles.chair, styles.chairRight, { borderColor: color }]} /></View>;
 }
 
-function MetricIcon({ kind, color }: { kind: MetricIconKind; color: string }) {
+function MetricGlyph({ kind, color }: { kind: MetricIcon; color: string }) {
   if (kind === 'calendar') return <CalendarIcon color={color} />;
-  if (kind === 'people') return <PeopleIcon color={color} />;
+  if (kind === 'queue') return <PeopleIcon color={color} />;
   return <TableIcon color={color} />;
 }
 
-function MetricCard({
-  icon,
-  color,
-  value,
-  label,
-}: {
-  icon: MetricIconKind;
-  color: string;
-  value: number;
-  label: string;
-}) {
+function MetricCard({ icon, label, onPress, tint, value, accent }: { icon: MetricIcon; label: string; onPress: () => void; tint: string; value: number; accent: string }) {
   return (
-    <View style={styles.metricCard}>
-      <View style={styles.metricTopLine}>
-        <MetricIcon kind={icon} color={color} />
-        <Text style={styles.metricValue}>{value}</Text>
-      </View>
+    <Pressable accessibilityLabel={`${label}: ${value}`} accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.metricCard, pressed && styles.cardPressed]}>
+      <View style={[styles.metricIconWrap, { backgroundColor: tint }]}><MetricGlyph color={accent} kind={icon} /></View>
+      <View style={styles.metricTopRow}><Text style={styles.metricValue}>{value}</Text><View style={[styles.metricDot, { backgroundColor: accent }]} /></View>
       <Text style={styles.metricLabel}>{label}</Text>
-    </View>
+    </Pressable>
   );
 }
 
-function ArrowIcon() {
-  return <View accessibilityElementsHidden style={styles.arrowIcon} />;
+function TaskGlyph({ kind, color }: { kind: TaskIcon; color: string }) {
+  if (kind === 'queue') return <PeopleIcon color={color} />;
+  if (kind === 'reservation') return <CalendarIcon color={color} />;
+  return <View style={styles.sparkleIcon}><View style={[styles.sparkleVertical, { backgroundColor: color }]} /><View style={[styles.sparkleHorizontal, { backgroundColor: color }]} /><View style={[styles.sparkleSmall, { backgroundColor: color }]} /></View>;
 }
 
-function TaskRow({
-  title,
-  detail,
-  onPress,
-}: {
-  title: string;
-  detail: string;
-  onPress: () => void;
-}) {
+function TaskRow({ accent, detail, icon, onPress, title }: { accent: string; detail: string; icon: TaskIcon; onPress: () => void; title: string }) {
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${title}. ${detail}`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.taskRow, pressed && styles.pressed]}
-    >
-      <View style={styles.taskCheck}>
-        <Text style={styles.taskCheckMark}>✓</Text>
-      </View>
-      <View style={styles.taskCopy}>
-        <Text style={styles.taskTitle}>{title}</Text>
-        <Text style={styles.taskDetail}>{detail}</Text>
-      </View>
-      <ArrowIcon />
+    <Pressable accessibilityLabel={`${title}. ${detail}`} accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.taskRow, pressed && styles.cardPressed]}>
+      <View style={[styles.taskIconWrap, { backgroundColor: `${accent}18` }]}><TaskGlyph color={accent} kind={icon} /></View>
+      <View style={styles.taskCopy}><Text style={styles.taskTitle}>{title}</Text><Text numberOfLines={1} style={styles.taskDetail}>{detail}</Text></View><Chevron />
     </Pressable>
   );
 }
 
 function DashboardNavIcon({ kind, active }: { kind: 'dashboard' | 'tables' | 'reservations' | 'queue'; active: boolean }) {
-  const color = active ? dashboardColors.active : dashboardColors.muted;
-
-  if (kind === 'dashboard') {
-    return (
-      <View style={styles.dashboardNavIcon}>
-        {[0, 1, 2, 3].map((item) => <View key={item} style={[styles.dashboardNavSquare, { borderColor: color }]} />)}
-      </View>
-    );
-  }
-  if (kind === 'tables') {
-    return (
-      <View style={[styles.tablesNavIcon, { borderColor: color }]}>
-        <View style={[styles.tablesNavLine, styles.tablesNavLineVertical, { backgroundColor: color }]} />
-        <View style={[styles.tablesNavLine, styles.tablesNavLineHorizontalOne, { backgroundColor: color }]} />
-        <View style={[styles.tablesNavLine, styles.tablesNavLineHorizontalTwo, { backgroundColor: color }]} />
-      </View>
-    );
-  }
-  if (kind === 'reservations') {
-    return (
-      <View style={styles.reservationsNavIcon}>
-        <View style={styles.reservationsNavIconScale}>
-          <CalendarIcon color={color} />
-        </View>
-      </View>
-    );
-  }
-  return (
-    <View style={styles.queueNavIcon}>
-      <View style={[styles.queueLine, { width: 22, backgroundColor: color }]} />
-      <View style={[styles.queueLine, { width: 14, backgroundColor: color }]} />
-      <View style={[styles.queueLine, { width: 6, backgroundColor: color }]} />
-    </View>
-  );
+  const color = active ? colors.forest : colors.muted;
+  if (kind === 'dashboard') return <View style={styles.dashboardNavIcon}>{[0, 1, 2, 3].map((item) => <View key={item} style={[styles.dashboardNavSquare, { backgroundColor: color }]} />)}</View>;
+  if (kind === 'tables') return <View style={[styles.tablesNavIcon, { borderColor: color }]}><View style={[styles.navLine, styles.navLineVertical, { backgroundColor: color }]} /><View style={[styles.navLine, styles.navLineHorizontalOne, { backgroundColor: color }]} /><View style={[styles.navLine, styles.navLineHorizontalTwo, { backgroundColor: color }]} /></View>;
+  if (kind === 'reservations') return <View style={styles.reservationNavScale}><CalendarIcon color={color} /></View>;
+  return <View style={styles.queueNavIcon}><View style={[styles.queueNavLine, { width: 22, backgroundColor: color }]} /><View style={[styles.queueNavLine, { width: 14, backgroundColor: color }]} /><View style={[styles.queueNavLine, { width: 7, backgroundColor: color }]} /></View>;
 }
 
-export function StaffBottomNav({
-  onNavigate,
-  bottomInset,
-  active,
-}: {
-  onNavigate: (route: MainRoute) => void;
-  bottomInset: number;
-  active: 'dashboard' | 'tables' | 'reservations' | 'queue' | null;
-}) {
+export function StaffBottomNav({ onNavigate, bottomInset, active }: { onNavigate: (route: MainRoute) => void; bottomInset: number; active: 'dashboard' | 'tables' | 'reservations' | 'queue' | null }) {
   const items: { label: string; icon: 'dashboard' | 'tables' | 'reservations' | 'queue'; route: MainRoute }[] = [
-    { label: 'Dashboard', icon: 'dashboard', route: '/(staff)/dashboard' },
-    { label: 'Tables', icon: 'tables', route: '/(staff)/tables' },
-    { label: 'Reservations', icon: 'reservations', route: '/(staff)/reservations' },
-    { label: 'Queue', icon: 'queue', route: '/(staff)/queue' },
+    { label: 'Dashboard', icon: 'dashboard', route: '/(staff)/dashboard' }, { label: 'Tables', icon: 'tables', route: '/(staff)/tables' },
+    { label: 'Reservations', icon: 'reservations', route: '/(staff)/reservations' }, { label: 'Queue', icon: 'queue', route: '/(staff)/queue' },
   ];
-
-  return (
-    <View style={[styles.bottomNav, { paddingBottom: Math.max(bottomInset, 10) }]}>
-      <View style={styles.bottomNavInner}>
-        {items.map((item) => {
-          const isActive = item.icon === active;
-          return (
-            <Pressable
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isActive }}
-              key={item.route}
-              onPress={() => onNavigate(item.route)}
-              style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}
-            >
-              <DashboardNavIcon active={isActive} kind={item.icon} />
-              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>{item.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-    </View>
-  );
+  return <View style={[styles.bottomNavShell, { paddingBottom: Math.max(bottomInset, 10) }]}><View style={styles.bottomNav}>{items.map((item) => { const selected = item.icon === active; return <Pressable accessibilityRole="tab" accessibilityState={{ selected }} key={item.route} onPress={() => onNavigate(item.route)} style={({ pressed }) => [styles.navItem, selected && styles.navItemActive, pressed && styles.pressed]}><DashboardNavIcon active={selected} kind={item.icon} /><Text style={[styles.navLabel, selected && styles.navLabelActive]}>{item.label}</Text></Pressable>; })}</View></View>;
 }
 
 export function StaffDashboard() {
@@ -231,542 +116,85 @@ export function StaffDashboard() {
   const profile = useAuth((state) => state.profile);
   const day = colomboDay();
 
-  useRealtime('tables');
-  useRealtime('queue_entries');
-  useRealtime('reservations');
+  useRealtime('tables'); useRealtime('queue_entries'); useRealtime('reservations');
 
-  const restaurant = useQuery({
-    queryKey: ['restaurant', restaurantId],
-    enabled: !!restaurantId,
-    queryFn: () => api<Restaurant>(`/restaurants/${restaurantId}`),
-  });
-  const tables = useQuery({
-    queryKey: ['tables', restaurantId],
-    enabled: !!restaurantId,
-    queryFn: () => api<Table[]>(`/tables?restaurant_id=${restaurantId}`),
-  });
-  const queue = useQuery({
-    queryKey: ['queue', restaurantId],
-    enabled: !!restaurantId,
-    queryFn: () => api<QueueEntry[]>(`/queue?restaurant_id=${restaurantId}`),
-  });
-  const reservations = useQuery({
-    queryKey: ['reservations', restaurantId, day],
-    enabled: !!restaurantId,
-    queryFn: () => api<Reservation[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`),
-  });
+  const restaurant = useQuery({ queryKey: ['restaurant', restaurantId], enabled: !!restaurantId, queryFn: () => api<Restaurant>(`/restaurants/${restaurantId}`) });
+  const tables = useQuery({ queryKey: ['tables', restaurantId], enabled: !!restaurantId, queryFn: () => api<Table[]>(`/tables?restaurant_id=${restaurantId}`) });
+  const queue = useQuery({ queryKey: ['queue', restaurantId], enabled: !!restaurantId, queryFn: () => api<QueueEntry[]>(`/queue?restaurant_id=${restaurantId}`) });
+  const reservations = useQuery({ queryKey: ['reservations', restaurantId, day], enabled: !!restaurantId, queryFn: () => api<Reservation[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`) });
 
-  const activeReservations = reservations.data?.filter((reservation) =>
-    ['PENDING', 'CONFIRMED', 'ARRIVED'].includes(reservation.status),
-  ) ?? [];
-  const activeQueue = queue.data?.filter((entry) =>
-    ['WAITING', 'NOTIFIED', 'TABLE_READY'].includes(entry.status),
-  ) ?? [];
-  const occupiedTables = tables.data?.filter((table) => table.status === 'OCCUPIED').length ?? 0;
-  const availableTables = tables.data?.filter((table) => table.status === 'AVAILABLE').length ?? 0;
-  const cleaningTables = tables.data?.filter((table) => table.status === 'CLEANING').length ?? 0;
+  const activeReservations = reservations.data?.filter((item) => activeReservationStatuses.includes(item.status)) ?? [];
+  const activeQueue = queue.data?.filter((item) => activeQueueStatuses.includes(item.status)) ?? [];
+  const occupiedTables = tables.data?.filter((item) => item.status === 'OCCUPIED').length ?? 0;
+  const availableTables = tables.data?.filter((item) => item.status === 'AVAILABLE').length ?? 0;
+  const cleaningTables = tables.data?.filter((item) => item.status === 'CLEANING').length ?? 0;
   const now = Date.now();
-  const upcomingReservations = activeReservations.filter((reservation) => {
-    const startsAt = new Date(reservation.starts_at).getTime();
-    return startsAt >= now && startsAt <= now + 60 * 60_000;
-  }).length;
-  const hasError = restaurant.error || tables.error || queue.error || reservations.error;
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Team member';
+  const upcomingReservations = activeReservations.filter((item) => { const startsAt = new Date(item.starts_at).getTime(); return startsAt >= now && startsAt <= now + 60 * 60_000; }).length;
+  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Team';
   const restaurantName = restaurant.data?.name || 'DineFlow';
-
+  const hasError = !!(restaurant.error || tables.error || queue.error || reservations.error);
+  const refreshing = restaurant.isRefetching || tables.isRefetching || queue.isRefetching || reservations.isRefetching;
   const navigate = (route: MainRoute) => router.push(route as never);
+  async function refreshAll() { await Promise.all([restaurant.refetch(), tables.refetch(), queue.refetch(), reservations.refetch()]); }
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar style="dark" />
-      <View style={styles.page}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.contentWidth}>
-            <View style={styles.headerRow}>
-              <Pressable
-                accessibilityLabel="Open staff menu"
-                accessibilityRole="button"
-                hitSlop={12}
-                onPress={openDrawer}
-              >
-                <MenuIcon />
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Open staff profile"
-                accessibilityRole="button"
-                onPress={() => router.push('/(staff)/profile' as never)}
-                style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}
-              >
-                <Text style={styles.avatarText}>{initials(profile?.full_name)}</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.greetingBlock}>
-              <Text style={styles.greeting}>{greetingForCurrentTime()}</Text>
-              <Text style={styles.name}>{firstName}</Text>
-              <Text style={styles.roleLine}>Staff · {restaurantName}</Text>
-            </View>
-
-            {!restaurantId ? (
-              <View style={styles.noticeCard}>
-                <Text style={styles.noticeText}>Your account is not assigned to a restaurant.</Text>
-              </View>
-            ) : (
-              <>
-                <View style={styles.metricsGrid}>
-                  <MetricCard color={dashboardColors.coral} icon="calendar" label={'Today’s\nReservations'} value={activeReservations.length} />
-                  <MetricCard color={dashboardColors.pink} icon="people" label={'Waiting\nin Queue'} value={activeQueue.length} />
-                  <MetricCard color={dashboardColors.purple} icon="occupied" label={'Occupied\nTables'} value={occupiedTables} />
-                  <MetricCard color={dashboardColors.green} icon="available" label={'Available\nTables'} value={availableTables} />
-                </View>
-
-                <View style={styles.tasksHeader}>
-                  <Text style={styles.tasksHeading}>Today’s Tasks</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => navigate('/(staff)/reservations')}
-                    style={({ pressed }) => pressed && styles.pressed}
-                  >
-                    <Text style={styles.viewAll}>View All</Text>
-                  </Pressable>
-                </View>
-
-                <View style={styles.tasksList}>
-                  <TaskRow
-                    detail="Within next 1 hour"
-                    onPress={() => navigate('/(staff)/reservations')}
-                    title={`${upcomingReservations} upcoming ${upcomingReservations === 1 ? 'reservation' : 'reservations'}`}
-                  />
-                  <TaskRow
-                    detail={`${activeQueue.length} ${activeQueue.length === 1 ? 'party' : 'parties'} in queue`}
-                    onPress={() => navigate('/(staff)/queue')}
-                    title="Serve waiting customers"
-                  />
-                  <TaskRow
-                    detail={cleaningTables === 0 ? 'All tables are up to date' : `${cleaningTables} ${cleaningTables === 1 ? 'table needs' : 'tables need'} cleaning`}
-                    onPress={() => navigate('/(staff)/tables')}
-                    title="Check table status"
-                  />
-                </View>
-
-                {hasError ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      void restaurant.refetch();
-                      void tables.refetch();
-                      void queue.refetch();
-                      void reservations.refetch();
-                    }}
-                    style={({ pressed }) => [styles.noticeCard, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.noticeText}>Some live data could not be loaded. Tap to retry.</Text>
-                  </Pressable>
-                ) : null}
-              </>
-            )}
+      <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl colors={[colors.forest]} onRefresh={() => void refreshAll()} refreshing={refreshing} tintColor={colors.forest} />} showsVerticalScrollIndicator={false}>
+        <View style={styles.contentWidth}>
+          <View style={styles.appBar}>
+            <Pressable accessibilityLabel="Open staff menu" accessibilityRole="button" hitSlop={10} onPress={openDrawer} style={({ pressed }) => [styles.roundButton, pressed && styles.pressed]}><MenuIcon /></Pressable>
+            <Pressable accessibilityLabel="Open staff profile" accessibilityRole="button" onPress={() => router.push('/(staff)/profile' as never)} style={({ pressed }) => [styles.avatar, pressed && styles.pressed]}><Text style={styles.avatarText}>{initials(profile?.full_name)}</Text><View style={styles.onlineDot} /></Pressable>
           </View>
-        </ScrollView>
-      </View>
+
+          <View style={styles.greetingBlock}>
+            <Text style={styles.greeting}>{greetingForCurrentTime()}</Text>
+            <Text numberOfLines={1} style={styles.name}>{firstName}</Text>
+            <Text numberOfLines={1} style={styles.roleLine}>Staff · {restaurantName}</Text>
+          </View>
+
+          {!restaurantId ? <View style={styles.noticeCard}><Text style={styles.noticeText}>Your account is not assigned to a restaurant.</Text></View> : <>
+            <View style={styles.metricsGrid}>
+              <MetricCard accent={colors.coral} icon="calendar" label="Today’s Reservations" onPress={() => navigate('/(staff)/reservations')} tint={colors.coralSoft} value={activeReservations.length} />
+              <MetricCard accent={colors.berry} icon="queue" label="Waiting in Queue" onPress={() => navigate('/(staff)/queue')} tint={colors.berrySoft} value={activeQueue.length} />
+              <MetricCard accent={colors.violet} icon="occupied" label="Occupied Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.violetSoft} value={occupiedTables} />
+              <MetricCard accent={colors.forest} icon="available" label="Available Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.forestLight} value={availableTables} />
+            </View>
+
+            <View style={styles.tasksHeader}><Text style={styles.tasksHeading}>Today’s Tasks</Text><Pressable accessibilityRole="button" onPress={() => navigate('/(staff)/reservations')} style={({ pressed }) => pressed && styles.pressed}><Text style={styles.viewAll}>View All</Text></Pressable></View>
+            <View style={styles.tasksCard}>
+              <TaskRow accent={colors.coral} detail="Arriving within the next hour" icon="reservation" onPress={() => navigate('/(staff)/reservations')} title={`${upcomingReservations} upcoming ${upcomingReservations === 1 ? 'reservation' : 'reservations'}`} /><View style={styles.taskDivider} />
+              <TaskRow accent={colors.berry} detail={`${activeQueue.length} ${activeQueue.length === 1 ? 'party' : 'parties'} currently waiting`} icon="queue" onPress={() => navigate('/(staff)/queue')} title="Serve waiting customers" /><View style={styles.taskDivider} />
+              <TaskRow accent={colors.blue} detail={cleaningTables ? `${cleaningTables} ${cleaningTables === 1 ? 'table needs' : 'tables need'} attention` : 'All tables are up to date'} icon="cleaning" onPress={() => navigate('/(staff)/tables')} title="Check table readiness" />
+            </View>
+
+            {hasError ? <Pressable accessibilityRole="button" onPress={() => void refreshAll()} style={({ pressed }) => [styles.noticeCard, pressed && styles.cardPressed]}><Text style={styles.noticeTitle}>Some live data is unavailable</Text><Text style={styles.noticeText}>Tap to try again.</Text></Pressable> : null}
+          </>}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: dashboardColors.background,
-  },
-  page: {
-    flex: 1,
-    backgroundColor: dashboardColors.background,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 32,
-  },
-  contentWidth: {
-    width: '100%',
-    maxWidth: 430,
-    paddingHorizontal: 32,
-  },
-  headerRow: {
-    minHeight: 66,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  menuIcon: {
-    width: 24,
-    gap: 4,
-  },
-  menuLine: {
-    width: 24,
-    height: 2,
-    backgroundColor: dashboardColors.text,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 24,
-    backgroundColor: '#613719',
-    borderColor: '#FFFFFF',
-    borderWidth: 2,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  greetingBlock: {
-    marginTop: 12,
-  },
-  greeting: {
-    color: dashboardColors.text,
-    fontSize: 20,
-    fontWeight: '400',
-    lineHeight: 25,
-  },
-  name: {
-    color: dashboardColors.text,
-    fontSize: 30,
-    fontWeight: '700',
-    lineHeight: 34,
-  },
-  roleLine: {
-    marginTop: 2,
-    color: dashboardColors.muted,
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 11,
-    marginTop: 30,
-  },
-  metricCard: {
-    width: '48%',
-    minHeight: 115,
-    flexGrow: 1,
-    paddingHorizontal: 13,
-    paddingVertical: 17,
-    borderRadius: 15,
-    borderColor: dashboardColors.border,
-    borderWidth: 1,
-    backgroundColor: dashboardColors.surface,
-  },
-  metricTopLine: {
-    minHeight: 34,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  metricValue: {
-    color: dashboardColors.text,
-    fontSize: 36,
-    fontWeight: '500',
-    lineHeight: 40,
-  },
-  metricLabel: {
-    marginTop: 3,
-    color: dashboardColors.secondaryText,
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  calendarIcon: {
-    width: 34,
-    height: 31,
-    overflow: 'hidden',
-    borderRadius: 4,
-    borderWidth: 2,
-  },
-  calendarHeader: {
-    height: 8,
-  },
-  calendarGrid: {
-    flex: 1,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 3,
-    paddingHorizontal: 5,
-    paddingTop: 4,
-  },
-  calendarDot: {
-    width: 5,
-    height: 4,
-    borderRadius: 1,
-  },
-  peopleIcon: {
-    width: 38,
-    height: 33,
-  },
-  personHead: {
-    position: 'absolute',
-    borderRadius: 6,
-  },
-  personHeadLeft: {
-    top: 4,
-    left: 1,
-    width: 10,
-    height: 10,
-  },
-  personHeadCenter: {
-    top: 0,
-    left: 13,
-    width: 12,
-    height: 12,
-  },
-  personHeadRight: {
-    top: 4,
-    right: 1,
-    width: 10,
-    height: 10,
-  },
-  personBody: {
-    position: 'absolute',
-    bottom: 0,
-    borderTopLeftRadius: 9,
-    borderTopRightRadius: 9,
-    borderBottomLeftRadius: 3,
-    borderBottomRightRadius: 3,
-  },
-  personBodyLeft: {
-    left: 0,
-    width: 14,
-    height: 16,
-  },
-  personBodyCenter: {
-    left: 10,
-    zIndex: 1,
-    width: 19,
-    height: 19,
-  },
-  personBodyRight: {
-    right: 0,
-    width: 14,
-    height: 16,
-  },
-  tableIcon: {
-    width: 38,
-    height: 31,
-  },
-  tableTop: {
-    position: 'absolute',
-    top: 9,
-    left: 7,
-    width: 24,
-    height: 10,
-    borderRadius: 3,
-    borderWidth: 2,
-  },
-  tableLeg: {
-    position: 'absolute',
-    top: 19,
-    width: 2,
-    height: 10,
-  },
-  tableLegLeft: {
-    left: 12,
-  },
-  tableLegRight: {
-    right: 12,
-  },
-  chair: {
-    position: 'absolute',
-    top: 7,
-    width: 7,
-    height: 17,
-    borderRadius: 2,
-    borderWidth: 2,
-  },
-  chairLeft: {
-    left: 0,
-  },
-  chairRight: {
-    right: 0,
-  },
-  tasksHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 22,
-    paddingHorizontal: 2,
-  },
-  tasksHeading: {
-    color: dashboardColors.text,
-    fontSize: 30,
-    fontWeight: '400',
-    letterSpacing: -0.6,
-    lineHeight: 38,
-  },
-  viewAll: {
-    color: dashboardColors.secondaryText,
-    fontSize: 17,
-  },
-  tasksList: {
-    gap: 18,
-    marginTop: 17,
-  },
-  taskRow: {
-    minHeight: 59,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 15,
-    backgroundColor: dashboardColors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  taskCheck: {
-    width: 21,
-    height: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 2,
-    backgroundColor: dashboardColors.icon,
-  },
-  taskCheckMark: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 18,
-  },
-  taskCopy: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  taskTitle: {
-    color: dashboardColors.text,
-    fontSize: 15,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  taskDetail: {
-    color: dashboardColors.muted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  arrowIcon: {
-    width: 12,
-    height: 12,
-    marginLeft: 12,
-    borderTopWidth: 1.5,
-    borderRightWidth: 1.5,
-    borderColor: dashboardColors.muted,
-    transform: [{ rotate: '45deg' }],
-  },
-  noticeCard: {
-    marginTop: 24,
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: dashboardColors.surface,
-  },
-  noticeText: {
-    color: dashboardColors.secondaryText,
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  bottomNav: {
-    backgroundColor: dashboardColors.surface,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    shadowColor: dashboardColors.shadow,
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 9,
-    paddingTop: 12,
-  },
-  bottomNavInner: {
-    width: '100%',
-    maxWidth: 430,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  navItem: {
-    minWidth: 78,
-    minHeight: 49,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-  },
-  navLabel: {
-    color: dashboardColors.muted,
-    fontSize: 12,
-  },
-  navLabelActive: {
-    color: dashboardColors.active,
-    fontWeight: '500',
-  },
-  dashboardNavIcon: {
-    width: 21,
-    height: 21,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-  },
-  dashboardNavSquare: {
-    width: 8,
-    height: 8,
-    borderRadius: 1,
-    borderWidth: 2,
-  },
-  tablesNavIcon: {
-    width: 21,
-    height: 21,
-    borderRadius: 3,
-    borderWidth: 2,
-  },
-  reservationsNavIcon: {
-    width: 21,
-    height: 21,
-  },
-  reservationsNavIconScale: {
-    position: 'absolute',
-    top: -5,
-    left: -6,
-    transform: [{ scale: 0.62 }],
-  },
-  tablesNavLine: {
-    position: 'absolute',
-  },
-  tablesNavLineVertical: {
-    top: 0,
-    bottom: 0,
-    left: 8,
-    width: 2,
-  },
-  tablesNavLineHorizontalOne: {
-    top: 5,
-    left: 0,
-    right: 0,
-    height: 2,
-  },
-  tablesNavLineHorizontalTwo: {
-    top: 12,
-    left: 0,
-    right: 0,
-    height: 2,
-  },
-  queueNavIcon: {
-    width: 24,
-    height: 21,
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 2,
-  },
-  queueLine: {
-    height: 2,
-    borderRadius: 1,
-  },
-  pressed: {
-    opacity: 0.65,
-  },
+  safeArea: { flex: 1, backgroundColor: colors.background }, scrollContent: { alignItems: 'center', paddingBottom: 30 }, contentWidth: { width: '100%', maxWidth: 460, paddingHorizontal: 20 },
+  appBar: { minHeight: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, roundButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  menuIcon: { width: 20, height: 15, justifyContent: 'space-between', paddingVertical: 2 }, menuLineLong: { width: 20, height: 2, borderRadius: 2, backgroundColor: colors.ink }, menuLineShort: { width: 13, height: 2, borderRadius: 2, backgroundColor: colors.ink },
+  avatar: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#6B391D' }, avatarText: { color: colors.white, fontSize: 14, fontWeight: '800' }, onlineDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.background, backgroundColor: '#42C878' },
+  greetingBlock: { marginTop: 20, marginBottom: 29, paddingHorizontal: 4 },
+  greeting: { color: colors.secondary, fontSize: 18, fontWeight: '500', lineHeight: 24 },
+  name: { marginTop: 1, color: colors.ink, fontSize: 34, fontWeight: '800', letterSpacing: -1, lineHeight: 40 },
+  roleLine: { marginTop: 5, color: colors.muted, fontSize: 15, fontWeight: '500', lineHeight: 21 },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 }, metricCard: { width: '47%', minHeight: 150, flexGrow: 1, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 16, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 2 },
+  metricIconWrap: { width: 43, height: 43, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, metricTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }, metricValue: { color: colors.ink, fontSize: 30, fontWeight: '800', letterSpacing: -1 }, metricDot: { width: 7, height: 7, borderRadius: 4 }, metricLabel: { marginTop: 1, color: colors.ink, fontSize: 14, fontWeight: '700' },
+  calendarIcon: { width: 25, height: 23, overflow: 'hidden', borderRadius: 5, borderWidth: 2 }, calendarBar: { height: 6 }, calendarDots: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 3, paddingHorizontal: 4, paddingTop: 3 }, calendarDot: { width: 4, height: 3, borderRadius: 1 },
+  peopleIcon: { width: 29, height: 25 }, personHead: { position: 'absolute', borderRadius: 5 }, personHeadLeft: { top: 4, left: 0, width: 8, height: 8 }, personHeadCenter: { top: 0, left: 10, width: 10, height: 10 }, personHeadRight: { top: 4, right: 0, width: 8, height: 8 }, personBody: { position: 'absolute', bottom: 0, borderTopLeftRadius: 7, borderTopRightRadius: 7, borderBottomLeftRadius: 2, borderBottomRightRadius: 2 }, personBodyLeft: { left: 0, width: 11, height: 12 }, personBodyCenter: { left: 8, zIndex: 1, width: 14, height: 15 }, personBodyRight: { right: 0, width: 11, height: 12 },
+  tableIcon: { width: 30, height: 25 }, tableTop: { position: 'absolute', top: 7, left: 5, width: 20, height: 9, borderRadius: 3, borderWidth: 2 }, tableLeg: { position: 'absolute', top: 16, width: 2, height: 8 }, tableLegLeft: { left: 10 }, tableLegRight: { right: 10 }, chair: { position: 'absolute', top: 5, width: 6, height: 15, borderRadius: 2, borderWidth: 2 }, chairLeft: { left: 0 }, chairRight: { right: 0 },
+  chevron: { width: 9, height: 9, borderTopWidth: 1.6, borderRightWidth: 1.6, transform: [{ rotate: '45deg' }] },
+  tasksHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 29, marginBottom: 14, paddingHorizontal: 3 }, tasksHeading: { color: colors.ink, fontSize: 24, fontWeight: '800', letterSpacing: -0.6 }, viewAll: { color: colors.forest, fontSize: 12, fontWeight: '800' }, tasksCard: { overflow: 'hidden', borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 }, taskRow: { minHeight: 79, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 13 }, taskIconWrap: { width: 45, height: 45, alignItems: 'center', justifyContent: 'center', borderRadius: 15 }, taskCopy: { flex: 1, marginLeft: 13 }, taskTitle: { color: colors.ink, fontSize: 14, fontWeight: '700' }, taskDetail: { marginTop: 4, color: colors.muted, fontSize: 11, fontWeight: '500' }, taskDivider: { height: 1, marginLeft: 73, backgroundColor: colors.border },
+  sparkleIcon: { width: 26, height: 26 }, sparkleVertical: { position: 'absolute', top: 2, left: 12, width: 3, height: 21, borderRadius: 2 }, sparkleHorizontal: { position: 'absolute', top: 11, left: 3, width: 21, height: 3, borderRadius: 2 }, sparkleSmall: { position: 'absolute', right: 0, top: 0, width: 5, height: 5, borderRadius: 3 },
+  noticeCard: { marginTop: 18, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 18 }, noticeTitle: { color: colors.ink, fontSize: 14, fontWeight: '800', textAlign: 'center' }, noticeText: { marginTop: 3, color: colors.secondary, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  bottomNavShell: { backgroundColor: colors.background, paddingHorizontal: 12, paddingTop: 7 }, bottomNav: { minHeight: 67, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', borderRadius: 23, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingHorizontal: 7, shadowColor: colors.shadow, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.07, shadowRadius: 13, elevation: 9 }, navItem: { minWidth: 71, minHeight: 51, alignItems: 'center', justifyContent: 'center', gap: 5, borderRadius: 17 }, navItemActive: { backgroundColor: colors.forestLight }, navLabel: { color: colors.muted, fontSize: 10, fontWeight: '600' }, navLabelActive: { color: colors.forest, fontWeight: '800' },
+  dashboardNavIcon: { width: 20, height: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 4 }, dashboardNavSquare: { width: 8, height: 8, borderRadius: 2 }, tablesNavIcon: { width: 20, height: 20, borderRadius: 4, borderWidth: 2 }, navLine: { position: 'absolute' }, navLineVertical: { top: 0, bottom: 0, left: 7, width: 2 }, navLineHorizontalOne: { top: 5, left: 0, right: 0, height: 2 }, navLineHorizontalTwo: { top: 11, left: 0, right: 0, height: 2 }, reservationNavScale: { width: 20, height: 20, alignItems: 'center', justifyContent: 'center', transform: [{ scale: 0.82 }] }, queueNavIcon: { width: 24, height: 20, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 2 }, queueNavLine: { height: 2, borderRadius: 1 },
+  pressed: { opacity: 0.68 }, cardPressed: { opacity: 0.82, transform: [{ scale: 0.988 }] },
 });

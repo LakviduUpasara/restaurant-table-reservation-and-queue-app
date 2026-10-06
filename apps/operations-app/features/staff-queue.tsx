@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,15 +23,17 @@ type QueueTab = 'waiting' | 'seated';
 
 const activeStatuses = ['WAITING', 'NOTIFIED', 'TABLE_READY'];
 const colors = {
-  background: '#F2F2F2',
+  background: '#F5F3EE',
   surface: '#FFFFFF',
-  text: '#111111',
-  secondary: '#858585',
-  border: '#D8D8D8',
-  control: '#E7E7E7',
-  active: '#FFC400',
-  estimate: '#FFEAA0',
-  overlay: 'rgba(0,0,0,0.35)',
+  text: '#17211D',
+  secondary: '#7E8782',
+  border: '#E5E2DA',
+  control: '#E9E8E3',
+  active: '#173E35',
+  accent: '#E3AD18',
+  estimate: '#FFF0BC',
+  overlay: 'rgba(20,30,26,0.48)',
+  shadow: '#203129',
 } as const;
 
 function MenuIcon() {
@@ -261,7 +263,7 @@ export function StaffQueue() {
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={openDrawer}
-                style={({ pressed }) => pressed && styles.pressed}
+                style={({ pressed }) => [styles.menuButton, pressed && styles.pressed]}
               >
                 <MenuIcon />
               </Pressable>
@@ -269,16 +271,17 @@ export function StaffQueue() {
 
             <View style={styles.titleRow}>
               <Text style={styles.title}>Virtual Queue</Text>
-              <Link href="/(staff)/walk-ins" asChild>
-                <Pressable
-                  accessibilityLabel="Add walk-in customer"
-                  accessibilityRole="button"
-                  style={({ pressed }) => [styles.walkInButton, pressed && styles.pressed]}
-                >
+              <Pressable
+                accessibilityLabel="Add walk-in customer"
+                accessibilityRole="button"
+                onPress={() => router.push('/(staff)/walk-ins' as never)}
+                style={({ pressed }) => [styles.walkInButton, pressed && styles.walkInButtonPressed]}
+              >
+                <View style={styles.walkInIconWrap}>
                   <PlusIcon />
-                  <Text style={styles.walkInText}>Add Walk-in</Text>
-                </Pressable>
-              </Link>
+                </View>
+                <Text numberOfLines={1} style={styles.walkInText}>Add Walk-in</Text>
+              </Pressable>
             </View>
 
             <View accessibilityRole="tablist" style={styles.tabs}>
@@ -288,7 +291,7 @@ export function StaffQueue() {
                 onPress={() => setTab('waiting')}
                 style={[styles.tab, tab === 'waiting' && styles.activeTab]}
               >
-                <Text style={styles.tabText}>Waiting ({waiting.length})</Text>
+                <Text style={[styles.tabText, tab === 'waiting' && styles.activeTabText]}>Waiting ({waiting.length})</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="tab"
@@ -296,7 +299,7 @@ export function StaffQueue() {
                 onPress={() => setTab('seated')}
                 style={[styles.tab, tab === 'seated' && styles.activeTab]}
               >
-                <Text style={styles.tabText}>Seated ({seated.length})</Text>
+                <Text style={[styles.tabText, tab === 'seated' && styles.activeTabText]}>Seated ({seated.length})</Text>
               </Pressable>
             </View>
 
@@ -389,56 +392,75 @@ export function StaffQueue() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   page: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { alignItems: 'center', paddingBottom: 32 },
-  contentWidth: { width: '100%', maxWidth: 430, paddingHorizontal: 32 },
-  contentWidthCompact: { paddingHorizontal: 20 },
-  menuRow: { minHeight: 66, justifyContent: 'center' },
-  menuIcon: { width: 24, gap: 4 },
-  menuLine: { width: 24, height: 2, backgroundColor: colors.text },
+  scrollContent: { alignItems: 'center', paddingBottom: 36 },
+  contentWidth: { width: '100%', maxWidth: 460, paddingHorizontal: 20 },
+  contentWidthCompact: { paddingHorizontal: 16 },
+  menuRow: { minHeight: 68, justifyContent: 'center' },
+  menuButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  menuIcon: { width: 20, gap: 5 },
+  menuLine: { width: 20, height: 2, borderRadius: 2, backgroundColor: colors.text },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: colors.text, fontSize: 30, fontWeight: '700', letterSpacing: -0.7, lineHeight: 38 },
+  title: { color: colors.text, fontSize: 30, fontWeight: '800', letterSpacing: -0.8, lineHeight: 38 },
   walkInButton: {
-    minHeight: 37,
+    minHeight: 48,
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 11,
-    backgroundColor: colors.active,
-    paddingHorizontal: 13,
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D49F0C',
+    backgroundColor: colors.accent,
+    paddingLeft: 6,
+    paddingRight: 15,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.13,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  walkInText: { color: colors.text, fontSize: 14, fontWeight: '600', marginLeft: 8 },
+  walkInButtonPressed: { opacity: 0.88, transform: [{ scale: 0.98 }] },
+  walkInIconWrap: { width: 36, height: 36, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.72)' },
+  walkInText: { flexShrink: 0, color: colors.text, fontSize: 13, fontWeight: '800', marginLeft: 9, letterSpacing: 0.1, lineHeight: 17 },
   plusIcon: { width: 15, height: 15 },
   plusHorizontal: { position: 'absolute', top: 6.5, left: 0, width: 15, height: 2, backgroundColor: colors.text },
   plusVertical: { position: 'absolute', top: 0, left: 6.5, width: 2, height: 15, backgroundColor: colors.text },
-  tabs: { flexDirection: 'row', marginTop: 13, borderRadius: 10, backgroundColor: colors.control },
-  tab: { minHeight: 35, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 10 },
+  tabs: { flexDirection: 'row', marginTop: 17, borderRadius: 17, backgroundColor: colors.control, padding: 4 },
+  tab: { minHeight: 43, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
   activeTab: { backgroundColor: colors.active },
-  tabText: { color: colors.text, fontSize: 14, fontWeight: '600' },
-  queueList: { gap: 26, marginTop: 32 },
+  tabText: { color: colors.secondary, fontSize: 13, fontWeight: '700' },
+  activeTabText: { color: colors.surface, fontWeight: '800' },
+  queueList: { gap: 14, marginTop: 20 },
   queueCard: {
-    minHeight: 170,
-    borderRadius: 10,
+    minHeight: 176,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    padding: 11,
+    padding: 15,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
   cardDetails: { flexDirection: 'row' },
   positionBadge: {
-    width: 46,
-    height: 45,
+    width: 52,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 11,
+    borderRadius: 17,
     backgroundColor: colors.background,
   },
-  positionText: { color: colors.text, fontSize: 30, fontWeight: '600', letterSpacing: -1.5 },
-  cardContent: { flex: 1, marginLeft: 25 },
+  positionText: { color: colors.text, fontSize: 27, fontWeight: '800', letterSpacing: -1.5 },
+  cardContent: { flex: 1, marginLeft: 16 },
   cardTopRow: { minHeight: 39, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  customerName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '600', lineHeight: 22 },
-  estimateBadge: { minHeight: 39, justifyContent: 'center', borderRadius: 11, backgroundColor: colors.estimate, paddingHorizontal: 12 },
-  estimateText: { color: colors.text, fontSize: 14, fontWeight: '600' },
-  metaRow: { minHeight: 32, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  metaText: { color: colors.secondary, fontSize: 16, lineHeight: 21 },
+  customerName: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '800', lineHeight: 22 },
+  estimateBadge: { minHeight: 36, justifyContent: 'center', borderRadius: 13, backgroundColor: colors.estimate, paddingHorizontal: 11 },
+  estimateText: { color: colors.text, fontSize: 12, fontWeight: '800' },
+  metaRow: { minHeight: 29, flexDirection: 'row', alignItems: 'center', gap: 11 },
+  metaText: { color: colors.secondary, fontSize: 14, fontWeight: '500', lineHeight: 20 },
   personIcon: { width: 24, height: 25 },
   personHead: { position: 'absolute', top: 0, left: 8, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.text },
   personBody: { position: 'absolute', left: 3, bottom: 0, width: 20, height: 12, borderTopLeftRadius: 10, borderTopRightRadius: 10, backgroundColor: colors.text },
@@ -447,9 +469,9 @@ const styles = StyleSheet.create({
   clockHandHorizontal: { position: 'absolute', top: 10, left: 10, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '-35deg' }] },
   clockTopLeft: { position: 'absolute', top: -4, left: 2, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '-35deg' }] },
   clockTopRight: { position: 'absolute', top: -4, right: 2, width: 6, height: 2, backgroundColor: colors.text, transform: [{ rotate: '35deg' }] },
-  actions: { flexDirection: 'row', gap: 12, marginTop: 7, marginLeft: 71 },
-  actionButton: { minHeight: 40, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 13, borderRadius: 10, backgroundColor: colors.control },
-  actionText: { color: colors.text, fontSize: 15, fontWeight: '600' },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 10, marginLeft: 68 },
+  actionButton: { minHeight: 43, flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, borderRadius: 14, backgroundColor: colors.control },
+  actionText: { color: colors.text, fontSize: 13, fontWeight: '800' },
   bellIcon: { width: 21, height: 23 },
   bellBody: { position: 'absolute', top: 3, left: 4, width: 13, height: 15, borderTopLeftRadius: 8, borderTopRightRadius: 8, backgroundColor: colors.text },
   bellLip: { position: 'absolute', top: 17, left: 1, width: 19, height: 3, borderRadius: 2, backgroundColor: colors.text },
@@ -459,21 +481,21 @@ const styles = StyleSheet.create({
   chairSeat: { position: 'absolute', top: 15, left: 1, width: 20, height: 3, borderRadius: 2, backgroundColor: colors.text },
   chairLegLeft: { position: 'absolute', bottom: 0, left: 4, width: 2, height: 6, backgroundColor: colors.text, transform: [{ rotate: '25deg' }] },
   chairLegRight: { position: 'absolute', right: 4, bottom: 0, width: 2, height: 6, backgroundColor: colors.text, transform: [{ rotate: '-25deg' }] },
-  seatedCard: { minHeight: 76, flexDirection: 'row', alignItems: 'center', borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 14 },
+  seatedCard: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 14, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.04, shadowRadius: 10, elevation: 1 },
   seatedCopy: { flex: 1, marginLeft: 18 },
   loader: { marginTop: 80 },
-  stateCard: { minHeight: 150, alignItems: 'center', justifyContent: 'center', marginTop: 32, borderRadius: 12, backgroundColor: colors.surface, padding: 24 },
+  stateCard: { minHeight: 150, alignItems: 'center', justifyContent: 'center', marginTop: 24, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 24 },
   stateText: { color: colors.secondary, fontSize: 15, lineHeight: 22, textAlign: 'center' },
   modalBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.overlay, padding: 24 },
-  modalCard: { width: '100%', maxWidth: 380, maxHeight: '70%', borderRadius: 18, backgroundColor: colors.surface, padding: 22 },
-  modalTitle: { color: colors.text, fontSize: 24, fontWeight: '700' },
+  modalCard: { width: '100%', maxWidth: 380, maxHeight: '70%', borderRadius: 24, backgroundColor: colors.surface, padding: 22, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.18, shadowRadius: 22, elevation: 10 },
+  modalTitle: { color: colors.text, fontSize: 23, fontWeight: '800', letterSpacing: -0.4 },
   modalSubtitle: { marginTop: 4, color: colors.secondary, fontSize: 15 },
   tableList: { marginTop: 18 },
   tableOption: { minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: colors.border, paddingHorizontal: 4 },
-  tableOptionName: { color: colors.text, fontSize: 17, fontWeight: '600' },
+  tableOptionName: { color: colors.text, fontSize: 16, fontWeight: '800' },
   tableOptionDetail: { color: colors.secondary, fontSize: 14 },
   noTablesText: { color: colors.secondary, fontSize: 15, lineHeight: 22, textAlign: 'center', paddingVertical: 24 },
-  cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 18, borderRadius: 10, backgroundColor: colors.control },
+  cancelButton: { minHeight: 47, alignItems: 'center', justifyContent: 'center', marginTop: 18, borderRadius: 14, backgroundColor: colors.control },
   cancelText: { color: colors.text, fontSize: 15, fontWeight: '600' },
-  pressed: { opacity: 0.65 },
+  pressed: { opacity: 0.7 },
 });

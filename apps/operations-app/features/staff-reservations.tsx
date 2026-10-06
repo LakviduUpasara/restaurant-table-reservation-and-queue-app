@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,19 +27,20 @@ type ReservationWithDetails = Reservation & {
 type ReservationFilter = 'upcoming' | 'completed' | 'cancelled';
 
 const colors = {
-  background: '#F2F2F2',
+  background: '#F5F3EE',
   surface: '#FFFFFF',
-  text: '#111111',
-  secondary: '#666666',
-  muted: '#929292',
-  border: '#DCDCDC',
-  tab: '#E1E1E1',
-  active: '#FFC400',
-  green: '#D8F2DB',
-  blue: '#DDE3FF',
-  yellow: '#FFF0B5',
-  red: '#FFDADC',
-  gray: '#E7E7E7',
+  text: '#17211D',
+  secondary: '#606A65',
+  muted: '#939B97',
+  border: '#E5E2DA',
+  tab: '#E8E6E0',
+  active: '#173E35',
+  green: '#DDEFE5',
+  blue: '#E6EBFA',
+  yellow: '#FFF1C7',
+  red: '#FBE2E3',
+  gray: '#ECEDEA',
+  shadow: '#203129',
 } as const;
 
 const activeStatuses: ReservationStatus[] = ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED'];
@@ -129,10 +131,12 @@ function Chevron() {
 function ReservationCard({
   reservation,
   disabled,
+  onLongPress,
   onPress,
 }: {
   reservation: ReservationWithDetails;
   disabled: boolean;
+  onLongPress: () => void;
   onPress: () => void;
 }) {
   const status = statusPresentation(reservation.status);
@@ -141,10 +145,12 @@ function ReservationCard({
 
   return (
     <Pressable
-      accessibilityHint="Opens reservation actions"
+      accessibilityHint="Opens the assigned table. Long press for reservation actions."
       accessibilityLabel={`${guestName}, ${reservation.party_size} guests, ${tableLabel}, ${status.label}`}
       accessibilityRole="button"
       disabled={disabled}
+      delayLongPress={450}
+      onLongPress={onLongPress}
       onPress={onPress}
       style={({ pressed }) => [styles.reservationCard, pressed && styles.pressed]}
     >
@@ -164,6 +170,7 @@ function ReservationCard({
 }
 
 export function StaffReservations() {
+  const router = useRouter();
   const { openDrawer } = useStaffDrawer();
   const queryClient = useQueryClient();
   const { width } = useWindowDimensions();
@@ -231,7 +238,18 @@ export function StaffReservations() {
     }
   }
 
-  function openReservation(reservation: ReservationWithDetails) {
+  function openReservationTable(reservation: ReservationWithDetails) {
+    if (!reservation.table_id) {
+      Alert.alert('Table pending', 'A table has not been assigned to this reservation yet.');
+      return;
+    }
+    router.push({
+      pathname: '/(staff)/tables/[tableId]',
+      params: { tableId: reservation.table_id },
+    });
+  }
+
+  function openReservationActions(reservation: ReservationWithDetails) {
     const nextStatus = primaryTransition[reservation.status];
     const guestName = reservation.profiles?.full_name || 'Guest';
     const details = [
@@ -279,7 +297,7 @@ export function StaffReservations() {
                 accessibilityRole="button"
                 hitSlop={12}
                 onPress={openDrawer}
-                style={({ pressed }) => pressed && styles.pressed}
+                style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
               >
                 <MenuIcon />
               </Pressable>
@@ -347,7 +365,8 @@ export function StaffReservations() {
                       <ReservationCard
                         disabled={updatingId === reservation.id}
                         key={reservation.id}
-                        onPress={() => openReservation(reservation)}
+                        onLongPress={() => openReservationActions(reservation)}
+                        onPress={() => openReservationTable(reservation)}
                         reservation={reservation}
                       />
                     ))}
@@ -365,99 +384,112 @@ export function StaffReservations() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   page: { flex: 1, backgroundColor: colors.background },
-  scrollContent: { alignItems: 'center', paddingBottom: 32 },
-  contentWidth: { width: '100%', maxWidth: 430, paddingHorizontal: 32 },
-  contentWidthCompact: { paddingHorizontal: 20 },
+  scrollContent: { alignItems: 'center', paddingBottom: 36 },
+  contentWidth: { width: '100%', maxWidth: 460, paddingHorizontal: 20 },
+  contentWidthCompact: { paddingHorizontal: 16 },
   header: {
-    minHeight: 72,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { color: colors.text, fontSize: 29, fontWeight: '700', lineHeight: 36 },
-  headerSpacer: { width: 24 },
-  menuIcon: { width: 24, gap: 4 },
-  menuLine: { width: 24, height: 2, backgroundColor: colors.text },
+  title: { color: colors.text, fontSize: 29, fontWeight: '800', letterSpacing: -0.8, lineHeight: 36 },
+  headerSpacer: { width: 42 },
+  headerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  menuIcon: { width: 20, gap: 5 },
+  menuLine: { width: 20, height: 2, borderRadius: 2, backgroundColor: colors.text },
   searchBox: {
-    height: 36,
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 8,
+    borderRadius: 17,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: 10,
+    paddingHorizontal: 16,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 1,
   },
-  searchInput: { flex: 1, height: 36, paddingVertical: 0, color: colors.text, fontSize: 13 },
-  searchIcon: { width: 18, height: 18, marginRight: 5 },
+  searchInput: { flex: 1, height: 52, paddingVertical: 0, color: colors.text, fontSize: 14, fontWeight: '500' },
+  searchIcon: { width: 20, height: 20, marginRight: 9 },
   searchCircle: {
     position: 'absolute',
-    top: 3,
-    left: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.3,
+    top: 2,
+    left: 1,
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 1.8,
     borderColor: colors.secondary,
   },
   searchHandle: {
     position: 'absolute',
-    top: 12,
-    left: 11,
-    width: 6,
-    height: 1.3,
+    top: 14,
+    left: 13,
+    width: 7,
+    height: 1.8,
     backgroundColor: colors.secondary,
     transform: [{ rotate: '45deg' }],
   },
-  tabs: { flexDirection: 'row', gap: 14, marginTop: 21 },
+  tabs: { flexDirection: 'row', gap: 7, marginTop: 18, borderRadius: 17, backgroundColor: colors.tab, padding: 4 },
   tab: {
-    minHeight: 35,
+    minHeight: 43,
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
-    backgroundColor: colors.tab,
-    paddingHorizontal: 8,
+    borderRadius: 14,
+    paddingHorizontal: 5,
   },
   activeTab: { backgroundColor: colors.active },
-  tabText: { color: colors.text, fontSize: 15, fontWeight: '500' },
-  activeTabText: { fontWeight: '700' },
-  section: { marginTop: 18 },
-  sectionTitle: { color: colors.text, fontSize: 30, fontWeight: '400', lineHeight: 38 },
-  list: { gap: 19, marginTop: 16 },
+  tabText: { color: colors.secondary, fontSize: 12, fontWeight: '700' },
+  activeTabText: { color: colors.surface, fontWeight: '800' },
+  section: { marginTop: 25 },
+  sectionTitle: { paddingHorizontal: 3, color: colors.text, fontSize: 25, fontWeight: '800', letterSpacing: -0.6, lineHeight: 32 },
+  list: { gap: 11, marginTop: 13 },
   reservationCard: {
-    minHeight: 59,
+    minHeight: 82,
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 15,
+    borderRadius: 21,
+    borderWidth: 1,
+    borderColor: colors.border,
     backgroundColor: colors.surface,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  time: { width: 78, color: colors.text, fontSize: 14, fontWeight: '500' },
+  time: { width: 68, color: colors.text, fontSize: 13, fontWeight: '800' },
   reservationCopy: { flex: 1, minWidth: 0 },
-  guestName: { color: colors.text, fontSize: 15, fontWeight: '500', lineHeight: 20 },
-  detailLine: { color: colors.secondary, fontSize: 13, lineHeight: 18 },
+  guestName: { color: colors.text, fontSize: 15, fontWeight: '800', lineHeight: 20 },
+  detailLine: { marginTop: 3, color: colors.muted, fontSize: 12, fontWeight: '500', lineHeight: 17 },
   statusBadge: {
-    minHeight: 28,
+    minHeight: 34,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
-    marginLeft: 8,
-    paddingHorizontal: 11,
+    borderRadius: 13,
+    marginLeft: 6,
+    paddingHorizontal: 10,
   },
-  statusText: { color: colors.text, fontSize: 14, fontWeight: '500' },
+  statusText: { color: colors.text, fontSize: 11, fontWeight: '800' },
   chevron: {
-    width: 13,
-    height: 13,
-    marginLeft: 17,
+    width: 10,
+    height: 10,
+    marginLeft: 12,
+    marginRight: 3,
     borderTopWidth: 1.5,
     borderRightWidth: 1.5,
     borderColor: colors.secondary,
     transform: [{ rotate: '45deg' }],
   },
   loader: { marginTop: 80 },
-  messageCard: { marginTop: 32, borderRadius: 15, backgroundColor: colors.surface, padding: 22 },
+  messageCard: { marginTop: 30, borderRadius: 21, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, padding: 24 },
   message: { color: colors.secondary, fontSize: 15, lineHeight: 21, textAlign: 'center' },
-  pressed: { opacity: 0.65 },
+  pressed: { opacity: 0.72, transform: [{ scale: 0.988 }] },
 });
