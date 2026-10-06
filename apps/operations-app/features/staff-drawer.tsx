@@ -123,16 +123,19 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
   }
 
   return (
-    <Modal animationType="none" onRequestClose={onClose} statusBarTranslucent transparent visible={visible}>
+    <Modal
+      animationType="none"
+      navigationBarTranslucent={false}
+      onRequestClose={onClose}
+      statusBarTranslucent={false}
+      transparent
+      visible={visible}
+    >
       <View style={styles.modalRoot}>
         <Pressable accessibilityLabel="Close staff menu" onPress={onClose} style={styles.backdrop} />
         <Animated.View style={[styles.drawer, { transform: [{ translateX }] }]}>
           <SafeAreaView edges={['top', 'bottom']} style={styles.drawerSafeArea}>
             <View style={styles.drawerHeader}>
-              <View style={styles.brandRow}>
-                <View style={styles.brandMark}><Text style={styles.brandInitial}>D</Text></View>
-                <Text style={styles.brandText}>Dine</Text>
-              </View>
               <Pressable accessibilityLabel="Close staff menu" accessibilityRole="button" onPress={onClose} style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}>
                 <CloseIcon />
               </Pressable>
@@ -183,13 +186,9 @@ export function StaffDrawerProvider({ children }: { children: ReactNode }) {
 const styles = StyleSheet.create({
   modalRoot: { flex: 1, flexDirection: 'row' },
   backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: drawerColors.overlay },
-  drawer: { width: 344, maxWidth: '88%', height: '100%', borderTopRightRadius: 34, borderBottomRightRadius: 34, overflow: 'hidden', backgroundColor: drawerColors.surface, shadowColor: '#000000', shadowOffset: { width: 12, height: 0 }, shadowOpacity: 0.24, shadowRadius: 26, elevation: 24 },
+  drawer: { width: 344, maxWidth: '88%', height: '100%', backgroundColor: drawerColors.surface, shadowColor: '#000000', shadowOffset: { width: 12, height: 0 }, shadowOpacity: 0.24, shadowRadius: 26, elevation: 24 },
   drawerSafeArea: { flex: 1, backgroundColor: drawerColors.surface, paddingHorizontal: 20 },
-  drawerHeader: { minHeight: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  brandRow: { flexDirection: 'row', alignItems: 'center' },
-  brandMark: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: drawerColors.brand, shadowColor: drawerColors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 2 },
-  brandInitial: { color: drawerColors.text, fontSize: 18, fontWeight: '900' },
-  brandText: { marginLeft: 11, color: drawerColors.text, fontSize: 21, fontWeight: '800', letterSpacing: -0.4 },
+  drawerHeader: { minHeight: 72, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: drawerColors.border, backgroundColor: drawerColors.card },
   closeIcon: { width: 15, height: 15 },
   closeLine: { position: 'absolute', top: 6.5, left: 2, width: 11, height: 1.7, backgroundColor: drawerColors.muted },
