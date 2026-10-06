@@ -147,12 +147,28 @@ export function Notifications() {
           )}
         </View>
       </ScrollView>
+      <View style={notificationStyles.bottomNav}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Home" onPress={() => router.push('/home')} style={notificationStyles.navItem}>
+          <Ionicons name="home-outline" size={29} color="#F5F5F5" />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Menu" onPress={() => router.push('/menu')} style={notificationStyles.navItem}>
+          <Ionicons name="search-outline" size={29} color="#F5F5F5" />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Queue" onPress={() => router.push('/queue')} style={notificationStyles.navItem}>
+          <Ionicons name="chatbubble-ellipses-outline" size={29} color="#F5F5F5" />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Account" onPress={() => router.push('/profile')} style={notificationStyles.navItem}>
+          <Ionicons name="person-outline" size={29} color="#F5F5F5" />
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 }
 
 const notificationStyles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#262626' },
+  bottomNav: { height: 82, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: 18, paddingBottom: 8, backgroundColor: '#292929' },
+  navItem: { width: 64, height: 58, alignItems: 'center', justifyContent: 'center' },
   header: { height: 174, backgroundColor: '#262626', paddingHorizontal: 24, paddingTop: 5 },
   headerRow: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   backButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
