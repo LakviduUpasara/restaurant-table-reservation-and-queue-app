@@ -586,7 +586,10 @@ export function SelectTable() {
   useRealtime('reservations', b.restaurantId ? `restaurant_id=eq.${b.restaurantId}` : undefined);
 
   const selectedParty = b.partySize || 2;
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(b.tableId || null);
+  // Multi-table selection state
+  const [selectedTableIds, setSelectedTableIds] = useState<Set<string>>(() => {
+    return b.tableId ? new Set([b.tableId]) : new Set();
+  });
 
   // Fetch Tables
   const tablesQuery = useQuery({
@@ -606,19 +609,19 @@ export function SelectTable() {
 
   // Fetch Availability for this specific date and time slot
   const availabilityQuery = useQuery({
-    queryKey: ['availability', b.restaurantId, b.date, b.time, selectedParty, b.reservationId],
+    queryKey: ['availability', b.restaurantId, b.date, b.time, b.reservationId],
     enabled: !!b.restaurantId && !!b.date && !!b.time,
     queryFn: async () => {
       try {
         return await api<{ tables: Table[]; updated_at: string }>(
-          `/restaurants/${b.restaurantId}/availability?starts_at=${encodeURIComponent(startIso(b.date, b.time))}&party_size=${selectedParty}${
+          `/restaurants/${b.restaurantId}/availability?starts_at=${encodeURIComponent(startIso(b.date, b.time))}&party_size=1${
             b.reservationId ? `&reservation_id=${b.reservationId}` : ''
           }`,
           { timeoutMs: 2500 }
         );
       } catch {
         const tableList = tablesQuery.data || [];
-        const avail = tableList.filter(t => t.status === 'AVAILABLE' && t.capacity >= selectedParty);
+        const avail = tableList.filter(t => t.status === 'AVAILABLE');
         return { tables: avail, updated_at: new Date().toISOString() };
       }
     },
@@ -642,26 +645,42 @@ export function SelectTable() {
   // Set of available table IDs for this slot
   const availableTableIds = new Set((availabilityQuery.data?.tables || []).map(t => t.id));
 
-  // Determine active selected table object
-  const currentSelectedTable = allTables.find(t => t.id === selectedTableId);
+  // Multi-table calculations
+  const selectedTables = allTables.filter(t => selectedTableIds.has(t.id));
+  const totalCapacity = selectedTables.reduce((sum, t) => sum + t.capacity, 0);
 
   const handleTablePress = (table: Table) => {
-    const isAvailable = availableTableIds.has(table.id) || (table.status === 'AVAILABLE' && table.capacity >= selectedParty);
+    const isAvailable = availableTableIds.has(table.id) || table.status === 'AVAILABLE';
     if (!isAvailable) {
-      Alert.alert('Table Booked', `Table ${prettyTable(table.label)} is not available for this time slot. Please choose an available green table.`);
+      Alert.alert('Table Booked', `Table T${prettyTable(table.label)} is not available for this time slot. Please choose an available green table.`);
       return;
     }
-    setSelectedTableId(table.id);
+
+    setSelectedTableIds(prev => {
+      const next = new Set(prev);
+      if (next.has(table.id)) {
+        next.delete(table.id);
+      } else {
+        next.add(table.id);
+      }
+      return next;
+    });
   };
 
   const handleConfirmTable = () => {
-    if (!selectedTableId || !currentSelectedTable) {
-      Alert.alert('Select Table', 'Please tap an available green table on the floor map to select your seat.');
+    if (selectedTables.length === 0) {
+      Alert.alert('Select Table', 'Please tap at least one available green table on the floor map to select your seats.');
       return;
     }
+
+    const primaryTable = selectedTables[0];
+    const tableNames = selectedTables.map(t => 'T' + prettyTable(t.label)).join(', ');
+    const note = selectedTables.length > 1 ? `Multiple tables selected: ${tableNames}` : '';
+
     b.set({
-      tableId: currentSelectedTable.id,
-      partySize: Math.max(selectedParty, 1),
+      tableId: primaryTable.id,
+      partySize: Math.max(selectedParty, totalCapacity),
+      specialRequest: b.specialRequest ? `${b.specialRequest} ${note}`.trim() : note,
     });
     // Flow: Step 3 (Table) ➔ Step 4 (Review & Confirm)
     router.push('/booking/special-request');
@@ -733,8 +752,8 @@ export function SelectTable() {
           {/* Restaurant Floor Plan Graphic Grid (12 Tables with Luxury Dining Chairs) */}
           <View style={styles.floorGrid}>
             {allTables.slice(0, 12).map(table => {
-              const isSelected = selectedTableId === table.id;
-              const isAvailable = availableTableIds.has(table.id) || (table.status === 'AVAILABLE' && table.capacity >= selectedParty);
+              const isSelected = selectedTableIds.has(table.id);
+              const isAvailable = availableTableIds.has(table.id) || table.status === 'AVAILABLE';
               const label = prettyTable(table.label);
 
               // 3 Clean Colors matching reference image: Green (Available), Gold (Selected), Red (Booked)
@@ -790,28 +809,34 @@ export function SelectTable() {
 
           {/* Bottom Table Confirmation Card */}
           <View style={styles.tableBottomActionBox}>
-            {currentSelectedTable ? (
+            {selectedTables.length > 0 ? (
               <View style={styles.selectedTableCard}>
                 <View style={styles.selectedTableIconBadge}>
                   <Ionicons name="restaurant" size={20} color="#171717" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.selectedTableTitle}>Table {prettyTable(currentSelectedTable.label)} Selected</Text>
-                  <Text style={styles.selectedTableSeats}>Seats up to {currentSelectedTable.capacity} Guests · Prime Floor Position</Text>
+                  <Text style={styles.selectedTableTitle}>
+                    {selectedTables.length} {selectedTables.length === 1 ? 'Table' : 'Tables'} Selected: {selectedTables.map(t => 'T' + prettyTable(t.label)).join(', ')}
+                  </Text>
+                  <Text style={styles.selectedTableSeats}>
+                    Total Capacity: {totalCapacity} Seats · Party Size: {selectedParty} Guests {totalCapacity >= selectedParty ? '✓' : ''}
+                  </Text>
                 </View>
               </View>
             ) : (
               <View style={styles.promptTableSelectBox}>
                 <Ionicons name="hand-left-outline" size={18} color="#6B7280" style={{ marginRight: 8 }} />
-                <Text style={styles.promptTableSelectText}>Tap an available green table on the floor map to select.</Text>
+                <Text style={styles.promptTableSelectText}>Tap one or more available green tables on the floor map to select.</Text>
               </View>
             )}
 
             <Pressable
               onPress={handleConfirmTable}
-              style={[styles.figmaConfirmButton, !selectedTableId && { opacity: 0.6 }]}
+              style={[styles.figmaConfirmButton, selectedTables.length === 0 && { opacity: 0.6 }]}
             >
-              <Text style={styles.figmaConfirmButtonText}>Confirm Table</Text>
+              <Text style={styles.figmaConfirmButtonText}>
+                {selectedTables.length > 1 ? `Confirm ${selectedTables.length} Tables` : 'Confirm Table'}
+              </Text>
             </Pressable>
           </View>
         </ScrollView>
