@@ -1,6 +1,8 @@
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { supabase } from './supabase';
+import { useAuth } from '../stores/auth.store';
+
 async function consume(url:string){
   const recovery=url.includes('reset-password');
   if(!recovery&&!url.includes('login'))return;
@@ -11,6 +13,9 @@ async function consume(url:string){
   const result=access_token&&refresh_token
     ? await supabase.auth.setSession({access_token,refresh_token})
     : code ? await supabase.auth.exchangeCodeForSession(code) : null;
-  if(result&&!result.error&&!recovery)router.replace('/home');
+  if(result&&!result.error&&!recovery) {
+    await useAuth.getState().refresh();
+    router.replace('/home');
+  }
 }
 export function listenForAuthLinks(){void Linking.getInitialURL().then(url=>{if(url)void consume(url)});const subscription=Linking.addEventListener('url',event=>{void consume(event.url)});return()=>subscription.remove()}

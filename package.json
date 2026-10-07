@@ -6,6 +6,8 @@
   "scripts": {
     "api": "npm run dev -w @dineflow/backend",
     "customer": "npm run start -w @dineflow/customer-app",
+    "customer:go": "npm run start:go -w @dineflow/customer-app",
+    "customer:tunnel": "npm run start:tunnel -w @dineflow/customer-app",
     "operations": "npm run start -w @dineflow/operations-app",
     "check:hosted-db": "node scripts/check-hosted-db.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",

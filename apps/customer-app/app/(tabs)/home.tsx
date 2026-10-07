@@ -1,1 +1,1 @@
-export { Home as default } from '../../features/booking';
+export { CustomerHome as default } from '../../features/customer-home';
