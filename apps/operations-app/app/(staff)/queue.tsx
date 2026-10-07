@@ -1,1 +1,1 @@
-export { Queue as default } from '../../features/operations';
+export { StaffQueue as default } from '../../features/staff-queue';

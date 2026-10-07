@@ -1,1 +1,32 @@
-{ "expo": { "name": "DineFlow Operations", "slug": "dineflow-operations", "scheme": "dineflow-operations", "version": "1.0.0", "orientation": "portrait", "userInterfaceStyle": "dark", "plugins": ["expo-router"], "android": { "package": "lk.dineflow.operations" }, "ios": { "bundleIdentifier": "lk.dineflow.operations" }, "experiments": { "typedRoutes": true } } }
+{
+  "expo": {
+    "name": "DineFlow Operations",
+    "slug": "dineflow-operations",
+    "scheme": "dineflow-operations",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#F4F4F4",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-status-bar",
+        {
+          "style": "dark",
+          "hidden": false
+        }
+      ]
+    ],
+    "android": {
+      "package": "lk.dineflow.operations",
+      "userInterfaceStyle": "light"
+    },
+    "ios": {
+      "bundleIdentifier": "lk.dineflow.operations",
+      "userInterfaceStyle": "light"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

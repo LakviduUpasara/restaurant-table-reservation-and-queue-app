@@ -1,1 +1,1 @@
-export { Dashboard as default } from '../../features/operations';
+export { StaffDashboard as default } from '../../features/staff-dashboard';
