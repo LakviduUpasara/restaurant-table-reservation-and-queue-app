@@ -32,6 +32,7 @@ import { api } from '../lib/api';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
 import { getMenuItemImage, preOrderBannerImage } from '../lib/menu-image-assets';
+import { NotchedNavBar } from '../components/NotchedNavBar';
 
 const colors = {
   ink: '#262626',
@@ -124,32 +125,18 @@ function HeaderIconButton({ icon, onPress, accessibilityLabel }: { icon: 'option
 
 function CartBottomNav({ router }: { router: ReturnType<typeof useRouter> }) {
   const items = [
-    { label: 'Home', icon: 'home-outline' as const, route: '/home' },
-    { label: 'Queue', icon: 'chatbubble-ellipses-outline' as const, route: '/queue' },
-    { label: 'Menu', icon: 'search-outline' as const, route: '/menu', active: true },
-    { label: 'Account', icon: 'person-outline' as const, route: '/profile' },
+    { key: 'home', label: 'Home', icon: 'home-outline' as const, route: '/home' },
+    { key: 'queue', label: 'Queue', icon: 'chatbubble-ellipses-outline' as const, route: '/queue' },
+    { key: 'menu', label: 'Menu', icon: 'search-outline' as const, route: '/menu' },
+    { key: 'profile', label: 'Account', icon: 'person-outline' as const, route: '/profile' },
   ];
-
   return (
-    <View style={styles.cartBottomNav}>
-      {items.map(item => (
-        <Pressable
-          key={item.label}
-          accessibilityRole="tab"
-          accessibilityLabel={item.label}
-          onPress={() => router.replace(item.route as '/home' | '/menu' | '/queue' | '/profile')}
-          style={styles.cartNavItem}
-        >
-          {item.active ? (
-            <View style={styles.cartActiveNavBubble}>
-              <Ionicons name={item.icon} size={24} color={colors.ink} />
-            </View>
-          ) : (
-            <Ionicons name={item.icon} size={24} color={colors.paper} />
-          )}
-        </Pressable>
-      ))}
-    </View>
+    <NotchedNavBar
+      items={items}
+      activeIndex={2}
+      onPress={index => router.replace(items[index].route as '/home' | '/menu' | '/queue' | '/profile')}
+      bubbleColor={colors.accent}
+    />
   );
 }
 
@@ -691,31 +678,6 @@ const styles = StyleSheet.create({
   returnButton: { height: 46, borderRadius: 24, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F8' },
   returnButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
   emptyCart: { paddingTop: 60, gap: 25 },
-  cartBottomNav: {
-    height: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 32,
-    backgroundColor: '#292929',
-  },
-  cartNavItem: {
-    width: 46,
-    height: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cartActiveNavBubble: {
-    width: 46,
-    height: 46,
-    marginTop: -18,
-    borderRadius: 23,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-    borderWidth: 3,
-    borderColor: '#F5F5F5',
-  },
   cartFooter: { padding: 20, gap: 14, borderTopWidth: 1, borderColor: colors.line },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   totalLabel: { color: colors.ink, fontSize: textSizes.body, lineHeight: 20 },
