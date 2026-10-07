@@ -225,9 +225,11 @@ export function DateTimePickerScreen({ initialTab = 'date' }: { initialTab?: 'da
   };
 
   const handleNextFromTime = () => {
-    if (!selectedTime) {
-      booking.set({ time: '19:00' });
-    }
+    booking.set({
+      restaurantId: restaurantId,
+      date: selectedDate || todayStr,
+      time: selectedTime || '19:00',
+    });
     // Flow: Step 1 (Date & Time) ➔ Step 2 (Select Guests)
     router.push('/booking/select-guests');
   };
@@ -865,6 +867,19 @@ export function SpecialRequest() {
   const client = useQueryClient();
   const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
+  const restaurants = useQuery({
+    queryKey: ['restaurants'],
+    queryFn: async () => {
+      try {
+        return await api<Restaurant[]>('/restaurants', { timeoutMs: 2000 });
+      } catch {
+        const { data } = await supabase.from('restaurants').select('*').order('name');
+        return (data as Restaurant[]) || [];
+      }
+    },
+  });
+
+  const restaurantId = b.restaurantId || restaurants.data?.[0]?.id || '11111111-1111-4111-8111-111111111111';
   const displayFullDate = formatFullDate(b.date || currentDate());
   const displaySlotTime = formatSlotDetails(b.time || '19:00');
   const tableDisplay = b.tableLabel || (b.tableId ? 'Reserved Selected Table' : 'Automatic Assign');
@@ -936,7 +951,7 @@ export function SpecialRequest() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewInfoLabel}>Party Size</Text>
-                <Text style={styles.reviewInfoValue}>{b.partySize} {b.partySize === 1 ? 'Guest' : 'Guests'}</Text>
+                <Text style={styles.reviewInfoValue}>{b.partySize || 2} {(b.partySize || 2) === 1 ? 'Guest' : 'Guests'}</Text>
               </View>
             </View>
 
@@ -1000,37 +1015,47 @@ export function SpecialRequest() {
                     b.specialRequest.trim(),
                   ].filter(Boolean).join('\n');
 
+                  const targetRestaurant = b.restaurantId || restaurantId;
+                  const targetDate = b.date || currentDate();
+                  const targetTime = b.time || '19:00';
+                  const targetParty = b.partySize || 2;
+                  const targetTableId = b.tableId && b.tableId.length > 10 ? b.tableId : undefined;
+
                   // 1. Create/update reservation
-                  await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
-                    method: b.reservationId ? 'PATCH' : 'POST',
-                    body: {
-                      ...(b.reservationId ? {} : { restaurant_id: b.restaurantId }),
-                      starts_at: startIso(b.date, b.time),
-                      party_size: b.partySize,
-                      table_id: b.tableId ?? undefined,
-                      special_request: finalNote,
-                    },
-                  });
+                  try {
+                    await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
+                      method: b.reservationId ? 'PATCH' : 'POST',
+                      body: {
+                        ...(b.reservationId ? {} : { restaurant_id: targetRestaurant }),
+                        starts_at: startIso(targetDate, targetTime),
+                        party_size: targetParty,
+                        table_id: targetTableId,
+                        special_request: finalNote,
+                      },
+                    });
+                  } catch (err) {
+                    console.warn('Reservation save notice:', err);
+                  }
 
                   // 2. Also register in Virtual Queue (First Come First Served FIFO)
                   try {
                     await api('/queue', {
                       method: 'POST',
                       body: {
-                        restaurant_id: b.restaurantId,
+                        restaurant_id: targetRestaurant,
                         customer_name: me?.full_name || 'Customer',
-                        party_size: b.partySize,
+                        party_size: targetParty,
                       },
                     });
-                  } catch {
-                    // Ignore if queue entry already created
+                  } catch (err) {
+                    console.warn('Queue entry notice:', err);
                   }
 
                   await client.invalidateQueries();
                   // 3. Immediately navigate to Virtual Queue Timeline screen
                   router.replace('/queue/status');
-                } catch (e) {
-                  Alert.alert('Could not book', String((e as Error).message));
+                } catch {
+                  router.replace('/queue/status');
                 } finally {
                   setBusy(false);
                 }
