@@ -18,20 +18,14 @@ interface QueueStore {
 }
 
 export const useQueueStore = create<QueueStore>((set) => ({
-  activeSpot: {
-    hasActiveSpot: true,
-    position: 3,
-    estimatedWait: 15,
-    status: 'WAITING',
-    partySize: 2,
-  },
+  activeSpot: null,
   setActiveSpot: (spot) =>
     set((state) => ({
       activeSpot: spot
         ? {
             ...(state.activeSpot || {
-              position: 3,
-              estimatedWait: 15,
+              position: 1,
+              estimatedWait: 5,
               status: 'WAITING' as const,
               partySize: 2,
             }),

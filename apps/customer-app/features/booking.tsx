@@ -1054,8 +1054,8 @@ export function SpecialRequest() {
 
                   useQueueStore.getState().setActiveSpot({
                     hasActiveSpot: true,
-                    position: 3,
-                    estimatedWait: 15,
+                    position: 1,
+                    estimatedWait: 5,
                     status: 'WAITING',
                     partySize: targetParty,
                     tableLabel: b.tableLabel || (targetTableId ? 'Reserved Selected Table' : 'T1'),
@@ -1069,8 +1069,8 @@ export function SpecialRequest() {
                 } catch {
                   useQueueStore.getState().setActiveSpot({
                     hasActiveSpot: true,
-                    position: 3,
-                    estimatedWait: 15,
+                    position: 1,
+                    estimatedWait: 5,
                     status: 'WAITING',
                     partySize: b.partySize || 2,
                     tableLabel: b.tableLabel || 'T1',

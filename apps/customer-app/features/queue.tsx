@@ -142,9 +142,9 @@ export function QueueStatus() {
   const myQueueIndex = activeEntries.findIndex(e => e.customer_id === me?.id);
   const calculatedPosition = myQueueIndex !== -1
     ? myQueueIndex + 1
-    : (activeEntry?.position ?? (localSpot?.position ?? (activeEntries.length > 0 ? activeEntries.length + 1 : 3)));
+    : (activeEntry?.position ?? (localSpot?.position ?? (activeEntries.length > 0 ? activeEntries.length : 1)));
 
-  const position = calculatedPosition || 3;
+  const position = calculatedPosition || 1;
   const estimatedWait = Math.max(5, position * 5);
 
   // Step calculations based on current status
@@ -478,8 +478,8 @@ export function JoinQueue() {
     try {
       useQueueStore.getState().setActiveSpot({
         hasActiveSpot: true,
-        position: 3,
-        estimatedWait: 15,
+        position: 1,
+        estimatedWait: 5,
         status: 'WAITING',
         partySize: partyNum,
         customerName: name.trim(),
