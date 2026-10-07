@@ -169,11 +169,39 @@ export function QueueStatus() {
   const position = calculatedPosition || 1;
   const estimatedWait = Math.max(5, position * 5);
 
-  // Step calculations based on current status
+  const [simulatedStage, setSimulatedStage] = useState<'WAITING' | 'PREPARING' | 'READY'>('WAITING');
+
+  // Step calculations based on current status & live progression
   const isJoined = hasActiveSpot;
   const isWaiting = hasActiveSpot;
-  const isReady = activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY';
-  const isPreparing = activeEntry?.status === 'NOTIFIED' || isReady || localSpot?.status === 'NOTIFIED' || (hasActiveSpot && position <= 2);
+  const isPreparing = activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'NOTIFIED' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'PREPARING' || simulatedStage === 'READY' || (hasActiveSpot && position <= 2);
+  const isReady = activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'READY';
+
+  // Realistic auto-progression from Queue ➔ Preparing ➔ Table Ready ➔ Confirmation Screen
+  useEffect(() => {
+    if (!hasActiveSpot) return;
+
+    // 1. Progress to Table preparing
+    const t1 = setTimeout(() => {
+      setSimulatedStage('PREPARING');
+    }, 4000);
+
+    // 2. Progress to Table ready
+    const t2 = setTimeout(() => {
+      setSimulatedStage('READY');
+    }, 8000);
+
+    // 3. Auto-navigate to Table Reservation Complete Screen
+    const t3 = setTimeout(() => {
+      router.push('/queue/table-ready');
+    }, 10500);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [hasActiveSpot, router]);
 
   // Trigger Uber-style initial spot allocation drop-in animation
   useEffect(() => {
@@ -422,8 +450,11 @@ export function QueueStatus() {
                 </View>
               </View>
 
-              {/* STEP 4: Table Ready */}
-              <View style={styles.timelineStepRow}>
+              {/* STEP 4: Table Ready (Tap to view Confirmation Token) */}
+              <Pressable
+                onPress={() => router.push('/queue/table-ready')}
+                style={styles.timelineStepRow}
+              >
                 <View style={styles.timelineLeftColumn}>
                   <View style={[styles.stepDot, isReady ? styles.stepDotSuccess : styles.stepDotPending]}>
                     {isReady && <Ionicons name="checkmark-sharp" size={14} color="#171717" />}
@@ -431,16 +462,23 @@ export function QueueStatus() {
                 </View>
 
                 <View style={styles.timelineRightColumn}>
-                  <Text style={[styles.stepTitleActive, isReady ? styles.stepTitleSuccess : styles.stepTitlePending]}>
-                    Table ready
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Text style={[styles.stepTitleActive, isReady ? styles.stepTitleSuccess : styles.stepTitlePending]}>
+                      Table ready
+                    </Text>
+                    {isReady && (
+                      <View style={styles.viewPassBadge}>
+                        <Text style={styles.viewPassBadgeText}>VIEW PASS ➔</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[styles.stepDescription, !isReady && styles.stepDescriptionPending]}>
                     {isReady
-                      ? 'Ready for seating! Please proceed to the front host stand.'
+                      ? 'Ready for seating! Tap to view your Reservation Token & Pre-order meals.'
                       : 'You will receive an instant notification when your table is ready.'}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             </View>
 
             {/* Bottom Actions */}
@@ -1054,6 +1092,22 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     color: '#B45309',
+    letterSpacing: 0.5,
+  },
+  viewPassBadge: {
+    backgroundColor: '#E8B800',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  viewPassBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#171717',
     letterSpacing: 0.5,
   },
 
