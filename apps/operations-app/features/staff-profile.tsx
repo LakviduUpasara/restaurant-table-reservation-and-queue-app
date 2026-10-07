@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
@@ -79,7 +78,6 @@ export function StaffProfile() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <StatusBar style="dark" />
       <View style={styles.page}>
         <View style={[styles.headerWidth, width < 400 && styles.compactWidth]}>
           <Pressable

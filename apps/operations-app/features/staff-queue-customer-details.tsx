@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { QueueEntry, QueueStatus, Table } from '@dineflow/shared';
@@ -184,8 +183,7 @@ export function StaffQueueCustomerDetails() {
   const canNotify = !!entry && ['WAITING', 'NOTIFIED'].includes(entry.status) && !busy;
 
   return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <StatusBar style="dark" />
+    <SafeAreaView edges={['top', 'bottom']} style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={[styles.contentWidth, width < 400 && styles.contentWidthCompact]}>
           <View style={styles.header}>

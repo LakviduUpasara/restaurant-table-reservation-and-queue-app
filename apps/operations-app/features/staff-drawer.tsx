@@ -125,9 +125,9 @@ function StaffDrawer({ visible, onClose }: { visible: boolean; onClose: () => vo
   return (
     <Modal
       animationType="none"
-      navigationBarTranslucent={false}
+      navigationBarTranslucent
       onRequestClose={onClose}
-      statusBarTranslucent={false}
+      statusBarTranslucent
       transparent
       visible={visible}
     >

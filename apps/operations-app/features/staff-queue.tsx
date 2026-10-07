@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { QueueEntry, Table } from '@dineflow/shared';
@@ -218,7 +217,6 @@ export function StaffQueue() {
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <StatusBar style="dark" />
       <View style={styles.page}>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.contentWidth, width < 400 && styles.contentWidthCompact]}>

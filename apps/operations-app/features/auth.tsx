@@ -13,7 +13,6 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Field, Screen } from '@dineflow/shared';
 import { useAuth } from '../stores/auth.store';
@@ -69,7 +68,6 @@ export function Login() {
 
   return (
     <SafeAreaView style={loginStyles.safeArea}>
-      <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={loginStyles.keyboardView}

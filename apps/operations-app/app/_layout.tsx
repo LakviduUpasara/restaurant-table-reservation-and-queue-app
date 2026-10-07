@@ -56,7 +56,7 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <View style={styles.appRoot}>
-        <StatusBar style="dark" />
+        <StatusBar animated style="dark" />
         <Stack
           screenOptions={{
             contentStyle: styles.screen,
