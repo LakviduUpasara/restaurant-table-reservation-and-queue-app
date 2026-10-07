@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { type QueueEntry, type Restaurant } from '@dineflow/shared';
+import { type QueueEntry, type Restaurant, type Reservation } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
@@ -26,6 +26,28 @@ import { useQueueStore } from '../stores/queue.store';
 import { useRealtime } from './data';
 
 const HERO_IMAGE = require('../assets/images/restaurant_hero.jpg');
+
+const formatDatePretty = (d?: string) => {
+  if (!d) {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' , ' + now.getFullYear();
+  }
+  const dateObj = new Date(d);
+  if (isNaN(dateObj.getTime())) return d;
+  return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' , ' + dateObj.getFullYear();
+};
+
+const formatTimePretty = (t?: string) => {
+  if (!t) return '10.00 am';
+  if (t.includes(':')) {
+    const [h, m] = t.split(':');
+    const hour = parseInt(h, 10);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const displayH = hour % 12 || 12;
+    return `${displayH}.${m} ${ampm}`;
+  }
+  return t;
+};
 
 /**
  * =====================================================================
@@ -115,13 +137,13 @@ export function QueueStatus() {
   const q = useQuery({
     queryKey: ['queue'],
     queryFn: () => api<QueueEntry[]>('/queue'),
-    refetchInterval: 6000,
+    refetchInterval: 5000,
   });
 
   const resQuery = useQuery({
     queryKey: ['reservations'],
     queryFn: () => api<any[]>('/reservations'),
-    refetchInterval: 6000,
+    refetchInterval: 5000,
   });
 
   const localSpot = useQueueStore(s => s.activeSpot);
@@ -284,15 +306,19 @@ export function QueueStatus() {
           </ScrollView>
         ) : (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.queueScrollContent}>
-            {/* Table Ready Highlight Banner */}
+            {/* Table Ready Highlight Banner with Quick Action */}
             {isReady && (
-              <View style={styles.readyAlertBanner}>
-                <Ionicons name="sparkles" size={20} color="#10B981" style={{ marginRight: 10 }} />
+              <Pressable
+                onPress={() => router.push('/queue/table-ready')}
+                style={styles.readyAlertBanner}
+              >
+                <Ionicons name="sparkles" size={22} color="#10B981" style={{ marginRight: 10 }} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.readyAlertTitle}>Host Stand Notification</Text>
-                  <Text style={styles.readyAlertSubtitle}>Table is sanitized and ready. Check in with staff now.</Text>
+                  <Text style={styles.readyAlertTitle}>Table Ready! View Pass ➔</Text>
+                  <Text style={styles.readyAlertSubtitle}>Your table is reserved. Tap here to view reservation token.</Text>
                 </View>
-              </View>
+                <Ionicons name="chevron-forward" size={18} color="#047857" />
+              </Pressable>
             )}
 
             {/* Timeline Container */}
@@ -433,6 +459,145 @@ export function QueueStatus() {
             </View>
           </ScrollView>
         )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+/**
+ * =====================================================================
+ * Table Reservation Complete Screen (Matching Mockup media_1791392194144.png)
+ * Displays Reservation Token #DF-1048, Table Details, Large Complete Checkmark,
+ * Pre-order meals and Skip for now action buttons.
+ * =====================================================================
+ */
+export function TableReservationComplete() {
+  const router = useRouter();
+  const b = useBooking();
+  const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
+  const localSpot = useQueueStore(s => s.activeSpot);
+
+  const resQuery = useQuery({
+    queryKey: ['reservations'],
+    queryFn: () => api<Reservation[]>('/reservations'),
+  });
+
+  const latestRes = resQuery.data?.filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status))?.[0];
+
+  // Token Number derivation (e.g. #DF-1048)
+  const tokenNumber = latestRes?.id 
+    ? `#DF-${latestRes.id.slice(0, 4).toUpperCase()}`
+    : '#DF-1048';
+
+  // Table Label derivation (e.g. 1 , 4 or T1, T4)
+  const tableLabel = b.tableLabel || localSpot?.tableLabel || ((latestRes as any)?.tables?.label ?? '1 , 4');
+  const cleanTableLabel = tableLabel.replace(/^T/, '').replace(/,\s*T/g, ' , ');
+
+  // Date and Time derivation
+  const dateStr = b.date || (latestRes?.starts_at ? latestRes.starts_at.slice(0, 10) : undefined);
+  const timeStr = b.time || (latestRes?.starts_at ? latestRes.starts_at.slice(11, 16) : '10:00');
+  const guestsCount = b.partySize || localSpot?.partySize || latestRes?.party_size || 10;
+
+  const displayDate = formatDatePretty(dateStr);
+  const displayTime = formatTimePretty(timeStr);
+
+  return (
+    <SafeAreaView style={styles.root} edges={['top']}>
+      {/* Top Header */}
+      <View style={styles.topbar}>
+        <Pressable
+          accessibilityLabel="Back"
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/home');
+            }
+          }}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={20} color="#262626" />
+        </Pressable>
+
+        <View style={styles.brandContainer}>
+          <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
+        </View>
+
+        <Pressable accessibilityLabel="Cart" onPress={() => router.push('/cart')} style={styles.cartButton}>
+          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      {/* Screen Title */}
+      <View style={styles.headerSection}>
+        <Text style={styles.mainTitle}>Table Reservation Complete</Text>
+      </View>
+
+      {/* Main Curved White Sheet */}
+      <View style={styles.whiteSheet}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.completeScrollContent}>
+          {/* Reservation Token Charcoal Card */}
+          <View style={styles.tokenCard}>
+            <View style={styles.tokenHeaderRow}>
+              <Text style={styles.tokenCardTitle}>Reservation token</Text>
+              <Text style={styles.tokenCardNumber}>{tokenNumber}</Text>
+            </View>
+
+            <View style={styles.tokenDivider} />
+
+            <View style={styles.tokenInfoGrid}>
+              <View style={styles.tokenInfoRow}>
+                <Text style={styles.tokenInfoLabel}>Table No :</Text>
+                <Text style={styles.tokenInfoValue}>{cleanTableLabel}</Text>
+              </View>
+
+              <View style={styles.tokenInfoRow}>
+                <Text style={styles.tokenInfoLabel}>Date :</Text>
+                <Text style={styles.tokenInfoValue}>{displayDate}</Text>
+              </View>
+
+              <View style={styles.tokenInfoRow}>
+                <Text style={styles.tokenInfoLabel}>Time :</Text>
+                <Text style={styles.tokenInfoValue}>{displayTime}</Text>
+              </View>
+
+              <View style={styles.tokenInfoRow}>
+                <Text style={styles.tokenInfoLabel}>Guests :</Text>
+                <Text style={styles.tokenInfoValue}>{guestsCount}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Large Circular Complete Checkmark */}
+          <View style={styles.completeIconCircle}>
+            <Ionicons name="checkmark" size={44} color="#E8B800" />
+          </View>
+
+          <Text style={styles.completeHeading}>Complete</Text>
+
+          {/* Action Buttons */}
+          <View style={styles.completeActionBox}>
+            <Pressable
+              onPress={() => router.push('/(tabs)/menu')}
+              style={styles.preOrderButton}
+            >
+              <Ionicons name="restaurant-outline" size={18} color="#E8B800" style={{ marginRight: 8 }} />
+              <Text style={styles.preOrderButtonText}>Pre-order meals</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.replace('/(tabs)/home')}
+              style={styles.skipButton}
+            >
+              <Text style={styles.skipButtonText}>Skip for now</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -604,7 +769,7 @@ export function Queue() {
 }
 
 export function TableReady() {
-  return <QueueStatus />;
+  return <TableReservationComplete />;
 }
 
 const styles = StyleSheet.create({
@@ -969,6 +1134,122 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
+  },
+
+  // ===================================================================
+  // Table Reservation Complete Screen Styles (Mockup media_1791392194144)
+  // ===================================================================
+  completeScrollContent: {
+    paddingBottom: 60,
+    alignItems: 'center',
+  },
+  tokenCard: {
+    width: '100%',
+    backgroundColor: '#262728',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+    marginBottom: 28,
+  },
+  tokenHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  tokenCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  tokenCardNumber: {
+    color: '#E8B800',
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  tokenDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginVertical: 16,
+  },
+  tokenInfoGrid: {
+    gap: 8,
+  },
+  tokenInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tokenInfoLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    width: 90,
+  },
+  tokenInfoValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  completeIconCircle: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: '#262728',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 14,
+  },
+  completeHeading: {
+    fontSize: 26,
+    fontWeight: '900',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 28,
+    letterSpacing: -0.5,
+  },
+  completeActionBox: {
+    width: '100%',
+    gap: 12,
+  },
+  preOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#202122',
+    height: 52,
+    borderRadius: 28,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  preOrderButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  skipButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    height: 52,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: '#D1D5DB',
+  },
+  skipButtonText: {
+    color: '#1F2937',
+    fontSize: 15,
+    fontWeight: '700',
   },
 
   // Join Queue Form
