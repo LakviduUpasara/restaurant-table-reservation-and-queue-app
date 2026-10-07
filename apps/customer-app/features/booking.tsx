@@ -724,22 +724,22 @@ export function SelectTable() {
             <Text style={styles.legendLabel}>Selected</Text>
           </View>
           <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#262728' }]} />
+            <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
             <Text style={styles.legendLabel}>Booked</Text>
           </View>
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.floorScroll}>
-          {/* Restaurant Floor Plan Graphic Grid (12 Tables with Dining Chairs) */}
+          {/* Restaurant Floor Plan Graphic Grid (12 Tables with Luxury Dining Chairs) */}
           <View style={styles.floorGrid}>
             {allTables.slice(0, 12).map(table => {
               const isSelected = selectedTableId === table.id;
               const isAvailable = availableTableIds.has(table.id) || (table.status === 'AVAILABLE' && table.capacity >= selectedParty);
               const label = prettyTable(table.label);
 
-              // 3 Clean Colors: Green (Available), Gold (Selected), Dark (Booked)
-              const chairColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#3F3F46';
-              const tableColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#27272A';
+              // 3 Clean Colors matching reference image: Green (Available), Gold (Selected), Red (Booked)
+              const chairColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
+              const tableColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
               const textColor = isSelected ? '#171717' : '#FFFFFF';
 
               return (
@@ -748,25 +748,41 @@ export function SelectTable() {
                   onPress={() => handleTablePress(table)}
                   style={styles.tableGraphicWrapper}
                 >
-                  {/* Table with 4 Surrounding Chairs */}
+                  {/* Table with 4 Diagonal Surrounding Chairs */}
                   <View style={styles.tableGraphicBox}>
-                    {/* Top Chair */}
-                    <View style={[styles.chair, styles.chairTop, { backgroundColor: chairColor }]} />
-                    {/* Bottom Chair */}
-                    <View style={[styles.chair, styles.chairBottom, { backgroundColor: chairColor }]} />
-                    {/* Left Chair */}
-                    <View style={[styles.chair, styles.chairLeft, { backgroundColor: chairColor }]} />
-                    {/* Right Chair */}
-                    <View style={[styles.chair, styles.chairRight, { backgroundColor: chairColor }]} />
+                    <View style={[styles.diagonalChair, styles.chairTopLeft, { backgroundColor: chairColor }]} />
+                    <View style={[styles.diagonalChair, styles.chairTopRight, { backgroundColor: chairColor }]} />
+                    <View style={[styles.diagonalChair, styles.chairBottomLeft, { backgroundColor: chairColor }]} />
+                    <View style={[styles.diagonalChair, styles.chairBottomRight, { backgroundColor: chairColor }]} />
 
-                    {/* Central Dining Table Disc */}
-                    <View style={[styles.tableDisc, { backgroundColor: tableColor }]}>
-                      <Text style={[styles.tableDiscNumber, { color: textColor }]}>T{label}</Text>
-                      <Text style={[styles.tableDiscSeats, { color: textColor }]}>{table.capacity}S</Text>
+                    {/* Outer Beveled Circle */}
+                    <View style={[styles.tableOuterDisc, isSelected && styles.tableOuterDiscSelected]}>
+                      {/* Inner Core Disc */}
+                      <View style={[styles.tableInnerDisc, { backgroundColor: tableColor }]}>
+                        <Text style={[styles.tableDiscNumber, { color: textColor }]}>T{label}</Text>
+                      </View>
                     </View>
+
+                    {/* Selected Active Checkmark Pill */}
+                    {isSelected && (
+                      <View style={styles.tableActiveBadge}>
+                        <Ionicons name="checkmark" size={11} color="#171717" />
+                      </View>
+                    )}
                   </View>
 
-                  <Text style={styles.tableFloorLabel}>Table {label}</Text>
+                  {/* Guest Count Badge (No redundant "Table" label) */}
+                  <View style={[styles.tableGuestBadge, isSelected && styles.tableGuestBadgeSelected]}>
+                    <Ionicons
+                      name="people"
+                      size={11}
+                      color={isSelected ? '#171717' : isAvailable ? '#059669' : '#DC2626'}
+                      style={{ marginRight: 3 }}
+                    />
+                    <Text style={[styles.tableGuestCountText, isSelected && styles.tableGuestCountTextSelected]}>
+                      {table.capacity} Guests
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })}
@@ -1362,73 +1378,124 @@ const styles = StyleSheet.create({
   floorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 6,
+    paddingVertical: 10,
   },
   tableGraphicWrapper: {
-    width: '30%',
+    width: '32%',
     alignItems: 'center',
     marginBottom: 20,
   },
   tableGraphicBox: {
-    width: 72,
-    height: 72,
+    width: 78,
+    height: 78,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
-  chair: {
+  diagonalChair: {
     position: 'absolute',
-    borderRadius: 4,
-  },
-  chairTop: {
-    top: 0,
-    width: 26,
+    width: 20,
     height: 8,
     borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
-  chairBottom: {
-    bottom: 0,
-    width: 26,
-    height: 8,
-    borderRadius: 4,
+  chairTopLeft: {
+    top: 6,
+    left: 6,
+    transform: [{ rotate: '-45deg' }],
   },
-  chairLeft: {
-    left: 0,
-    width: 8,
-    height: 26,
-    borderRadius: 4,
+  chairTopRight: {
+    top: 6,
+    right: 6,
+    transform: [{ rotate: '45deg' }],
   },
-  chairRight: {
-    right: 0,
-    width: 8,
-    height: 26,
-    borderRadius: 4,
+  chairBottomLeft: {
+    bottom: 6,
+    left: 6,
+    transform: [{ rotate: '45deg' }],
   },
-  tableDisc: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+  chairBottomRight: {
+    bottom: 6,
+    right: 6,
+    transform: [{ rotate: '-45deg' }],
+  },
+  tableOuterDisc: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
-    elevation: 4,
+    elevation: 3,
+  },
+  tableOuterDiscSelected: {
+    borderColor: '#E8B800',
+    backgroundColor: '#FEF08A',
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  tableInnerDisc: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   tableDiscNumber: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
+    letterSpacing: -0.2,
   },
-  tableDiscSeats: {
-    fontSize: 9,
-    fontWeight: '800',
+  tableActiveBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    elevation: 4,
   },
-  tableFloorLabel: {
-    marginTop: 4,
+  tableGuestBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  tableGuestBadgeSelected: {
+    backgroundColor: '#E8B800',
+    borderColor: '#E8B800',
+  },
+  tableGuestCountText: {
     fontSize: 11,
     fontWeight: '700',
     color: '#374151',
+  },
+  tableGuestCountTextSelected: {
+    color: '#171717',
+    fontWeight: '800',
   },
 
   // Selected Table Bottom Card
