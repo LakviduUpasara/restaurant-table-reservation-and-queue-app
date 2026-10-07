@@ -2,7 +2,11 @@
   "name": "dineflow",
   "private": true,
   "version": "1.0.0",
-  "workspaces": ["apps/*", "backend", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "backend",
+    "packages/*"
+  ],
   "scripts": {
     "api": "npm run dev -w @dineflow/backend",
     "customer": "npm run start -w @dineflow/customer-app",
@@ -10,5 +14,11 @@
     "check:hosted-db": "node scripts/check-hosted-db.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test -w @dineflow/backend"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo/vector-icons": "^15.1.1",
+    "expo-font": "~57.0.4",
+    "react-native-svg": "^15.15.4"
   }
 }
