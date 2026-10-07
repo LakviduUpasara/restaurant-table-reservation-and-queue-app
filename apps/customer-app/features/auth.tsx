@@ -60,6 +60,7 @@ export function ResetPasswordScreen(){
   const [showPassword,setShowPassword]=useState(false);
   const [showConfirmPassword,setShowConfirmPassword]=useState(false);
   const [error,setError]=useState('');
+  const [success,setSuccess]=useState('');
   const [busy,setBusy]=useState(false);
   const [sessionReady,setSessionReady]=useState<boolean|null>(null);
 
@@ -76,6 +77,7 @@ export function ResetPasswordScreen(){
 
   const updatePassword=async()=>{
     setError('');
+    setSuccess('');
     if(password.length<6){
       setError('Password must be at least 6 characters.');
       return;
@@ -92,10 +94,7 @@ export function ResetPasswordScreen(){
       setError(updateError.message);
       return;
     }
-
-    Alert.alert('Password updated','Your password has been updated successfully.',[
-      {text:'Done',onPress:()=>router.canGoBack()?router.back():router.replace('/home')},
-    ]);
+    setSuccess('Password updated successfully.');
   };
 
   const goBack=()=>router.canGoBack()?router.back():router.replace('/profile');
@@ -161,6 +160,7 @@ export function ResetPasswordScreen(){
         <PasswordRule valid={hasNumber} text="One number" />
         <PasswordRule valid={passwordsMatch} text="New and confirm passwords match" />
         {error ? <Text accessibilityLiveRegion="polite" style={passwordStyles.error}>{error}</Text> : null}
+        {success ? <Text accessibilityLiveRegion="polite" style={passwordStyles.success}>{success}</Text> : null}
         <Pressable
           accessibilityRole="button"
           disabled={busy}
@@ -212,6 +212,7 @@ const passwordStyles=StyleSheet.create({
   ruleIconInactive:{backgroundColor:'#BDBDBD'},
   ruleText:{fontFamily:'Inter_400Regular',color:'#363636',fontSize:14,lineHeight:20,flex:1},
   error:{fontFamily:'Inter_400Regular',color:'#B42318',fontSize:14,lineHeight:20,marginTop:2,marginBottom:10},
+  success:{fontFamily:'Inter_600SemiBold',color:'#18794E',backgroundColor:'#EAF7EF',borderRadius:10,padding:12,fontSize:14,lineHeight:20,marginTop:2,marginBottom:10},
   saveButton:{height:56,borderRadius:28,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center',marginTop:8},
   busy:{opacity:0.75},
   saveText:{fontFamily:'Inter_800ExtraBold',color:'#262626',fontSize:16,fontWeight:'800'},

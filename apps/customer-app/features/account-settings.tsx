@@ -252,6 +252,7 @@ function AccountForm({
   secondaryField,
   onSave,
   busy,
+  feedback,
 }: {
   title: string;
   description: string;
@@ -269,6 +270,7 @@ function AccountForm({
   };
   onSave: () => void;
   busy: boolean;
+  feedback?: { kind: 'success' | 'error'; message: string };
 }) {
   const router = useRouter();
   return (
@@ -311,6 +313,14 @@ function AccountForm({
             />
           </>
         )}
+        {feedback ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={feedback.kind === 'success' ? styles.formSuccess : styles.formError}
+          >
+            {feedback.message}
+          </Text>
+        ) : null}
         <Pressable accessibilityRole="button" disabled={busy} onPress={onSave} style={[styles.saveButton, busy && styles.saveButtonBusy]}>
           {busy ? <ActivityIndicator color={palette.dark} /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
         </Pressable>
@@ -323,23 +333,25 @@ export function EnterPhoneNumber() {
   const { profile, refresh } = useAuth();
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string }>();
 
   useEffect(() => {
     setPhone(profile?.phone ?? '');
   }, [profile?.phone]);
 
   const savePhone = async () => {
+    setFeedback(undefined);
     if (phone.trim().replace(/\D/g, '').length < 7) {
-      Alert.alert('Enter a valid phone number', 'Please enter at least 7 digits.');
+      setFeedback({ kind: 'error', message: 'Enter a valid phone number with at least 7 digits.' });
       return;
     }
     setBusy(true);
     try {
       await api('/me', { method: 'PATCH', body: { phone: phone.trim() } });
       await refresh();
-      Alert.alert('Phone number saved', 'Your account phone number has been updated.');
+      setFeedback({ kind: 'success', message: 'Phone number updated successfully.' });
     } catch (error) {
-      Alert.alert('Could not save phone number', String((error as Error).message));
+      setFeedback({ kind: 'error', message: `Could not save phone number: ${String((error as Error).message)}` });
     } finally {
       setBusy(false);
     }
@@ -356,6 +368,7 @@ export function EnterPhoneNumber() {
       keyboardType="phone-pad"
       onSave={() => void savePhone()}
       busy={busy}
+      feedback={feedback}
     />
   );
 }
@@ -365,6 +378,7 @@ export function UpdateUserProfile() {
   const [name, setName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string }>();
 
   useEffect(() => {
     setName(profile?.full_name ?? '');
@@ -372,22 +386,23 @@ export function UpdateUserProfile() {
   }, [profile?.full_name, profile?.phone]);
 
   const saveProfile = async () => {
+    setFeedback(undefined);
     if (name.trim().length < 2) {
-      Alert.alert('Enter your name', 'Your name must have at least 2 characters.');
+      setFeedback({ kind: 'error', message: 'Your name must have at least 2 characters.' });
       return;
     }
     const normalizedPhone = phone.trim();
     if (normalizedPhone && normalizedPhone.replace(/\D/g, '').length < 7) {
-      Alert.alert('Enter a valid phone number', 'Please enter at least 7 digits or leave the phone number empty.');
+      setFeedback({ kind: 'error', message: 'Enter a valid phone number with at least 7 digits, or leave it empty.' });
       return;
     }
     setBusy(true);
     try {
       await api('/me', { method: 'PATCH', body: { full_name: name.trim(), phone: normalizedPhone || null } });
       await refresh();
-      Alert.alert('Profile updated', 'Your name and phone number have been saved.');
+      setFeedback({ kind: 'success', message: 'Profile updated successfully. Your name and phone number have been saved.' });
     } catch (error) {
-      Alert.alert('Could not update profile', String((error as Error).message));
+      setFeedback({ kind: 'error', message: `Could not update profile: ${String((error as Error).message)}` });
     } finally {
       setBusy(false);
     }
@@ -410,6 +425,7 @@ export function UpdateUserProfile() {
       }}
       onSave={() => void saveProfile()}
       busy={busy}
+      feedback={feedback}
     />
   );
 }
@@ -470,5 +486,7 @@ const styles = StyleSheet.create({
   saveButton: { height: 50, borderRadius: 25, marginTop: 22, backgroundColor: palette.yellow, alignItems: 'center', justifyContent: 'center' },
   saveButtonBusy: { opacity: 0.75 },
   saveButtonText: { fontFamily: 'Inter_800ExtraBold', color: palette.dark, fontSize: 15, fontWeight: '800' },
+  formSuccess: { fontFamily: 'Inter_600SemiBold', color: '#18794E', backgroundColor: '#EAF7EF', borderRadius: 9, padding: 12, fontSize: 14, lineHeight: 20, marginTop: 16 },
+  formError: { fontFamily: 'Inter_400Regular', color: '#B42318', backgroundColor: '#FFF1F0', borderRadius: 9, padding: 12, fontSize: 14, lineHeight: 20, marginTop: 16 },
   pressed: { opacity: 0.8 },
 });
