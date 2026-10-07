@@ -121,6 +121,7 @@ export function AccountSettings() {
     setSigningOut(true);
     try {
       await signOut();
+      client.clear();
       router.replace('/login');
     } catch (error) {
       setSignOutError(String((error as Error).message));
@@ -323,8 +324,12 @@ export function EnterPhoneNumber() {
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    setPhone(profile?.phone ?? '');
+  }, [profile?.phone]);
+
   const savePhone = async () => {
-    if (phone.trim().length < 7) {
+    if (phone.trim().replace(/\D/g, '').length < 7) {
       Alert.alert('Enter a valid phone number', 'Please enter at least 7 digits.');
       return;
     }
@@ -360,6 +365,11 @@ export function UpdateUserProfile() {
   const [name, setName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setName(profile?.full_name ?? '');
+    setPhone(profile?.phone ?? '');
+  }, [profile?.full_name, profile?.phone]);
 
   const saveProfile = async () => {
     if (name.trim().length < 2) {

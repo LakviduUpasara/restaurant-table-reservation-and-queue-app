@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,7 +21,37 @@ export function SignupScreen(){const router=useRouter();const signUp=useAuth(s=>
   const submit=handleSubmit(async v=>{setBusy(true);try{await signUp(v.email,v.password,v.name);Alert.alert('Account created','Confirm your email if requested, then sign in.');router.replace('/login');}catch(e){Alert.alert('Sign up failed',String((e as Error).message));}finally{setBusy(false);}});
   return <Screen title="Create your account" subtitle="A few details and you are ready to dine."><Controller control={control} name="name" render={({field})=><Field label="Full name" value={field.value} onChangeText={field.onChange} error={errors.name?.message}/>}/><Controller control={control} name="email" render={({field})=><Field label="Email" autoCapitalize="none" keyboardType="email-address" value={field.value} onChangeText={field.onChange} error={errors.email?.message}/>}/><Controller control={control} name="password" render={({field})=><Field label="Password" secureTextEntry value={field.value} onChangeText={field.onChange} error={errors.password?.message}/>}/><Controller control={control} name="confirm" render={({field})=><Field label="Confirm password" secureTextEntry value={field.value} onChangeText={field.onChange} error={errors.confirm?.message}/>}/><Button title="Sign up" onPress={submit} busy={busy}/><Button title="Already have an account? Log in" kind="ghost" onPress={()=>router.replace('/login')}/></Screen>;
 }
-export function ForgotPasswordScreen(){const [email,setEmail]=useState('');const [busy,setBusy]=useState(false);const router=useRouter();return <Screen title="Reset password" subtitle="Enter your account email. We will send you a reset link."><Field label="Email" value={email} autoCapitalize="none" keyboardType="email-address" onChangeText={setEmail}/><Button title="Send reset link" busy={busy} onPress={async()=>{setBusy(true);const {error}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:'dineflow-customer://reset-password'});setBusy(false);if(error)Alert.alert('Could not send link',error.message);else{Alert.alert('Check your email','Open the reset link on this device.');router.push('/reset-password');}}}/><Label muted>Recovery uses email throughout this flow.</Label></Screen>}
+export function ForgotPasswordScreen(){const [email,setEmail]=useState('');const [busy,setBusy]=useState(false);const router=useRouter();return <Screen title="Reset password" subtitle="Enter your account email. We will send you a reset link."><Field label="Email" value={email} autoCapitalize="none" keyboardType="email-address" onChangeText={setEmail}/><Button title="Send reset link" busy={busy} onPress={async()=>{const normalized=email.trim();if(!normalized){Alert.alert('Enter your email','Please enter the email connected to your account.');return;}setBusy(true);const {error}=await supabase.auth.resetPasswordForEmail(normalized,{redirectTo:'dineflow-customer://reset-password'});setBusy(false);if(error)Alert.alert('Could not send link',error.message);else Alert.alert('Check your email','Open the reset link on this device. The password screen will open automatically.');}}/><Button title="Reset with phone" kind="secondary" onPress={()=>router.push('/phone-recovery')}/><Label muted>Recovery uses email or phone verification.</Label></Screen>}
+export function PhoneRecoveryScreen(){
+  const [phone,setPhone]=useState('');
+  const [code,setCode]=useState('');
+  const [password,setPassword]=useState('');
+  const [confirm,setConfirm]=useState('');
+  const [sent,setSent]=useState(false);
+  const [busy,setBusy]=useState(false);
+  const router=useRouter();
+  const sendCode=async()=>{
+    const normalized=phone.trim();
+    if(normalized.replace(/\D/g,'').length<7){Alert.alert('Enter a valid phone number','Use the phone number connected to your account.');return;}
+    setBusy(true);
+    const {error}=await supabase.auth.signInWithOtp({phone:normalized,options:{shouldCreateUser:false}});
+    setBusy(false);
+    if(error)Alert.alert('Could not send code',error.message);
+    else{setSent(true);Alert.alert('Code sent','Enter the SMS verification code to continue.');}
+  };
+  const updatePassword=async()=>{
+    if(code.trim().length<4){Alert.alert('Enter the verification code','Please enter the SMS code.');return;}
+    if(password.length<6||password!==confirm){Alert.alert('Check your password','Use at least 6 characters and make both passwords match.');return;}
+    setBusy(true);
+    const verified=await supabase.auth.verifyOtp({phone:phone.trim(),token:code.trim(),type:'sms'});
+    if(verified.error){setBusy(false);Alert.alert('Verification failed',verified.error.message);return;}
+    const updated=await supabase.auth.updateUser({password});
+    setBusy(false);
+    if(updated.error){Alert.alert('Could not update password',updated.error.message);return;}
+    Alert.alert('Password updated','Your password has been updated successfully.',[{text:'Sign in',onPress:()=>router.replace('/login')}]);
+  };
+  return <Screen title="Reset with phone" subtitle="Verify the phone number connected to your account."><Field label="Phone number" value={phone} keyboardType="phone-pad" onChangeText={setPhone} placeholder="+94 71 234 5678"/>{sent&&<><Field label="SMS code" value={code} keyboardType="number-pad" onChangeText={setCode} placeholder="123456"/><Field label="New password" value={password} secureTextEntry onChangeText={setPassword}/><Field label="Confirm password" value={confirm} secureTextEntry onChangeText={setConfirm}/></>}{sent?<Button title="Update password" busy={busy} onPress={()=>void updatePassword()}/>:<Button title="Send verification code" busy={busy} onPress={()=>void sendCode()}/>}<Button title="Use email instead" kind="ghost" onPress={()=>router.replace('/forgot-password')}/></Screen>;
+}
 export function ResetPasswordScreen(){
   const router=useRouter();
   const profile=useAuth(state=>state.profile);
@@ -31,6 +61,18 @@ export function ResetPasswordScreen(){
   const [showConfirmPassword,setShowConfirmPassword]=useState(false);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [sessionReady,setSessionReady]=useState<boolean|null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) setSessionReady(Boolean(data.session));
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active && session) setSessionReady(true);
+    });
+    return () => { active = false; data.subscription.unsubscribe(); };
+  }, []);
 
   const updatePassword=async()=>{
     setError('');
@@ -81,6 +123,9 @@ export function ResetPasswordScreen(){
     </View>
   );
 
+  if (sessionReady === false) {
+    return <Screen title="Reset password" subtitle="Open the password reset link from your email on this device."><Label muted>Your recovery session is not active yet.</Label><Button title="Back to sign in" onPress={()=>router.replace('/login')}/></Screen>;
+  }
   return <SafeAreaView style={passwordStyles.screen}>
     <View style={passwordStyles.header}>
       <View style={passwordStyles.headerRow}>
