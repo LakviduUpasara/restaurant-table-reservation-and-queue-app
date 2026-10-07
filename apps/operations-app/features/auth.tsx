@@ -86,8 +86,8 @@ export function Login() {
 
           <View style={loginStyles.loginSection}>
             <View style={loginStyles.headingBlock}>
-              <Text style={loginStyles.title}>Staff Login</Text>
-              <Text style={loginStyles.subtitle}>Access your staff account</Text>
+              <Text style={loginStyles.title}>Operations Login</Text>
+              <Text style={loginStyles.subtitle}>Access your account</Text>
             </View>
 
             <View style={loginStyles.form}>
