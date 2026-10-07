@@ -29,50 +29,64 @@ const HERO_IMAGE = require('../assets/images/restaurant_hero.jpg');
 
 /**
  * =====================================================================
- * Animated Pulse Line for Queue Timeline Progress
+ * Uber-Style Animated Flowing Progress Line
+ * Continuously streams a glowing beam downwards along the timeline line
  * =====================================================================
  */
-function AnimatedTimelineLine({ active }: { active: boolean }) {
+function UberFlowingLine({
+  active,
+  completed,
+  height = 56,
+}: {
+  active: boolean;
+  completed?: boolean;
+  height?: number;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active) {
+      anim.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(anim, {
-          toValue: 0,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-      ])
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 1500,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
     );
     loop.start();
     return () => loop.stop();
   }, [active, anim]);
 
-  const lineColor = active
-    ? anim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['#171717', '#E8B800'],
-      })
-    : '#E5E7EB';
+  const translateY = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-30, height + 10],
+  });
 
   return (
-    <Animated.View
+    <View
       style={[
-        styles.timelineLine,
+        styles.uberLineTrack,
         {
-          backgroundColor: lineColor,
+          height,
+          backgroundColor: completed ? '#1A1A1A' : '#E5E7EB',
         },
       ]}
-    />
+    >
+      {active && (
+        <Animated.View
+          style={[
+            styles.uberFlowingBeam,
+            {
+              transform: [{ translateY }],
+            },
+          ]}
+        />
+      )}
+    </View>
   );
 }
 
@@ -87,6 +101,11 @@ export function QueueStatus() {
   const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
   const client = useQueryClient();
   const [leaving, setLeaving] = useState(false);
+  const [isAllocating, setIsAllocating] = useState(true);
+
+  // Position drop-in spring animation
+  const positionScale = useRef(new Animated.Value(0.4)).current;
+  const positionOpacity = useRef(new Animated.Value(0)).current;
 
   // Subscribe to real-time updates on queue_entries, reservations & notifications
   useRealtime('queue_entries', me ? `customer_id=eq.${me.id}` : undefined);
@@ -96,36 +115,65 @@ export function QueueStatus() {
   const q = useQuery({
     queryKey: ['queue'],
     queryFn: () => api<QueueEntry[]>('/queue'),
-    refetchInterval: 10000,
+    refetchInterval: 6000,
   });
 
   const resQuery = useQuery({
     queryKey: ['reservations'],
     queryFn: () => api<any[]>('/reservations'),
-    refetchInterval: 10000,
+    refetchInterval: 6000,
   });
 
   const localSpot = useQueueStore(s => s.activeSpot);
   const clearLocalSpot = useQueueStore(s => s.clearActiveSpot);
 
-  const activeEntry = q.data?.find(e =>
-    ['WAITING', 'NOTIFIED', 'TABLE_READY'].includes(e.status)
-  );
+  // Live FIFO calculation from queue data
+  const activeEntries = (q.data || []).filter(e => ['WAITING', 'NOTIFIED', 'TABLE_READY'].includes(e.status));
+  const activeEntry = activeEntries.find(e => e.customer_id === me?.id);
 
   const activeReservation = resQuery.data?.find(r =>
     ['PENDING', 'CONFIRMED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
   );
 
   const hasActiveSpot = !!activeEntry || !!activeReservation || !!localSpot?.hasActiveSpot;
-  const position = activeEntry?.position ?? (localSpot?.position ?? 3);
-  const rawWait = activeEntry?.estimated_wait_minutes ?? localSpot?.estimatedWait;
-  const estimatedWait = rawWait && rawWait > 0 ? rawWait : Math.max(5, (position || 1) * 5);
+
+  // Compute FIFO position:
+  // If user is already in remote queue entries, use their 1-indexed position; otherwise calculate based on line count
+  const myQueueIndex = activeEntries.findIndex(e => e.customer_id === me?.id);
+  const calculatedPosition = myQueueIndex !== -1
+    ? myQueueIndex + 1
+    : (activeEntry?.position ?? (localSpot?.position ?? (activeEntries.length > 0 ? activeEntries.length + 1 : 3)));
+
+  const position = calculatedPosition || 3;
+  const estimatedWait = Math.max(5, position * 5);
 
   // Step calculations based on current status
   const isJoined = hasActiveSpot;
   const isWaiting = hasActiveSpot;
   const isReady = activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY';
   const isPreparing = activeEntry?.status === 'NOTIFIED' || isReady || localSpot?.status === 'NOTIFIED' || (hasActiveSpot && position <= 2);
+
+  // Trigger Uber-style initial spot allocation drop-in animation
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAllocating(false);
+      Animated.parallel([
+        Animated.spring(positionScale, {
+          toValue: 1,
+          friction: 6,
+          tension: 70,
+          useNativeDriver: true,
+        }),
+        Animated.timing(positionOpacity, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [positionScale, positionOpacity]);
 
   const handleLeaveQueue = () => {
     if (!hasActiveSpot) return;
@@ -212,7 +260,7 @@ export function QueueStatus() {
 
       {/* Main Curved White Sheet */}
       <View style={styles.whiteSheet}>
-        {q.isLoading ? (
+        {q.isLoading && !localSpot ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#E8B800" />
             <Text style={styles.loadingText}>Fetching your queue position...</Text>
@@ -253,9 +301,10 @@ export function QueueStatus() {
               <View style={styles.timelineStepRow}>
                 <View style={styles.timelineLeftColumn}>
                   <View style={[styles.stepDot, styles.stepDotCompleted]}>
-                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                    <Ionicons name="checkmark" size={13} color="#FFFFFF" />
                   </View>
-                  <AnimatedTimelineLine active={isWaiting} />
+                  {/* Uber-style Flowing Line from Step 1 to Step 2 */}
+                  <UberFlowingLine active={isWaiting} completed={isPreparing} height={92} />
                 </View>
 
                 <View style={styles.timelineRightColumn}>
@@ -270,8 +319,25 @@ export function QueueStatus() {
                     </View>
 
                     <View style={styles.positionCardRight}>
-                      <Text style={styles.positionNumber}>#{position}</Text>
-                      <Text style={styles.estimatedWaitValue}>{estimatedWait} min</Text>
+                      {isAllocating ? (
+                        <View style={{ alignItems: 'flex-end', justifyContent: 'center', minHeight: 60 }}>
+                          <ActivityIndicator size="small" color="#E8B800" />
+                          <Text style={{ fontSize: 11, color: '#E8B800', marginTop: 4, fontWeight: '700' }}>
+                            ALLOCATING SPOT...
+                          </Text>
+                        </View>
+                      ) : (
+                        <Animated.View
+                          style={{
+                            alignItems: 'flex-end',
+                            opacity: positionOpacity,
+                            transform: [{ scale: positionScale }],
+                          }}
+                        >
+                          <Text style={styles.positionNumber}>#{position}</Text>
+                          <Text style={styles.estimatedWaitValue}>{estimatedWait} min</Text>
+                        </Animated.View>
+                      )}
                     </View>
                   </View>
                 </View>
@@ -280,10 +346,13 @@ export function QueueStatus() {
               {/* STEP 2: Waiting */}
               <View style={styles.timelineStepRow}>
                 <View style={styles.timelineLeftColumn}>
-                  <View style={[styles.stepDot, isWaiting ? styles.stepDotActive : styles.stepDotPending]}>
-                    {isWaiting && <View style={styles.stepDotInner} />}
+                  <View style={[styles.stepDot, isWaiting ? styles.stepDotWaitingActive : styles.stepDotPending]}>
+                    {isWaiting ? (
+                      <View style={styles.stepDotWaitingCenter} />
+                    ) : null}
                   </View>
-                  <AnimatedTimelineLine active={isPreparing} />
+                  {/* Uber-style Flowing Line from Step 2 to Step 3 */}
+                  <UberFlowingLine active={isWaiting && !isPreparing} completed={isPreparing} height={60} />
                 </View>
 
                 <View style={styles.timelineRightColumn}>
@@ -292,8 +361,8 @@ export function QueueStatus() {
                       Waiting
                     </Text>
                     {isWaiting && !isReady && (
-                      <View style={styles.liveBadge}>
-                        <Text style={styles.liveBadgeText}>IN PROGRESS</Text>
+                      <View style={styles.inProgressBadge}>
+                        <Text style={styles.inProgressBadgeText}>IN PROGRESS</Text>
                       </View>
                     )}
                   </View>
@@ -311,14 +380,15 @@ export function QueueStatus() {
                   <View style={[styles.stepDot, isPreparing ? styles.stepDotActive : styles.stepDotPending]}>
                     {isPreparing && <Ionicons name="restaurant" size={10} color="#FFFFFF" />}
                   </View>
-                  <AnimatedTimelineLine active={isReady} />
+                  {/* Uber-style Flowing Line from Step 3 to Step 4 */}
+                  <UberFlowingLine active={isPreparing && !isReady} completed={isReady} height={56} />
                 </View>
 
                 <View style={styles.timelineRightColumn}>
                   <Text style={[styles.stepTitleActive, !isPreparing && styles.stepTitlePending]}>
                     Table preparing
                   </Text>
-                  <Text style={styles.stepDescription}>
+                  <Text style={[styles.stepDescription, !isPreparing && styles.stepDescriptionPending]}>
                     {isPreparing
                       ? 'Staff is clearing, sanitizing, and setting up tableware.'
                       : 'Staff will prepare your table as soon as current diners leave.'}
@@ -338,7 +408,7 @@ export function QueueStatus() {
                   <Text style={[styles.stepTitleActive, isReady ? styles.stepTitleSuccess : styles.stepTitlePending]}>
                     Table ready
                   </Text>
-                  <Text style={styles.stepDescription}>
+                  <Text style={[styles.stepDescription, !isReady && styles.stepDescriptionPending]}>
                     {isReady
                       ? 'Ready for seating! Please proceed to the front host stand.'
                       : 'You will receive an instant notification when your table is ready.'}
@@ -553,9 +623,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   brandContainer: {
     flexDirection: 'row',
@@ -616,8 +690,8 @@ const styles = StyleSheet.create({
   whiteSheet: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 36,
-    borderTopRightRadius: 36,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     paddingTop: 24,
     paddingHorizontal: 20,
   },
@@ -708,54 +782,74 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
   },
   timelineWrapper: {
-    paddingLeft: 4,
-    paddingRight: 4,
+    paddingLeft: 2,
+    paddingRight: 2,
   },
   timelineStepRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   timelineLeftColumn: {
-    width: 32,
+    width: 28,
     alignItems: 'center',
   },
   stepDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
   stepDotCompleted: {
-    backgroundColor: '#171717',
+    backgroundColor: '#1E1F20',
+  },
+  stepDotWaitingActive: {
+    backgroundColor: '#1E1F20',
+    borderWidth: 2.5,
+    borderColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotWaitingCenter: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#E8B800',
   },
   stepDotActive: {
     backgroundColor: '#171717',
     borderWidth: 2,
     borderColor: '#E8B800',
   },
-  stepDotInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E8B800',
-  },
   stepDotPending: {
-    backgroundColor: '#E5E7EB',
+    backgroundColor: '#E2E8F0',
   },
   stepDotSuccess: {
     backgroundColor: '#E8B800',
   },
-  timelineLine: {
-    width: 2.5,
-    minHeight: 50,
-    flexGrow: 1,
+
+  // Uber-Style Streaming Line
+  uberLineTrack: {
+    width: 3,
+    borderRadius: 1.5,
+    overflow: 'hidden',
     marginVertical: 4,
   },
+  uberFlowingBeam: {
+    position: 'absolute',
+    width: 3,
+    height: 32,
+    backgroundColor: '#E8B800',
+    borderRadius: 1.5,
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+
   timelineRightColumn: {
     flex: 1,
-    paddingLeft: 12,
+    paddingLeft: 14,
     paddingBottom: 22,
   },
   stepTitleRow: {
@@ -764,9 +858,9 @@ const styles = StyleSheet.create({
   },
   stepTitleMuted: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 10,
+    fontWeight: '700',
+    color: '#4B5563',
+    marginBottom: 8,
   },
   stepTitleActive: {
     fontSize: 16,
@@ -774,49 +868,54 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   stepTitlePending: {
-    color: '#9CA3AF',
-    fontWeight: '600',
+    color: '#94A3B8',
+    fontWeight: '700',
   },
   stepTitleSuccess: {
     color: '#D97706',
     fontWeight: '800',
   },
-  liveBadge: {
-    backgroundColor: 'rgba(232, 184, 0, 0.15)',
+
+  inProgressBadge: {
+    backgroundColor: '#FEF3C7',
     borderWidth: 1,
-    borderColor: 'rgba(232, 184, 0, 0.4)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
     marginLeft: 8,
   },
-  liveBadgeText: {
-    fontSize: 9,
+  inProgressBadgeText: {
+    fontSize: 10,
     fontWeight: '800',
-    color: '#D97706',
+    color: '#B45309',
     letterSpacing: 0.5,
   },
+
   stepDescription: {
     fontSize: 12,
     color: '#6B7280',
     marginTop: 4,
     lineHeight: 17,
   },
+  stepDescriptionPending: {
+    color: '#94A3B8',
+  },
 
   // Position Card from Mockup
   positionCard: {
-    backgroundColor: '#2E2F30',
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    backgroundColor: '#262728',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 14,
+    marginTop: 2,
+    marginBottom: 10,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
     elevation: 4,
   },
   positionCardLeft: {
@@ -824,45 +923,45 @@ const styles = StyleSheet.create({
   },
   positionCardLabel: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#9CA3AF',
     letterSpacing: 0.8,
   },
   estimatedWaitLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#D1D5DB',
+    color: '#E5E7EB',
   },
   positionCardRight: {
     alignItems: 'flex-end',
     justifyContent: 'center',
   },
   positionNumber: {
-    fontSize: 34,
+    fontSize: 36,
     fontWeight: '900',
     color: '#E8B800',
     letterSpacing: -0.5,
-    lineHeight: 38,
+    lineHeight: 40,
   },
   estimatedWaitValue: {
     fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
-    marginTop: 2,
+    marginTop: 1,
   },
 
   // Bottom Actions
   bottomActionsBox: {
-    marginTop: 10,
+    marginTop: 14,
     alignItems: 'center',
   },
   leaveQueueButton: {
     width: '100%',
     paddingVertical: 14,
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1.5,
     borderColor: '#D1D5DB',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
