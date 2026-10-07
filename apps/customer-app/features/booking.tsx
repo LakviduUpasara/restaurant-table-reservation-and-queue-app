@@ -267,6 +267,9 @@ export function DateTimePickerScreen({ initialTab = 'date' }: { initialTab?: 'da
 
       {/* Main Title */}
       <View style={styles.headerSection}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>STEP 1 OF 4 · SCHEDULE</Text>
+        </View>
         <Text style={styles.mainTitle}>When do you want to go?</Text>
         <Text style={styles.subtitle}>Choose your preferred date and dining time slot.</Text>
       </View>
@@ -517,7 +520,7 @@ export function SelectGuests() {
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
-      {/* Header */}
+      {/* Top Header */}
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
@@ -535,23 +538,12 @@ export function SelectGuests() {
         </Pressable>
       </View>
 
-      {/* Hero Mini Banner */}
-      <View style={styles.tableHeroContainer}>
-        <Image source={HERO_IMAGE} style={styles.tableHeroImage} resizeMode="cover" />
-        <View style={styles.tableHeroOverlay} />
-        <View style={styles.tableHeroChipsRow}>
-          <View style={styles.headerChip}>
-            <Text style={styles.headerChipText}>{displayDate}</Text>
-          </View>
-          <View style={styles.headerChip}>
-            <Text style={styles.headerChipText}>{displayTime}</Text>
-          </View>
-        </View>
-      </View>
-
       <View style={styles.headerSection}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>STEP 2 OF 4 · PARTY SIZE</Text>
+        </View>
         <Text style={styles.mainTitle}>How many guests?</Text>
-        <Text style={styles.subtitle}>Select party size to find the best table for your visit.</Text>
+        <Text style={styles.subtitle}>Select party size for {displayDate} at {displayTime}.</Text>
       </View>
 
       <View style={styles.whiteSheet}>
@@ -736,21 +728,12 @@ export function SelectTable() {
         </Pressable>
       </View>
 
-      {/* Hero Mini Banner with Date & Time Chips */}
-      <View style={styles.tableHeroContainer}>
-        <Image source={HERO_IMAGE} style={styles.tableHeroImage} resizeMode="cover" />
-        <View style={styles.tableHeroOverlay} />
-        <View style={styles.tableHeroChipsRow}>
-          <View style={styles.headerChip}>
-            <Text style={styles.headerChipText}>{displayDate}</Text>
-          </View>
-          <View style={styles.headerChip}>
-            <Text style={styles.headerChipText}>{displayTime}</Text>
-          </View>
-          <View style={styles.headerChip}>
-            <Text style={styles.headerChipText}>{selectedParty} Guests</Text>
-          </View>
+      <View style={styles.headerSection}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>STEP 3 OF 4 · FLOOR PLAN</Text>
         </View>
+        <Text style={styles.mainTitle}>Choose Your Table</Text>
+        <Text style={styles.subtitle}>{displayDate} · {displayTime} · {selectedParty} Guests</Text>
       </View>
 
       {/* Main Floor Plan Sheet */}
@@ -905,29 +888,12 @@ export function SpecialRequest() {
         </Pressable>
       </View>
 
-      {/* Hero Mini Banner */}
-      <View style={styles.tableHeroContainer}>
-        <Image source={HERO_IMAGE} style={styles.tableHeroImage} resizeMode="cover" />
-        <View style={styles.tableHeroOverlay} />
-        <View style={styles.tableHeroChipsRow}>
-          <View style={styles.headerChip}>
-            <Ionicons name="calendar-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.headerChipText}>{displayFullDate.split(',')[1] || b.date}</Text>
-          </View>
-          <View style={styles.headerChip}>
-            <Ionicons name="time-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.headerChipText}>{format12h(b.time || '19:00')}</Text>
-          </View>
-          <View style={styles.headerChip}>
-            <Ionicons name="people-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
-            <Text style={styles.headerChipText}>{b.partySize} Guests</Text>
-          </View>
-        </View>
-      </View>
-
       <View style={styles.headerSection}>
+        <View style={styles.stepBadge}>
+          <Text style={styles.stepBadgeText}>STEP 4 OF 4 · REVIEW & CONFIRM</Text>
+        </View>
         <Text style={styles.mainTitle}>Review & Confirm</Text>
-        <Text style={styles.subtitle}>Review your luxury dining reservation details before confirming.</Text>
+        <Text style={styles.subtitle}>Please verify your table reservation details below.</Text>
       </View>
 
       <View style={styles.whiteSheet}>
@@ -936,14 +902,14 @@ export function SpecialRequest() {
           <View style={styles.luxuryReviewCard}>
             <View style={styles.reviewCardHeader}>
               <View style={styles.reviewCardIconCircle}>
-                <Ionicons name="restaurant" size={18} color="#171717" />
+                <Ionicons name="restaurant" size={16} color="#E8B800" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewCardTitle}>DineFlow Restaurant</Text>
-                <Text style={styles.reviewCardSubtitle}>Fine Dining Experience</Text>
+                <Text style={styles.reviewCardSubtitle}>Main Dining Floor</Text>
               </View>
               <View style={styles.reviewStatusPill}>
-                <Text style={styles.reviewStatusPillText}>Confirmed Table</Text>
+                <Text style={styles.reviewStatusPillText}>★ Reserved Floor</Text>
               </View>
             </View>
 
@@ -952,7 +918,7 @@ export function SpecialRequest() {
             {/* Date & Time Row */}
             <View style={styles.reviewInfoRow}>
               <View style={styles.reviewIconCol}>
-                <Ionicons name="calendar" size={18} color="#E8B800" />
+                <Ionicons name="calendar-outline" size={18} color="#E8B800" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewInfoLabel}>Date & Time</Text>
@@ -964,7 +930,7 @@ export function SpecialRequest() {
             {/* Party Size Row */}
             <View style={styles.reviewInfoRow}>
               <View style={styles.reviewIconCol}>
-                <Ionicons name="people" size={18} color="#E8B800" />
+                <Ionicons name="people-outline" size={18} color="#E8B800" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewInfoLabel}>Party Size</Text>
@@ -975,14 +941,14 @@ export function SpecialRequest() {
             {/* Selected Tables Row */}
             <View style={styles.reviewInfoRow}>
               <View style={styles.reviewIconCol}>
-                <Ionicons name="grid" size={18} color="#E8B800" />
+                <Ionicons name="grid-outline" size={18} color="#E8B800" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.reviewInfoLabel}>Selected Tables</Text>
                 <View style={styles.tableBadgesList}>
                   {tableBadges.map((badge, idx) => (
                     <View key={idx} style={styles.tableBadgeItem}>
-                      <Ionicons name="sparkles" size={12} color="#171717" style={{ marginRight: 4 }} />
+                      <Ionicons name="sparkles" size={12} color="#E8B800" style={{ marginRight: 5 }} />
                       <Text style={styles.tableBadgeItemText}>
                         {badge.startsWith('T') || badge.startsWith('Table') ? badge : `Table ${badge}`}
                       </Text>
@@ -996,13 +962,13 @@ export function SpecialRequest() {
           {/* Special Requests Input Box */}
           <View style={styles.specialRequestSection}>
             <View style={styles.specialRequestHeader}>
-              <Ionicons name="chatbox-ellipses-outline" size={16} color="#171717" style={{ marginRight: 6 }} />
+              <Ionicons name="chatbox-ellipses-outline" size={16} color="#374151" style={{ marginRight: 6 }} />
               <Text style={styles.specialRequestLabel}>Special Requests or Notes (Optional)</Text>
             </View>
             <TextInput
               multiline
               numberOfLines={3}
-              placeholder="e.g. Birthday celebration, window seat preference, high chair for child, dietary allergies..."
+              placeholder="e.g. Birthday celebration, window seat, high chair, dietary allergies..."
               placeholderTextColor="#9CA3AF"
               value={b.specialRequest}
               onChangeText={text => b.set({ specialRequest: text })}
@@ -1015,8 +981,8 @@ export function SpecialRequest() {
           <View style={styles.perkCard}>
             <Ionicons name="shield-checkmark" size={20} color="#10B981" style={{ marginRight: 10 }} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.perkTitle}>Instant Confirmation Guaranteed</Text>
-              <Text style={styles.perkSubtitle}>Direct table allocation · Free cancellation up to 1 hour before</Text>
+              <Text style={styles.perkTitle}>Instant Table Reservation Guaranteed</Text>
+              <Text style={styles.perkSubtitle}>Direct table allocation · Free modification or cancellation</Text>
             </View>
           </View>
 
@@ -1303,8 +1269,24 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 8,
     paddingBottom: 16,
+  },
+  stepBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(232, 184, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(232, 184, 0, 0.4)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  stepBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#E8B800',
+    letterSpacing: 0.8,
   },
   mainTitle: {
     fontSize: 22,
@@ -1798,27 +1780,29 @@ const styles = StyleSheet.create({
 
   // Luxury Review Card
   luxuryReviewCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
+    padding: 18,
+    borderWidth: 1,
     borderColor: '#E5E7EB',
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
     elevation: 2,
   },
   reviewCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   reviewCardIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E8B800',
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#1E1F20',
+    borderWidth: 1,
+    borderColor: '#E8B800',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
@@ -1831,24 +1815,25 @@ const styles = StyleSheet.create({
   reviewCardSubtitle: {
     fontSize: 12,
     color: '#6B7280',
+    marginTop: 1,
   },
   reviewStatusPill: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: 'rgba(232, 184, 0, 0.15)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#10B981',
+    borderColor: 'rgba(232, 184, 0, 0.4)',
   },
   reviewStatusPillText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#059669',
+    color: '#D97706',
   },
   reviewDivider: {
     height: 1,
-    backgroundColor: '#E5E7EB',
-    marginBottom: 12,
+    backgroundColor: '#F3F4F6',
+    marginBottom: 14,
   },
   reviewInfoRow: {
     flexDirection: 'row',
@@ -1856,8 +1841,8 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   reviewIconCol: {
-    width: 32,
-    alignItems: 'center',
+    width: 30,
+    alignItems: 'flex-start',
     paddingTop: 2,
   },
   reviewInfoLabel: {
@@ -1871,7 +1856,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#1F2937',
-    marginTop: 1,
+    marginTop: 2,
   },
   reviewInfoSubvalue: {
     fontSize: 12,
@@ -1882,22 +1867,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
-    marginTop: 4,
+    marginTop: 6,
   },
   tableBadgeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF08A',
-    borderColor: '#E8B800',
+    backgroundColor: '#1E1F20',
+    borderColor: 'rgba(232, 184, 0, 0.6)',
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
   },
   tableBadgeItemText: {
     fontSize: 12,
-    fontWeight: '800',
-    color: '#171717',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 
   // Special Request Section
@@ -1915,11 +1900,11 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   specialRequestInput: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 14,
-    padding: 12,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    padding: 14,
     fontSize: 14,
     color: '#111827',
     minHeight: 80,
@@ -1929,9 +1914,9 @@ const styles = StyleSheet.create({
   perkCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: '#E2E8F0',
     borderRadius: 14,
     padding: 12,
     marginBottom: 20,
@@ -1939,11 +1924,11 @@ const styles = StyleSheet.create({
   perkTitle: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#166534',
+    color: '#0F172A',
   },
   perkSubtitle: {
     fontSize: 11,
-    color: '#15803D',
+    color: '#64748B',
     marginTop: 1,
   },
 
