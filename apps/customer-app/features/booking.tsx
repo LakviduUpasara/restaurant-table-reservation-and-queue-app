@@ -1022,23 +1022,68 @@ export function SpecialRequest() {
                   const targetParty = b.partySize || 2;
                   const targetTableId = b.tableId && b.tableId.length > 10 ? b.tableId : undefined;
 
-                  // 1. Create/update reservation
+                  const startsAtIso = startIso(targetDate, targetTime);
+                  const startDateObj = new Date(startsAtIso);
+                  const endsDateObj = new Date(startDateObj.getTime() + 90 * 60 * 1000);
+                  const endsAtIso = endsDateObj.toISOString();
+
+                  // 1. Create/update reservation (API + Direct Supabase DB fallback)
                   try {
                     await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
                       method: b.reservationId ? 'PATCH' : 'POST',
                       body: {
                         ...(b.reservationId ? {} : { restaurant_id: targetRestaurant }),
-                        starts_at: startIso(targetDate, targetTime),
+                        starts_at: startsAtIso,
                         party_size: targetParty,
                         table_id: targetTableId,
                         special_request: finalNote,
                       },
                     });
-                  } catch (err) {
-                    console.warn('Reservation save notice:', err);
+                  } catch {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const customerId = session?.user?.id || me?.id;
+                      if (customerId) {
+                        if (b.reservationId) {
+                          await supabase.from('reservations').update({
+                            starts_at: startsAtIso,
+                            ends_at: endsAtIso,
+                            party_size: targetParty,
+                            table_id: targetTableId,
+                            special_request: finalNote,
+                            updated_at: new Date().toISOString(),
+                          }).eq('id', b.reservationId);
+                        } else {
+                          await supabase.from('reservations').insert({
+                            customer_id: customerId,
+                            restaurant_id: targetRestaurant,
+                            starts_at: startsAtIso,
+                            ends_at: endsAtIso,
+                            party_size: targetParty,
+                            table_id: targetTableId,
+                            special_request: finalNote,
+                            status: 'CONFIRMED',
+                          });
+                        }
+                      }
+                    } catch (dbErr) {
+                      console.warn('Supabase reservation DB write notice:', dbErr);
+                    }
                   }
 
-                  // 2. Also register in Virtual Queue (First Come First Served FIFO)
+                  // 2. Mark table as reserved in DB
+                  if (targetTableId) {
+                    try {
+                      await supabase.from('tables').update({
+                        status: 'RESERVED',
+                        updated_at: new Date().toISOString(),
+                      }).eq('id', targetTableId);
+                    } catch {
+                      // ignore
+                    }
+                  }
+
+                  // 3. Register in Virtual Queue
                   try {
                     await api('/queue', {
                       method: 'POST',
@@ -1048,8 +1093,23 @@ export function SpecialRequest() {
                         party_size: targetParty,
                       },
                     });
-                  } catch (err) {
-                    console.warn('Queue entry notice:', err);
+                  } catch {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const customerId = session?.user?.id || me?.id;
+                      if (customerId) {
+                        await supabase.from('queue_entries').insert({
+                          restaurant_id: targetRestaurant,
+                          customer_id: customerId,
+                          customer_name: me?.full_name || 'Customer',
+                          party_size: targetParty,
+                          status: 'WAITING',
+                          table_id: targetTableId,
+                        });
+                      }
+                    } catch {
+                      // ignore
+                    }
                   }
 
                   useQueueStore.getState().setActiveSpot({
@@ -1063,8 +1123,13 @@ export function SpecialRequest() {
                     restaurantId: targetRestaurant,
                   });
 
-                  await client.invalidateQueries();
-                  // 3. Immediately navigate to Virtual Queue Timeline screen
+                  // Invalidate all query caches so Home screen and all tabs immediately refresh!
+                  await client.invalidateQueries({ queryKey: ['reservations'] });
+                  await client.invalidateQueries({ queryKey: ['tables'] });
+                  await client.invalidateQueries({ queryKey: ['home-availability'] });
+                  await client.invalidateQueries({ queryKey: ['queue'] });
+
+                  // 4. Immediately navigate to Virtual Queue Timeline screen
                   router.replace('/queue/status');
                 } catch {
                   useQueueStore.getState().setActiveSpot({

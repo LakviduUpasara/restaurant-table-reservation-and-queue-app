@@ -7,8 +7,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { money, type Product, type Reservation, type Restaurant, type Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../stores/auth.store';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
+import { useQueueStore } from '../stores/queue.store';
+import { useRealtime } from './data';
 
 type DashboardReservation = Reservation & { tables?: { label?: string } | null };
 type Availability = { tables: Table[]; updated_at: string };
@@ -53,9 +56,16 @@ const prettyTable = (label: string) => label.replace(/^T/i, '') || label;
 export function CustomerHome() {
   const router = useRouter();
   const booking = useBooking();
+  const me = useAuth(s => s.profile);
+  const localQueue = useQueueStore(s => s.activeSpot);
   const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
   const addToCart = useCart(s => s.add);
   const [addedNotification, setAddedNotification] = useState<string | null>(null);
+
+  // Live Realtime Subscriptions to DB changes
+  useRealtime('reservations');
+  useRealtime('tables');
+  useRealtime('queue_entries');
   
   // Real-time live date & time updater
   const [nowDate, setNowDate] = useState(() => new Date());
@@ -98,19 +108,30 @@ export function CustomerHome() {
     },
   });
 
-  // Fetch Reservations
+  // Fetch Reservations from DB with real-time updates
   const reservations = useQuery({
     queryKey: ['reservations'],
     queryFn: async () => {
       try {
-        return await api<DashboardReservation[]>('/reservations', { timeoutMs: 2000 });
+        const list = await api<DashboardReservation[]>('/reservations', { timeoutMs: 2000 });
+        if (list && list.length > 0) return list;
       } catch {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return [];
-        const { data } = await supabase.from('reservations').select('*, tables(label)').eq('customer_id', session.user.id);
-        return (data as DashboardReservation[]) || [];
+        // fallback
       }
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || me?.id;
+      let q = supabase
+        .from('reservations')
+        .select('*, tables(label)')
+        .order('created_at', { ascending: false });
+      
+      if (userId) {
+        q = q.eq('customer_id', userId);
+      }
+      const { data } = await q;
+      return (data as DashboardReservation[]) || [];
     },
+    refetchInterval: 4000,
   });
 
   // Fetch Tables with numerical ordering (T1..T12)
@@ -127,6 +148,7 @@ export function CustomerHome() {
         return list.sort((a, b) => prettyTableNumber(a.label) - prettyTableNumber(b.label));
       }
     },
+    refetchInterval: 5000,
   });
 
   // Table availability
@@ -142,9 +164,16 @@ export function CustomerHome() {
         return { tables: avail, updated_at: new Date().toISOString() };
       }
     },
+    refetchInterval: 5000,
   });
 
-  const upcoming = reservations.data?.filter(r => ['PENDING', 'CONFIRMED'].includes(r.status) && new Date(r.starts_at) > new Date()).sort((a, b) => +new Date(a.starts_at) - +new Date(b.starts_at))[0];
+  // Active confirmed or pending booking
+  const activeBookings = (reservations.data || []).filter(r =>
+    ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
+    new Date(r.starts_at) > new Date(Date.now() - 24 * 3600 * 1000)
+  );
+
+  const upcoming = activeBookings[0];
   const availableIds = new Set(availability.data?.tables.map(t => t.id));
   const refreshing = [restaurants, products, reservations, tables, availability].some(q => q.isRefetching);
   const refresh = () => void Promise.all([restaurants.refetch(), products.refetch(), reservations.refetch(), tables.refetch(), availability.refetch()]);
