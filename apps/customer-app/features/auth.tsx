@@ -130,12 +130,6 @@ export function ResetPasswordScreen(){
       </View>
       <Text style={passwordStyles.footerNote}>You can update your password again anytime from Account Settings.</Text>
     </ScrollView>
-    <View style={passwordStyles.bottomNav}>
-      <Pressable accessibilityRole="tab" accessibilityLabel="Home" style={passwordStyles.navItem} onPress={()=>router.replace('/home')}><Ionicons name="home-outline" size={24} color="#FFFFFF" /></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityLabel="Queue" style={passwordStyles.navItem} onPress={()=>router.replace('/queue')}><Ionicons name="chatbubble-ellipses-outline" size={24} color="#FFFFFF" /></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityLabel="Menu" style={passwordStyles.navItem} onPress={()=>router.replace('/menu')}><Ionicons name="search-outline" size={25} color="#FFFFFF" /></Pressable>
-      <Pressable accessibilityRole="tab" accessibilityLabel="Account" style={passwordStyles.activeNav} onPress={()=>router.replace('/profile')}><Ionicons name="person-outline" size={24} color="#262626" /></Pressable>
-    </View>
   </SafeAreaView>
 }
 
@@ -179,7 +173,4 @@ const passwordStyles=StyleSheet.create({
   cancelButton:{height:56,borderRadius:28,borderWidth:2,borderColor:'#262626',alignItems:'center',justifyContent:'center',marginTop:12},
   cancelText:{fontFamily:'Inter_700Bold',color:'#262626',fontSize:16,fontWeight:'700'},
   footerNote:{fontFamily:'Inter_400Regular',color:'#777777',fontSize:14,lineHeight:20,textAlign:'center',marginTop:14,paddingHorizontal:12},
-  bottomNav:{height:58,paddingHorizontal:32,flexDirection:'row',alignItems:'center',justifyContent:'space-around',backgroundColor:'#292929'},
-  navItem:{width:46,height:46,alignItems:'center',justifyContent:'center'},
-  activeNav:{width:46,height:46,borderRadius:23,backgroundColor:'#EDB813',alignItems:'center',justifyContent:'center',marginTop:-18,borderWidth:3,borderColor:'#F5F5F5'},
 });
