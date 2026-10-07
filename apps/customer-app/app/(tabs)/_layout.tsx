@@ -10,33 +10,26 @@ interface TabIconProps {
 }
 
 function CustomTabIcon({ focused, name }: TabIconProps) {
-  if (name === 'home') {
-    return (
-      <View style={styles.tabIconBase}>
-        <Ionicons name={focused ? "home" : "home-outline"} size={22} color={focused ? '#E8B800' : '#FFFFFF'} />
-      </View>
-    );
-  }
+  const iconConfig = {
+    home: { active: 'home', inactive: 'home-outline' },
+    menu: { active: 'search', inactive: 'search-outline' },
+    queue: { active: 'chatbubble-ellipses', inactive: 'chatbubble-ellipses-outline' },
+    profile: { active: 'person', inactive: 'person-outline' },
+  } as const;
 
-  if (name === 'menu') {
-    return (
-      <View style={[styles.tabIconBase, styles.elevatedSearchBadge]}>
-        <Ionicons name="search" size={22} color="#171717" />
-      </View>
-    );
-  }
+  const currentIcon = focused ? iconConfig[name].active : iconConfig[name].inactive;
 
-  if (name === 'queue') {
+  if (focused) {
     return (
-      <View style={styles.tabIconBase}>
-        <Ionicons name={focused ? "chatbubble-ellipses" : "chatbubble-ellipses-outline"} size={22} color={focused ? '#E8B800' : '#FFFFFF'} />
+      <View style={styles.activeTabBadge}>
+        <Ionicons name={currentIcon as any} size={22} color="#171717" />
       </View>
     );
   }
 
   return (
     <View style={styles.tabIconBase}>
-      <Ionicons name={focused ? "person" : "person-outline"} size={22} color={focused ? '#E8B800' : '#FFFFFF'} />
+      <Ionicons name={currentIcon as any} size={22} color="#A3A3A3" />
     </View>
   );
 }
@@ -115,19 +108,19 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     height: 64,
-    paddingHorizontal: 12,
-    backgroundColor: '#202122',
+    paddingHorizontal: 16,
+    backgroundColor: '#1E1F20',
     borderTopWidth: 0,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    elevation: 8,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   tabIconBase: {
     alignItems: 'center',
@@ -135,7 +128,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
   },
-  elevatedSearchBadge: {
+  activeTabBadge: {
     width: 46,
     height: 46,
     borderRadius: 23,

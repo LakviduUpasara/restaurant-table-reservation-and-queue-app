@@ -407,22 +407,6 @@ export function DateTimePickerScreen({ initialTab = 'date' }: { initialTab?: 'da
           </ScrollView>
         )}
       </View>
-
-      {/* Curved Bottom Navigation Bar */}
-      <View style={styles.bottomNavContainer}>
-        <Pressable onPress={() => router.push('/(tabs)/home')} style={styles.bottomNavItem}>
-          <Ionicons name="home-outline" size={22} color="#FFFFFF" />
-        </Pressable>
-        <Pressable onPress={() => setActiveTab('date')} style={styles.elevatedSearchButton}>
-          <Ionicons name="search" size={24} color="#171717" />
-        </Pressable>
-        <Pressable onPress={() => router.push('/(tabs)/queue')} style={styles.bottomNavItem}>
-          <Ionicons name="chatbubble-ellipses-outline" size={22} color="#FFFFFF" />
-        </Pressable>
-        <Pressable onPress={() => router.push('/(tabs)/profile')} style={styles.bottomNavItem}>
-          <Ionicons name="person-outline" size={22} color="#FFFFFF" />
-        </Pressable>
-      </View>
     </SafeAreaView>
   );
 }
