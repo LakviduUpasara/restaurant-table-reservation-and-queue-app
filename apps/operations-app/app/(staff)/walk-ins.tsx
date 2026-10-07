@@ -1,1 +1,1 @@
-export { WalkIns as default } from '../../features/operations';
+export { StaffWalkIn as default } from '../../features/staff-walk-in';

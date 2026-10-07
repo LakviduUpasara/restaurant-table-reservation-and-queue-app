@@ -1,1 +1,1 @@
-export { Reservations as default } from '../../features/operations';
+export { StaffReservations as default } from '../../features/staff-reservations';
