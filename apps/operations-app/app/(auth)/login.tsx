@@ -1,53 +1,56 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/common/ActionButton';
 import { FigmaInput } from '../../components/common/FigmaInput';
-import { COLORS } from '../../constants/theme';
+import { COLORS, RADIUS } from '../../constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [staffId, setStaffId] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(true);
+
+  const handleLogin = () => {
+    if (!staffId.trim() || !password.trim()) return Alert.alert('Missing details', 'Please enter your Staff ID and password.');
+    // Temporary frontend-only access while the backend/authentication is being integrated.
+    router.replace('/(owner)/dashboard');
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"><View style={styles.mobileCanvas}>
-          <Image source={require('../../assets/images/dineflow-logo.png')} style={styles.logo} resizeMode="contain" />
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+          <View style={styles.canvas}>
+            <View style={styles.brandWrap}>
+              <Image source={require('../../assets/images/dineflow-logo.png')} style={styles.logo} resizeMode="contain" />
+              <View style={styles.brandHint}><View style={styles.brandDot} /><Text style={styles.brandHintText}>Operations portal</Text></View>
+            </View>
 
-          <View style={styles.heading}>
-            <Text style={styles.title}>Owner Login</Text>
-            <Text style={styles.subtitle}>Access your staff account</Text>
-          </View>
+            <View style={styles.heading}><Text style={styles.title}>Owner Login</Text><Text style={styles.subtitle}>Manage your restaurant from one simple workspace.</Text></View>
 
-          <View style={styles.form}>
-            <FigmaInput
-              value={staffId}
-              onChangeText={setStaffId}
-              placeholder="Staff ID"
-              icon="person"
-              autoCapitalize="characters"
-            />
-            <FigmaInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              icon="lock-closed"
-              password
-            />
-            <ActionButton
-              title="Login"
-              variant="dark"
-              onPress={() => router.replace('/(owner)/dashboard')}
-              style={{ marginTop: 2 }}
-            />
-            <Pressable onPress={() => router.push('/(auth)/forgot-password')} style={styles.forgot}>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </Pressable>
-          </View>
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Welcome back</Text>
+              <Text style={styles.formSub}>Sign in to continue to your Owner dashboard.</Text>
+              <View style={{ marginTop: 18 }}>
+                <FigmaInput label="Staff ID" value={staffId} onChangeText={setStaffId} placeholder="Enter Staff ID" icon="person-outline" autoCapitalize="characters" />
+                <FigmaInput label="Password" value={password} onChangeText={setPassword} placeholder="Enter password" icon="lock-closed-outline" password />
+              </View>
+
+              <View style={styles.optionsRow}>
+                <Pressable onPress={() => setRemember(value => !value)} style={styles.remember} hitSlop={5}>
+                  <View style={[styles.check, remember && styles.checkActive]}>{remember ? <Ionicons name="checkmark" size={12} color={COLORS.text} /> : null}</View>
+                  <Text style={styles.rememberText}>Remember me</Text>
+                </Pressable>
+                <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={5}><Text style={styles.forgot}>Forgot password?</Text></Pressable>
+              </View>
+
+              <ActionButton title="Login" variant="dark" onPress={handleLogin} icon={<Ionicons name="arrow-forward" size={17} color={COLORS.white} />} />
+            </View>
+
+            <View style={styles.footer}><Ionicons name="shield-checkmark-outline" size={14} color="#85857F" /><Text style={styles.footerText}>Owner access · DineFlow Operations</Text></View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -57,14 +60,25 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
-  flex: { flex: 1 },
-  container: { flexGrow: 1, paddingTop: 30, paddingBottom: 35, backgroundColor: COLORS.background },
-  mobileCanvas: { width: 375, maxWidth: '100%', alignSelf: 'center', flexGrow: 1, paddingHorizontal: 39, paddingTop: 45, paddingBottom: 35 },
-  logo: { width: '100%', height: 190, marginBottom: 62 },
-  heading: { alignItems: 'flex-start', marginLeft: 37, marginBottom: 30 },
-  title: { fontSize: 29, fontWeight: '400', color: '#111111' },
-  subtitle: { fontSize: 14, color: '#2A2A2A', marginTop: 2 },
-  form: { width: '100%' },
-  forgot: { alignSelf: 'center', padding: 14 },
-  forgotText: { fontSize: 11, color: '#6A6A6A' },
+  page: { flexGrow: 1, paddingVertical: 24, alignItems: 'center' },
+  canvas: { width: 390, maxWidth: '100%', paddingHorizontal: 22, paddingTop: 22, paddingBottom: 24 },
+  brandWrap: { alignItems: 'center', marginBottom: 24 },
+  logo: { width: 245, height: 132 },
+  brandHint: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primarySoft, borderRadius: RADIUS.pill, minHeight: 25, paddingHorizontal: 9, gap: 5, marginTop: -2 },
+  brandDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.primaryDark },
+  brandHintText: { fontSize: 8.5, color: '#776400', fontWeight: '800' },
+  heading: { marginBottom: 16 },
+  title: { fontSize: 28, fontWeight: '900', color: COLORS.text, letterSpacing: -0.5 },
+  subtitle: { fontSize: 11.5, lineHeight: 17, color: COLORS.textSoft, marginTop: 4 },
+  formCard: { backgroundColor: COLORS.surface, borderRadius: 22, borderWidth: 1, borderColor: '#E8E8E4', padding: 18, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
+  formTitle: { fontSize: 15, fontWeight: '900', color: COLORS.text },
+  formSub: { fontSize: 9.5, lineHeight: 14, color: COLORS.muted, marginTop: 3 },
+  optionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  remember: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  check: { width: 18, height: 18, borderRadius: 6, backgroundColor: '#F1F1EE', borderWidth: 1, borderColor: '#D9D9D5', alignItems: 'center', justifyContent: 'center' },
+  checkActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  rememberText: { fontSize: 9.5, color: COLORS.textSoft },
+  forgot: { fontSize: 9.5, color: COLORS.text, fontWeight: '800' },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, marginTop: 18 },
+  footerText: { fontSize: 8.5, color: '#8A8A84' },
 });
