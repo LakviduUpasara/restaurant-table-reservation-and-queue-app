@@ -437,6 +437,16 @@ export function Cart() {
 
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={`Continue to checkout with ${itemCount} items`}
+              onPress={() => router.push('/cart/checkout')}
+              style={styles.checkoutButton}
+            >
+              <Text style={styles.checkoutButtonText}>Continue to Checkout</Text>
+              <Ionicons name="arrow-forward" size={19} color={colors.ink} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
               onPress={() => router.replace('/home')}
               style={styles.returnButton}
             >
@@ -668,6 +678,8 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
   summaryValue: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
+  checkoutButton: { height: 52, marginTop: 1, borderRadius: 26, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
+  checkoutButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '700' },
   returnButton: { height: 46, borderRadius: 24, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F8' },
   returnButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
   emptyCart: { paddingTop: 60, gap: 25 },
