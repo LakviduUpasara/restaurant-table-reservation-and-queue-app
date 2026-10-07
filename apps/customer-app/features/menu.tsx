@@ -312,13 +312,12 @@ export function Menu() {
 export function ProductDetail() {
   const router = useRouter();
   const { productId } = useLocalSearchParams<{ productId: string }>();
-  const booking = useBooking();
   const products = useQuery({
-    queryKey: ['products', booking.restaurantId],
-    enabled: !!booking.restaurantId,
-    queryFn: () => api<Product[]>(`/products?restaurant_id=${booking.restaurantId}`),
+    queryKey: ['product', productId],
+    enabled: !!productId,
+    queryFn: () => api<Product>(`/products/${productId}`),
   });
-  const product = products.data?.find(item => item.id === productId);
+  const product = products.data;
   const add = useCart(state => state.add);
   const items = useCart(state => state.items);
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
@@ -429,32 +428,11 @@ export function Cart() {
             </View>
 
             <View style={styles.summaryCard}>
-              <View style={styles.promoRow}>
-                <TextInput
-                  accessibilityLabel="Promo code"
-                  placeholder="Promo code"
-                  placeholderTextColor="#D0D0D0"
-                  style={styles.promoInput}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => Alert.alert('Promo codes unavailable', 'Promo code discounts are not configured yet.')}
-                >
-                  <Text style={styles.promoStatus}>Apply</Text>
-                </Pressable>
-              </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Subtotal</Text>
                 <Text style={styles.summaryValue}>{money(subtotal)}</Text>
               </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Delivery Fee</Text>
-                <Text style={styles.summaryValue}>—</Text>
-              </View>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Discount</Text>
-                <Text style={styles.summaryValue}>—</Text>
-              </View>
+              <Text style={styles.summaryNote}>Pre-order total. No delivery fee or discount is applied.</Text>
             </View>
 
             <Pressable
@@ -491,6 +469,11 @@ export function Checkout() {
     queryKey: ['reservations'],
     queryFn: () => api<Reservation[]>('/reservations'),
   });
+  const freshProducts = useQuery({
+    queryKey: ['checkout-products', booking.restaurantId ?? items[0]?.product.restaurant_id],
+    enabled: items.length > 0,
+    queryFn: () => api<Product[]>(`/products?restaurant_id=${booking.restaurantId ?? items[0].product.restaurant_id}`),
+  });
   const activeReservation = reservations.data?.find(
     reservation => reservation.restaurant_id === booking.restaurantId
       && ['PENDING', 'CONFIRMED', 'ARRIVED'].includes(reservation.status),
@@ -499,6 +482,15 @@ export function Checkout() {
   const placeOrder = async () => {
     setBusy(true);
     try {
+      const currentProducts = (await freshProducts.refetch()).data ?? [];
+      const currentById = new Map(currentProducts.map(product => [product.id, product]));
+      const changed = items.find(item => {
+        const current = currentById.get(item.product.id);
+        return !current || current.price_cents !== item.product.price_cents;
+      });
+      if (changed) {
+        throw new Error(`${changed.product.name} is no longer available or its price changed. Please return to the menu and add it again.`);
+      }
       await api('/orders', {
         method: 'POST',
         body: {
@@ -672,6 +664,7 @@ const styles = StyleSheet.create({
   promoRow: { minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: '#484848', borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 1 },
   promoInput: { flex: 1, minWidth: 35, color: colors.paper, fontSize: textSizes.control, paddingVertical: 5 },
   promoStatus: { color: colors.accent, fontSize: textSizes.body, lineHeight: 20, fontWeight: '600' },
+  summaryNote: { color: '#D0D0D0', fontSize: textSizes.caption, lineHeight: 18 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
   summaryValue: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },

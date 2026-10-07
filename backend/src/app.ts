@@ -201,6 +201,13 @@ app.get('/api/products', async (req,res) => {
   if (actor(req).role==='CUSTOMER') q=q.eq('available',true); else staffFor(req,id);
   ok(res,checked(await q));
 });
+app.get('/api/products/:id', async (req,res) => {
+  const id=uuid.parse(req.params.id);
+  const product=checked(await admin.from('products').select('*').eq('id',id).maybeSingle());
+  if (!product || (actor(req).role==='CUSTOMER' && !product.available)) fail(404,'NOT_FOUND','Menu item is not available');
+  if (actor(req).role!=='CUSTOMER') staffFor(req,product.restaurant_id);
+  ok(res,product);
+});
 app.post('/api/products', async (req,res) => { const b=productBody.parse(req.body); staffFor(req,b.restaurant_id,true); ok(res,checked(await admin.from('products').insert(b).select().single()),201); });
 app.patch('/api/products/:id', async (req,res) => {
   const id=uuid.parse(req.params.id); const p=checked(await admin.from('products').select('*').eq('id',id).single()); staffFor(req,p.restaurant_id,true);
@@ -218,7 +225,19 @@ app.get('/api/orders', async (req,res) => {
 app.post('/api/orders', async (req,res) => {
   if (actor(req).role!=='CUSTOMER') fail(403,'FORBIDDEN','Customer account required');
   const b=z.object({restaurant_id:uuid,reservation_id:uuid.optional(),request_id:z.string().min(8).max(100),items:z.array(z.object({product_id:uuid,quantity:z.number().int().min(1).max(30)})).min(1)}).parse(req.body);
-  ok(res,checked(await admin.rpc('place_order',{p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_reservation:b.reservation_id??null,p_items:b.items,p_request_id:b.request_id})),201);
+  const order=checked(await admin.rpc('place_order',{p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_reservation:b.reservation_id??null,p_items:b.items,p_request_id:b.request_id}));
+  const existingNotice=checked(await admin.from('notifications').select('id').eq('user_id',actor(req).id).eq('kind','ORDER_PLACED').eq('source_id',order.id).maybeSingle());
+  if (!existingNotice) {
+    const notice=await admin.from('notifications').insert({
+    user_id:actor(req).id,
+    title:'Pre-order placed',
+    body:'Your pre-order has been recorded successfully.',
+    kind:'ORDER_PLACED',
+    source_id:order.id,
+    });
+    if (notice.error) console.error('Order notification failed',notice.error);
+  }
+  ok(res,order,201);
 });
 app.patch('/api/orders/:id', async (req,res) => {
   const id=uuid.parse(req.params.id); const order=checked(await admin.from('orders').select('*').eq('id',id).single());
