@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,8 @@ import { supabase } from '../lib/supabase';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
 import { useRealtime } from './data';
+
+const HERO_IMAGE = require('../assets/images/restaurant_hero.jpg');
 
 interface RestaurantSettings {
   restaurant_id: string;
@@ -50,6 +52,13 @@ const MONTH_NAMES = [
 ];
 
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THR', 'FRI', 'SAT'];
+
+const prettyTableNumber = (label: string): number => {
+  const match = label.match(/\d+/);
+  return match ? parseInt(match[0], 10) : 999;
+};
+
+const prettyTable = (label: string) => label.replace(/^T/i, '') || label;
 
 /**
  * Unified Date and Time Selector matching the Figma Mockup
@@ -198,7 +207,7 @@ export function DateTimePickerScreen({ initialTab = 'date' }: { initialTab?: 'da
     if (!selectedTime) {
       booking.set({ time: '19:00' });
     }
-    router.push('/booking/select-guests');
+    router.push('/booking/select-table');
   };
 
   return (
@@ -519,77 +528,191 @@ export function SelectGuests() {
   );
 }
 
+/**
+ * Table Selection Screen matching the User's Figma Mockup
+ * Shows Available Tables with Checkbox, Table Number Pill, Sitting Capacity, and Confirm button.
+ */
 export function SelectTable() {
   const b = useBooking();
   const router = useRouter();
+  const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
+
   useRealtime('tables', b.restaurantId ? `restaurant_id=eq.${b.restaurantId}` : undefined);
   useRealtime('reservations', b.restaurantId ? `restaurant_id=eq.${b.restaurantId}` : undefined);
 
-  const available = useQuery({
-    queryKey: ['availability', b.restaurantId, b.date, b.time, b.partySize, b.reservationId],
-    enabled: !!b.restaurantId && !!b.date && !!b.time,
-    queryFn: () =>
-      api<{ tables: Table[]; updated_at: string }>(
-        `/restaurants/${b.restaurantId}/availability?starts_at=${encodeURIComponent(startIso(b.date, b.time))}&party_size=${b.partySize}${
-          b.reservationId ? `&reservation_id=${b.reservationId}` : ''
-        }`
-      ),
+  // Selected Table IDs for multi-table support or single table selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => {
+    return b.tableId ? new Set([b.tableId]) : new Set();
   });
+
+  const available = useQuery({
+    queryKey: ['availability', b.restaurantId, b.date, b.time, b.reservationId],
+    enabled: !!b.restaurantId && !!b.date && !!b.time,
+    queryFn: async () => {
+      try {
+        const res = await api<{ tables: Table[]; updated_at: string }>(
+          `/restaurants/${b.restaurantId}/availability?starts_at=${encodeURIComponent(startIso(b.date, b.time))}&party_size=1${
+            b.reservationId ? `&reservation_id=${b.reservationId}` : ''
+          }`,
+          { timeoutMs: 2500 }
+        );
+        return res.tables.sort((a, b) => prettyTableNumber(a.label) - prettyTableNumber(b.label));
+      } catch {
+        const { data } = await supabase.from('tables').select('*').eq('restaurant_id', b.restaurantId).order('label');
+        const list = ((data as Table[]) || []).filter(t => t.status === 'AVAILABLE');
+        return list.sort((a, b) => prettyTableNumber(a.label) - prettyTableNumber(b.label));
+      }
+    },
+  });
+
+  const tableList = available.data || [];
+
+  // Toggle Table Selection
+  const toggleTable = (table: Table) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(table.id)) {
+        next.delete(table.id);
+      } else {
+        next.add(table.id);
+      }
+      return next;
+    });
+  };
+
+  // Calculate total capacity of selected tables
+  const selectedTables = tableList.filter(t => selectedIds.has(t.id));
+  const totalCapacity = selectedTables.reduce((sum, t) => sum + t.capacity, 0);
+
+  const handleConfirm = () => {
+    if (selectedTables.length === 0) {
+      Alert.alert('Select Table', 'Please select at least one available table to continue.');
+      return;
+    }
+
+    const primaryTable = selectedTables[0];
+    const tableLabels = selectedTables.map(t => prettyTable(t.label)).join(', ');
+    const note = selectedTables.length > 1 ? `Multiple tables booked: Table(s) ${tableLabels}` : '';
+
+    b.set({
+      tableId: primaryTable.id,
+      partySize: totalCapacity > 0 ? totalCapacity : b.partySize || 2,
+      specialRequest: b.specialRequest ? `${b.specialRequest} ${note}`.trim() : note,
+    });
+
+    router.push('/booking/special-request');
+  };
+
+  // Format Date & Time for Header Chip
+  const dateParts = (b.date || currentDate()).split('-');
+  const displayDate = dateParts.length === 3
+    ? `${MONTH_NAMES[parseInt(dateParts[1], 10) - 1]?.slice(0, 3)} ${parseInt(dateParts[2], 10)}, ${dateParts[0]}`
+    : b.date;
+  const displayTime = format12h(b.time || '19:00');
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
+      {/* Top Header */}
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
+
         <View style={styles.brandContainer}>
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
         </View>
-        <View style={{ width: 34 }} />
+
+        <Pressable accessibilityLabel="Cart" onPress={() => router.push('/cart')} style={styles.cartButton}>
+          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
-      <View style={styles.headerSection}>
-        <Text style={styles.mainTitle}>Choose Your Table</Text>
-        <Text style={styles.subtitle}>{b.partySize} guests · {b.date} at {format12h(b.time)}</Text>
+      {/* Hero Mini Banner with Date/Time Chips */}
+      <View style={styles.tableHeroContainer}>
+        <Image source={HERO_IMAGE} style={styles.tableHeroImage} resizeMode="cover" />
+        <View style={styles.tableHeroOverlay} />
+        <View style={styles.tableHeroChipsRow}>
+          <View style={styles.headerChip}>
+            <Text style={styles.headerChipText}>{displayDate}</Text>
+          </View>
+          <View style={styles.headerChip}>
+            <Text style={styles.headerChipText}>{displayTime}</Text>
+          </View>
+        </View>
       </View>
 
+      {/* Table Cards List */}
       <View style={styles.whiteSheet}>
         {available.isLoading ? (
           <ActivityIndicator color="#E8B800" style={{ marginTop: 40 }} />
         ) : available.error ? (
           <State error={available.error.message} onRetry={() => void available.refetch()} />
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {available.data?.tables.length ? (
-              <View style={styles.tablesList}>
-                {available.data.tables.map(t => {
-                  const isSelected = b.tableId === t.id;
-                  return (
-                    <Pressable
-                      key={t.id}
-                      onPress={() => {
-                        b.set({ tableId: t.id });
-                        router.push('/booking/special-request');
-                      }}
-                      style={[styles.tableCardItem, isSelected && styles.tableCardItemSelected]}
-                    >
-                      <View>
-                        <Text style={styles.tableCardTitle}>Table {t.label}</Text>
-                        <Text style={styles.tableCardSubtitle}>Seats up to {t.capacity} guests</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#1F1F1F" />
-                    </Pressable>
-                  );
-                })}
-              </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tableListScroll}>
+            {tableList.length ? (
+              tableList.map(table => {
+                const isSelected = selectedIds.has(table.id);
+                const tableNumber = prettyTable(table.label);
+
+                return (
+                  <Pressable
+                    key={table.id}
+                    onPress={() => toggleTable(table)}
+                    style={[styles.figmaTableCard, isSelected && styles.figmaTableCardSelected]}
+                  >
+                    {/* Checkbox */}
+                    <View style={[styles.checkboxBox, isSelected && styles.checkboxBoxSelected]}>
+                      {isSelected && <Ionicons name="checkmark" size={14} color="#171717" />}
+                    </View>
+
+                    {/* Table Number White Pill Badge */}
+                    <View style={styles.tablePillBadge}>
+                      <Text style={styles.tablePillNumber}>{tableNumber}</Text>
+                    </View>
+
+                    {/* Table Info */}
+                    <View style={styles.tableInfoCol}>
+                      <Text style={styles.tableInfoLabel}>
+                        Table No : <Text style={styles.tableInfoValue}>{tableNumber}</Text>
+                      </Text>
+                      <Text style={styles.tableInfoSitting}>
+                        Table Sitting Count : <Text style={styles.tableInfoValue}>{table.capacity}</Text>
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })
             ) : (
               <View style={{ padding: 24, alignItems: 'center' }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#171717', marginBottom: 6 }}>No Tables Available</Text>
                 <Text style={{ fontSize: 14, color: '#777', textAlign: 'center', marginBottom: 16 }}>
-                  All tables are reserved for this slot. You can select another time or join the queue.
+                  All tables are reserved for this slot. You can select another time or join the virtual queue.
                 </Text>
                 <Pressable onPress={() => router.push('/queue/join')} style={styles.nextButton}>
                   <Text style={styles.nextButtonText}>Join Queue</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Total Sitting Summary & Confirm Button */}
+            {tableList.length > 0 && (
+              <View style={styles.tableConfirmSection}>
+                {selectedTables.length > 0 && (
+                  <View style={styles.selectedCapacityBadge}>
+                    <Ionicons name="people" size={16} color="#171717" style={{ marginRight: 6 }} />
+                    <Text style={styles.selectedCapacityText}>
+                      {selectedTables.length} {selectedTables.length === 1 ? 'Table' : 'Tables'} Selected · {totalCapacity} Seats Total
+                    </Text>
+                  </View>
+                )}
+
+                <Pressable onPress={handleConfirm} style={styles.figmaConfirmButton}>
+                  <Text style={styles.figmaConfirmButtonText}>Confirm</Text>
                 </Pressable>
               </View>
             )}
@@ -631,12 +754,12 @@ export function SpecialRequest() {
               <Text style={styles.summaryValue}>{b.date} · {format12h(b.time)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Party Size</Text>
+              <Text style={styles.summaryLabel}>Party Size / Capacity</Text>
               <Text style={styles.summaryValue}>{b.partySize} Guests</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Table</Text>
-              <Text style={styles.summaryValue}>{b.tableId ? 'Selected Table' : 'Automatic Assign'}</Text>
+              <Text style={styles.summaryValue}>{b.tableId ? 'Selected Table(s)' : 'Automatic Assign'}</Text>
             </View>
           </View>
 
@@ -1046,34 +1169,155 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  bottomNavContainer: {
-    height: 56,
+
+  // Table Selection Screen Styles matching Figma
+  tableHeroContainer: {
+    height: 84,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  tableHeroImage: {
+    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%',
+  },
+  tableHeroOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  tableHeroChipsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  headerChip: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#171717',
+  },
+  tableListScroll: {
+    paddingBottom: 90,
+  },
+  figmaTableCard: {
     backgroundColor: '#202122',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 20,
-  },
-  bottomNavItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-  },
-  elevatedSearchButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#E8B800',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -20,
-    elevation: 6,
-    shadowColor: '#E8B800',
-    shadowOpacity: 0.4,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
     shadowRadius: 6,
+    elevation: 4,
   },
+  figmaTableCardSelected: {
+    backgroundColor: '#282A2C',
+    borderWidth: 1.5,
+    borderColor: '#E8B800',
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxBoxSelected: {
+    backgroundColor: '#E8B800',
+    borderColor: '#E8B800',
+  },
+  tablePillBadge: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 22,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginLeft: 14,
+    marginRight: 16,
+    minWidth: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tablePillNumber: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#171717',
+  },
+  tableInfoCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  tableInfoLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  tableInfoSitting: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#CCCCCC',
+    marginTop: 3,
+  },
+  tableInfoValue: {
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  tableConfirmSection: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  selectedCapacityBadge: {
+    backgroundColor: '#E8B800',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  selectedCapacityText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#171717',
+  },
+  figmaConfirmButton: {
+    backgroundColor: '#202122',
+    paddingVertical: 14,
+    width: '100%',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  figmaConfirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
   guestsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1100,34 +1344,6 @@ const styles = StyleSheet.create({
   guestButtonTextSelected: {
     color: '#171717',
     fontWeight: '800',
-  },
-  tablesList: {
-    paddingVertical: 8,
-  },
-  tableCardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 10,
-  },
-  tableCardItemSelected: {
-    borderColor: '#E8B800',
-    backgroundColor: '#FEF9C3',
-  },
-  tableCardTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1F1F1F',
-    marginBottom: 2,
-  },
-  tableCardSubtitle: {
-    fontSize: 13,
-    color: '#6B7280',
   },
   summaryBox: {
     backgroundColor: '#F9FAFB',
