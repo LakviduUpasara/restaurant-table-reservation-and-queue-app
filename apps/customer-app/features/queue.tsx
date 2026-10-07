@@ -87,8 +87,9 @@ export function QueueStatus() {
   const client = useQueryClient();
   const [leaving, setLeaving] = useState(false);
 
-  // Subscribe to real-time updates on queue_entries & notifications
+  // Subscribe to real-time updates on queue_entries, reservations & notifications
   useRealtime('queue_entries', me ? `customer_id=eq.${me.id}` : undefined);
+  useRealtime('reservations', me ? `customer_id=eq.${me.id}` : undefined);
   useRealtime('notifications', me ? `user_id=eq.${me.id}` : undefined);
 
   const q = useQuery({
@@ -97,25 +98,36 @@ export function QueueStatus() {
     refetchInterval: 10000,
   });
 
+  const resQuery = useQuery({
+    queryKey: ['reservations'],
+    queryFn: () => api<any[]>('/reservations'),
+    refetchInterval: 10000,
+  });
+
   const activeEntry = q.data?.find(e =>
     ['WAITING', 'NOTIFIED', 'TABLE_READY'].includes(e.status)
   );
 
-  const position = activeEntry?.position ?? 1;
+  const activeReservation = resQuery.data?.find(r =>
+    ['PENDING', 'CONFIRMED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
+  );
+
+  const hasActiveSpot = !!activeEntry || !!activeReservation;
+  const position = activeEntry?.position ?? (activeReservation ? 1 : 1);
   const rawWait = activeEntry?.estimated_wait_minutes;
   const estimatedWait = rawWait && rawWait > 0 ? rawWait : Math.max(5, (position || 1) * 7);
 
   // Step calculations based on current status
-  const isJoined = !!activeEntry;
-  const isWaiting = activeEntry?.status === 'WAITING' || activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY';
-  const isPreparing = activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || position <= 2;
+  const isJoined = hasActiveSpot;
+  const isWaiting = hasActiveSpot;
+  const isPreparing = activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || (hasActiveSpot && position <= 2);
   const isReady = activeEntry?.status === 'TABLE_READY';
 
   const handleLeaveQueue = () => {
-    if (!activeEntry) return;
+    if (!hasActiveSpot) return;
     Alert.alert(
       'Leave Queue?',
-      'You will lose your reserved queue position and will need to rejoin if you change your mind.',
+      'You will release your queue and table spot. Are you sure you want to leave?',
       [
         { text: 'Stay in Queue', style: 'cancel' },
         {
@@ -124,11 +136,19 @@ export function QueueStatus() {
           onPress: async () => {
             setLeaving(true);
             try {
-              await api(`/queue/${activeEntry.id}`, {
-                method: 'PATCH',
-                body: { status: 'CANCELLED' },
-              });
-              await client.invalidateQueries({ queryKey: ['queue'] });
+              if (activeEntry) {
+                await api(`/queue/${activeEntry.id}`, {
+                  method: 'PATCH',
+                  body: { status: 'CANCELLED' },
+                });
+              }
+              if (activeReservation) {
+                await api(`/reservations/${activeReservation.id}`, {
+                  method: 'PATCH',
+                  body: { status: 'CANCELLED' },
+                });
+              }
+              await client.invalidateQueries();
               router.replace('/(tabs)/home');
             } catch (e) {
               Alert.alert('Error', String((e as Error).message));
@@ -192,7 +212,7 @@ export function QueueStatus() {
             <ActivityIndicator size="large" color="#E8B800" />
             <Text style={styles.loadingText}>Fetching your queue position...</Text>
           </View>
-        ) : !activeEntry ? (
+        ) : !hasActiveSpot ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.emptyContainer}>
             <View style={styles.emptyIconCircle}>
               <Ionicons name="people-outline" size={40} color="#6B7280" />

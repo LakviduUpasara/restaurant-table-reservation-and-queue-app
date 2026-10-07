@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, Field, Freshness, Heading, Label, Screen, State, StatusBadge, type Restaurant, type Reservation, type Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../stores/auth.store';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
 import { useRealtime } from './data';
@@ -860,6 +861,7 @@ export function SpecialRequest() {
   const b = useBooking();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const me = useAuth(s => s.profile);
   const client = useQueryClient();
   const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
@@ -998,6 +1000,7 @@ export function SpecialRequest() {
                     b.specialRequest.trim(),
                   ].filter(Boolean).join('\n');
 
+                  // 1. Create/update reservation
                   await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
                     method: b.reservationId ? 'PATCH' : 'POST',
                     body: {
@@ -1008,8 +1011,24 @@ export function SpecialRequest() {
                       special_request: finalNote,
                     },
                   });
+
+                  // 2. Also register in Virtual Queue (First Come First Served FIFO)
+                  try {
+                    await api('/queue', {
+                      method: 'POST',
+                      body: {
+                        restaurant_id: b.restaurantId,
+                        customer_name: me?.full_name || 'Customer',
+                        party_size: b.partySize,
+                      },
+                    });
+                  } catch {
+                    // Ignore if queue entry already created
+                  }
+
                   await client.invalidateQueries();
-                  router.replace('/booking/confirmation');
+                  // 3. Immediately navigate to Virtual Queue Timeline screen
+                  router.replace('/queue/status');
                 } catch (e) {
                   Alert.alert('Could not book', String((e as Error).message));
                 } finally {
@@ -1107,14 +1126,24 @@ export function Confirmation() {
             <Pressable
               onPress={() => {
                 reset();
-                router.replace('/(tabs)/reservations');
+                router.replace('/queue/status');
               }}
               style={styles.figmaConfirmButton}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="receipt-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.figmaConfirmButtonText}>View My Bookings</Text>
+                <Ionicons name="people-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.figmaConfirmButtonText}>Track in Virtual Queue</Text>
               </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                reset();
+                router.replace('/(tabs)/reservations');
+              }}
+              style={styles.secondaryHomeButton}
+            >
+              <Text style={styles.secondaryHomeButtonText}>View My Bookings</Text>
             </Pressable>
 
             <Pressable
