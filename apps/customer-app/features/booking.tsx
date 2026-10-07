@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -44,6 +44,30 @@ function format12h(time24: string): string {
   const period = h >= 12 ? 'pm' : 'am';
   const displayH = h % 12 === 0 ? 12 : h % 12;
   return `${displayH}:${m} ${period}`;
+}
+
+function formatFullDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const year = parseInt(parts[0], 10);
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parseInt(parts[2], 10);
+  const d = new Date(year, monthIdx, day);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${days[d.getDay()]}, ${months[monthIdx]} ${day}, ${year}`;
+}
+
+function formatSlotDetails(time24: string): string {
+  if (!time24) return '';
+  const parts = time24.split(':');
+  const h = parseInt(parts[0] || '0', 10);
+  const m = parts[1] || '00';
+  const period = h >= 12 ? 'PM' : 'AM';
+  const displayH = h % 12 === 0 ? 12 : h % 12;
+  const isDinner = h >= 16;
+  return `${displayH}:${m} ${period} (${isDinner ? 'Dinner' : 'Lunch'} Slot)`;
 }
 
 const MONTH_NAMES = [
@@ -675,12 +699,11 @@ export function SelectTable() {
 
     const primaryTable = selectedTables[0];
     const tableNames = selectedTables.map(t => 'T' + prettyTable(t.label)).join(', ');
-    const note = selectedTables.length > 1 ? `Multiple tables selected: ${tableNames}` : '';
 
     b.set({
       tableId: primaryTable.id,
+      tableLabel: tableNames,
       partySize: Math.max(selectedParty, totalCapacity),
-      specialRequest: b.specialRequest ? `${b.specialRequest} ${note}`.trim() : note,
     });
     // Flow: Step 3 (Table) ➔ Step 4 (Review & Confirm)
     router.push('/booking/special-request');
@@ -855,11 +878,16 @@ export function SpecialRequest() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const client = useQueryClient();
+  const cartCount = useCart(s => s.items.reduce((sum, item) => sum + item.quantity, 0));
 
-  const displayTime = format12h(b.time || '19:00');
+  const displayFullDate = formatFullDate(b.date || currentDate());
+  const displaySlotTime = formatSlotDetails(b.time || '19:00');
+  const tableDisplay = b.tableLabel || (b.tableId ? 'Reserved Selected Table' : 'Automatic Assign');
+  const tableBadges = tableDisplay.split(',').map(s => s.trim()).filter(Boolean);
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
+      {/* Top Header */}
       <View style={styles.topbar}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
@@ -867,45 +895,143 @@ export function SpecialRequest() {
         <View style={styles.brandContainer}>
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
         </View>
-        <View style={{ width: 34 }} />
+        <Pressable accessibilityLabel="Cart" onPress={() => router.push('/cart')} style={styles.cartButton}>
+          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
+          {cartCount > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      {/* Hero Mini Banner */}
+      <View style={styles.tableHeroContainer}>
+        <Image source={HERO_IMAGE} style={styles.tableHeroImage} resizeMode="cover" />
+        <View style={styles.tableHeroOverlay} />
+        <View style={styles.tableHeroChipsRow}>
+          <View style={styles.headerChip}>
+            <Ionicons name="calendar-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.headerChipText}>{displayFullDate.split(',')[1] || b.date}</Text>
+          </View>
+          <View style={styles.headerChip}>
+            <Ionicons name="time-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.headerChipText}>{format12h(b.time || '19:00')}</Text>
+          </View>
+          <View style={styles.headerChip}>
+            <Ionicons name="people-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+            <Text style={styles.headerChipText}>{b.partySize} Guests</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.headerSection}>
         <Text style={styles.mainTitle}>Review & Confirm</Text>
-        <Text style={styles.subtitle}>Confirm your reservation details before submitting.</Text>
+        <Text style={styles.subtitle}>Review your luxury dining reservation details before confirming.</Text>
       </View>
 
       <View style={styles.whiteSheet}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 80 }}>
-          <View style={styles.summaryBox}>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date & Time</Text>
-              <Text style={styles.summaryValue}>{b.date} · {displayTime}</Text>
+          {/* Luxury Reservation Summary Card */}
+          <View style={styles.luxuryReviewCard}>
+            <View style={styles.reviewCardHeader}>
+              <View style={styles.reviewCardIconCircle}>
+                <Ionicons name="restaurant" size={18} color="#171717" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewCardTitle}>DineFlow Restaurant</Text>
+                <Text style={styles.reviewCardSubtitle}>Fine Dining Experience</Text>
+              </View>
+              <View style={styles.reviewStatusPill}>
+                <Text style={styles.reviewStatusPillText}>Confirmed Table</Text>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Party Size</Text>
-              <Text style={styles.summaryValue}>{b.partySize} Guests</Text>
+
+            <View style={styles.reviewDivider} />
+
+            {/* Date & Time Row */}
+            <View style={styles.reviewInfoRow}>
+              <View style={styles.reviewIconCol}>
+                <Ionicons name="calendar" size={18} color="#E8B800" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewInfoLabel}>Date & Time</Text>
+                <Text style={styles.reviewInfoValue}>{displayFullDate}</Text>
+                <Text style={styles.reviewInfoSubvalue}>{displaySlotTime}</Text>
+              </View>
             </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Table</Text>
-              <Text style={styles.summaryValue}>{b.tableId ? 'Reserved Selected Table' : 'Automatic Assign'}</Text>
+
+            {/* Party Size Row */}
+            <View style={styles.reviewInfoRow}>
+              <View style={styles.reviewIconCol}>
+                <Ionicons name="people" size={18} color="#E8B800" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewInfoLabel}>Party Size</Text>
+                <Text style={styles.reviewInfoValue}>{b.partySize} {b.partySize === 1 ? 'Guest' : 'Guests'}</Text>
+              </View>
+            </View>
+
+            {/* Selected Tables Row */}
+            <View style={styles.reviewInfoRow}>
+              <View style={styles.reviewIconCol}>
+                <Ionicons name="grid" size={18} color="#E8B800" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewInfoLabel}>Selected Tables</Text>
+                <View style={styles.tableBadgesList}>
+                  {tableBadges.map((badge, idx) => (
+                    <View key={idx} style={styles.tableBadgeItem}>
+                      <Ionicons name="sparkles" size={12} color="#171717" style={{ marginRight: 4 }} />
+                      <Text style={styles.tableBadgeItemText}>
+                        {badge.startsWith('T') || badge.startsWith('Table') ? badge : `Table ${badge}`}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
             </View>
           </View>
 
-          <Field
-            label="Special requests (optional)"
-            multiline
-            placeholder="e.g. Birthday celebration, window seat preference, high chair..."
-            value={b.specialRequest}
-            onChangeText={specialRequest => b.set({ specialRequest })}
-          />
+          {/* Special Requests Input Box */}
+          <View style={styles.specialRequestSection}>
+            <View style={styles.specialRequestHeader}>
+              <Ionicons name="chatbox-ellipses-outline" size={16} color="#171717" style={{ marginRight: 6 }} />
+              <Text style={styles.specialRequestLabel}>Special Requests or Notes (Optional)</Text>
+            </View>
+            <TextInput
+              multiline
+              numberOfLines={3}
+              placeholder="e.g. Birthday celebration, window seat preference, high chair for child, dietary allergies..."
+              placeholderTextColor="#9CA3AF"
+              value={b.specialRequest}
+              onChangeText={text => b.set({ specialRequest: text })}
+              style={styles.specialRequestInput}
+              textAlignVertical="top"
+            />
+          </View>
 
+          {/* Guarantee / Perks Card */}
+          <View style={styles.perkCard}>
+            <Ionicons name="shield-checkmark" size={20} color="#10B981" style={{ marginRight: 10 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.perkTitle}>Instant Confirmation Guaranteed</Text>
+              <Text style={styles.perkSubtitle}>Direct table allocation · Free cancellation up to 1 hour before</Text>
+            </View>
+          </View>
+
+          {/* Confirm Button */}
           <View style={styles.nextButtonContainer}>
             <Pressable
               disabled={busy}
               onPress={async () => {
                 setBusy(true);
                 try {
+                  const finalNote = [
+                    tableBadges.length > 1 ? `Tables selected: ${tableBadges.join(', ')}` : '',
+                    b.specialRequest.trim(),
+                  ].filter(Boolean).join('\n');
+
                   await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
                     method: b.reservationId ? 'PATCH' : 'POST',
                     body: {
@@ -913,7 +1039,7 @@ export function SpecialRequest() {
                       starts_at: startIso(b.date, b.time),
                       party_size: b.partySize,
                       table_id: b.tableId ?? undefined,
-                      special_request: b.specialRequest,
+                      special_request: finalNote,
                     },
                   });
                   await client.invalidateQueries();
@@ -924,12 +1050,14 @@ export function SpecialRequest() {
                   setBusy(false);
                 }
               }}
-              style={styles.nextButton}
+              style={styles.figmaConfirmButton}
             >
               {busy ? (
                 <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.nextButtonText}>{b.reservationId ? 'Save Changes' : 'Confirm Reservation'}</Text>
+                <Text style={styles.figmaConfirmButtonText}>
+                  {b.reservationId ? 'Save Changes' : 'Confirm Reservation'}
+                </Text>
               )}
             </Pressable>
           </View>
@@ -941,7 +1069,11 @@ export function SpecialRequest() {
 
 export function Confirmation() {
   const router = useRouter();
+  const b = useBooking();
   const reset = useBooking(s => s.reset);
+
+  const displayFullDate = formatFullDate(b.date || currentDate());
+  const tableDisplay = b.tableLabel || (b.tableId ? 'Reserved Selected Table' : 'Table Reserved');
 
   return (
     <SafeAreaView style={styles.root} edges={['top']}>
@@ -952,32 +1084,84 @@ export function Confirmation() {
       </View>
 
       <View style={styles.headerSection}>
-        <Text style={styles.mainTitle}>Table Reserved!</Text>
-        <Text style={styles.subtitle}>Your reservation is confirmed. We look forward to seeing you.</Text>
+        <Text style={styles.mainTitle}>Booking Confirmed! 🎉</Text>
+        <Text style={styles.subtitle}>Your table reservation has been placed successfully.</Text>
       </View>
 
       <View style={styles.whiteSheet}>
-        <View style={{ alignItems: 'center', paddingVertical: 30 }}>
-          <View style={{ width: 70, height: 70, borderRadius: 35, backgroundColor: '#E8B800', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Ionicons name="checkmark" size={40} color="#171717" />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60, alignItems: 'center' }}>
+          {/* Animated Gold Checkmark */}
+          <View style={styles.confirmedIconRing}>
+            <View style={styles.confirmedIconInner}>
+              <Ionicons name="checkmark" size={40} color="#171717" />
+            </View>
           </View>
-          <Text style={{ fontSize: 20, fontWeight: '700', color: '#171717', marginBottom: 8 }}>Booking Confirmed</Text>
-          <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', paddingHorizontal: 20 }}>
-            Your table has been reserved. You can view or manage your booking anytime from Bookings.
-          </Text>
-        </View>
 
-        <View style={{ marginTop: 20 }}>
-          <Pressable
-            onPress={() => {
-              reset();
-              router.replace('/(tabs)/home');
-            }}
-            style={styles.nextButton}
-          >
-            <Text style={styles.nextButtonText}>Go to Home</Text>
-          </Pressable>
-        </View>
+          <Text style={styles.confirmedHeadline}>You're All Set!</Text>
+          <Text style={styles.confirmedSubheadline}>
+            A table is reserved and waiting for your party at DineFlow.
+          </Text>
+
+          {/* Ticket / Pass Card */}
+          <View style={styles.ticketCard}>
+            <View style={styles.ticketHeaderRow}>
+              <View>
+                <Text style={styles.ticketRestoName}>DineFlow Restaurant</Text>
+                <Text style={styles.ticketRestoSub}>Main Dining Floor</Text>
+              </View>
+              <View style={styles.ticketPassBadge}>
+                <Text style={styles.ticketPassBadgeText}>CONFIRMED</Text>
+              </View>
+            </View>
+
+            <View style={styles.ticketDottedLine} />
+
+            <View style={styles.ticketGrid}>
+              <View style={styles.ticketGridItem}>
+                <Text style={styles.ticketLabel}>DATE</Text>
+                <Text style={styles.ticketValue}>{displayFullDate.split(',')[1] || b.date}</Text>
+              </View>
+              <View style={styles.ticketGridItem}>
+                <Text style={styles.ticketLabel}>TIME</Text>
+                <Text style={styles.ticketValue}>{format12h(b.time || '19:00')}</Text>
+              </View>
+              <View style={styles.ticketGridItem}>
+                <Text style={styles.ticketLabel}>GUESTS</Text>
+                <Text style={styles.ticketValue}>{b.partySize} {b.partySize === 1 ? 'Guest' : 'Guests'}</Text>
+              </View>
+              <View style={styles.ticketGridItem}>
+                <Text style={styles.ticketLabel}>TABLE</Text>
+                <Text style={styles.ticketValue}>{tableDisplay}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={{ width: '100%', marginTop: 24, gap: 12 }}>
+            <Pressable
+              onPress={() => {
+                reset();
+                router.replace('/(tabs)/reservations');
+              }}
+              style={styles.figmaConfirmButton}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="receipt-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={styles.figmaConfirmButtonText}>View My Bookings</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                reset();
+                router.replace('/(tabs)/home');
+              }}
+              style={styles.secondaryHomeButton}
+            >
+              <Text style={styles.secondaryHomeButtonText}>Back to Home</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -1610,5 +1794,278 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#1F1F1F',
+  },
+
+  // Luxury Review Card
+  luxuryReviewCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  reviewCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  reviewCardIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  reviewCardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  reviewCardSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  reviewStatusPill: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  reviewStatusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  reviewDivider: {
+    height: 1,
+    backgroundColor: '#E5E7EB',
+    marginBottom: 12,
+  },
+  reviewInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  reviewIconCol: {
+    width: 32,
+    alignItems: 'center',
+    paddingTop: 2,
+  },
+  reviewInfoLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  reviewInfoValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 1,
+  },
+  reviewInfoSubvalue: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 1,
+  },
+  tableBadgesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  tableBadgeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF08A',
+    borderColor: '#E8B800',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tableBadgeItemText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#171717',
+  },
+
+  // Special Request Section
+  specialRequestSection: {
+    marginBottom: 16,
+  },
+  specialRequestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  specialRequestLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  specialRequestInput: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 14,
+    padding: 12,
+    fontSize: 14,
+    color: '#111827',
+    minHeight: 80,
+  },
+
+  // Perk Card
+  perkCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 20,
+  },
+  perkTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  perkSubtitle: {
+    fontSize: 11,
+    color: '#15803D',
+    marginTop: 1,
+  },
+
+  // Confirmation Screen
+  confirmedIconRing: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(232, 184, 0, 0.15)',
+    borderWidth: 2,
+    borderColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    marginBottom: 16,
+  },
+  confirmedIconInner: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+  },
+  confirmedHeadline: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    marginBottom: 6,
+  },
+  confirmedSubheadline: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+
+  // Ticket Pass Card
+  ticketCard: {
+    width: '100%',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  ticketHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  ticketRestoName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  ticketRestoSub: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  ticketPassBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ticketPassBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  ticketDottedLine: {
+    borderStyle: 'dashed',
+    borderWidth: 0.8,
+    borderColor: '#D1D5DB',
+    marginVertical: 14,
+  },
+  ticketGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 12,
+  },
+  ticketGridItem: {
+    width: '48%',
+  },
+  ticketLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+  },
+  ticketValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 2,
+  },
+  secondaryHomeButton: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    paddingVertical: 14,
+    width: '100%',
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryHomeButtonText: {
+    color: '#374151',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
