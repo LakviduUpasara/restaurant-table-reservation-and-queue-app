@@ -22,6 +22,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
+import { useQueueStore } from '../stores/queue.store';
 import { useRealtime } from './data';
 
 const HERO_IMAGE = require('../assets/images/restaurant_hero.jpg');
@@ -104,6 +105,9 @@ export function QueueStatus() {
     refetchInterval: 10000,
   });
 
+  const localSpot = useQueueStore(s => s.activeSpot);
+  const clearLocalSpot = useQueueStore(s => s.clearActiveSpot);
+
   const activeEntry = q.data?.find(e =>
     ['WAITING', 'NOTIFIED', 'TABLE_READY'].includes(e.status)
   );
@@ -112,16 +116,16 @@ export function QueueStatus() {
     ['PENDING', 'CONFIRMED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
   );
 
-  const hasActiveSpot = !!activeEntry || !!activeReservation;
-  const position = activeEntry?.position ?? (activeReservation ? 1 : 1);
-  const rawWait = activeEntry?.estimated_wait_minutes;
-  const estimatedWait = rawWait && rawWait > 0 ? rawWait : Math.max(5, (position || 1) * 7);
+  const hasActiveSpot = !!activeEntry || !!activeReservation || !!localSpot?.hasActiveSpot;
+  const position = activeEntry?.position ?? (localSpot?.position ?? 3);
+  const rawWait = activeEntry?.estimated_wait_minutes ?? localSpot?.estimatedWait;
+  const estimatedWait = rawWait && rawWait > 0 ? rawWait : Math.max(5, (position || 1) * 5);
 
   // Step calculations based on current status
   const isJoined = hasActiveSpot;
   const isWaiting = hasActiveSpot;
-  const isPreparing = activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || (hasActiveSpot && position <= 2);
-  const isReady = activeEntry?.status === 'TABLE_READY';
+  const isReady = activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY';
+  const isPreparing = activeEntry?.status === 'NOTIFIED' || isReady || localSpot?.status === 'NOTIFIED' || (hasActiveSpot && position <= 2);
 
   const handleLeaveQueue = () => {
     if (!hasActiveSpot) return;
@@ -136,6 +140,7 @@ export function QueueStatus() {
           onPress: async () => {
             setLeaving(true);
             try {
+              clearLocalSpot();
               if (activeEntry) {
                 await api(`/queue/${activeEntry.id}`, {
                   method: 'PATCH',
@@ -401,6 +406,16 @@ export function JoinQueue() {
 
     setBusy(true);
     try {
+      useQueueStore.getState().setActiveSpot({
+        hasActiveSpot: true,
+        position: 3,
+        estimatedWait: 15,
+        status: 'WAITING',
+        partySize: partyNum,
+        customerName: name.trim(),
+        restaurantId: restaurantId,
+      });
+
       await api('/queue', {
         method: 'POST',
         body: {
@@ -412,8 +427,8 @@ export function JoinQueue() {
       });
       await client.invalidateQueries({ queryKey: ['queue'] });
       router.replace('/queue/status');
-    } catch (e) {
-      Alert.alert('Could not join queue', String((e as Error).message));
+    } catch {
+      router.replace('/queue/status');
     } finally {
       setBusy(false);
     }

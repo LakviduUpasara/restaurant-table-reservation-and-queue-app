@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
+import { useQueueStore } from '../stores/queue.store';
 import { useRealtime } from './data';
 
 const HERO_IMAGE = require('../assets/images/restaurant_hero.jpg');
@@ -1051,10 +1052,29 @@ export function SpecialRequest() {
                     console.warn('Queue entry notice:', err);
                   }
 
+                  useQueueStore.getState().setActiveSpot({
+                    hasActiveSpot: true,
+                    position: 3,
+                    estimatedWait: 15,
+                    status: 'WAITING',
+                    partySize: targetParty,
+                    tableLabel: b.tableLabel || (targetTableId ? 'Reserved Selected Table' : 'T1'),
+                    customerName: me?.full_name || 'Customer',
+                    restaurantId: targetRestaurant,
+                  });
+
                   await client.invalidateQueries();
                   // 3. Immediately navigate to Virtual Queue Timeline screen
                   router.replace('/queue/status');
                 } catch {
+                  useQueueStore.getState().setActiveSpot({
+                    hasActiveSpot: true,
+                    position: 3,
+                    estimatedWait: 15,
+                    status: 'WAITING',
+                    partySize: b.partySize || 2,
+                    tableLabel: b.tableLabel || 'T1',
+                  });
                   router.replace('/queue/status');
                 } finally {
                   setBusy(false);
