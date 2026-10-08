@@ -1,64 +1,151 @@
 import { Redirect, Tabs } from 'expo-router';
-import type { BottomTabBarProps } from 'expo-router/build/react-navigation/bottom-tabs/types';
-import { colors, Screen, State } from '@dineflow/shared';
+import { StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Screen, State } from '@dineflow/shared';
 import { useAuth } from '../../stores/auth.store';
-import { NotchedNavBar, type NavItem } from '../../components/NotchedNavBar';
 
-const tabIcons: Record<string, NavItem['icon']> = {
-  home: 'home-outline',
-  menu: 'search-outline',
-  queue: 'chatbubble-ellipses-outline',
-  profile: 'person-outline',
-};
+interface TabIconProps {
+  focused: boolean;
+  name: 'home' | 'menu' | 'queue' | 'profile';
+}
 
-function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const focusedRouteName = state.routes[state.index]?.name;
-  const visibleRoutes = state.routes.filter(
-    route => route.name !== 'reservations' && tabIcons[route.name],
-  );
-  const activeIndex = visibleRoutes.findIndex(route => route.name === focusedRouteName);
-  const items: NavItem[] = visibleRoutes.map(route => ({
-    key: route.key,
-    label: String(
-      descriptors[route.key].options.tabBarAccessibilityLabel
-        ?? descriptors[route.key].options.title
-        ?? route.name,
-    ),
-    icon: tabIcons[route.name],
-  }));
+function CustomTabIcon({ focused, name }: TabIconProps) {
+  const iconConfig = {
+    home: { active: 'home', inactive: 'home-outline' },
+    menu: { active: 'search', inactive: 'search-outline' },
+    queue: { active: 'chatbubble-ellipses', inactive: 'chatbubble-ellipses-outline' },
+    profile: { active: 'person', inactive: 'person-outline' },
+  } as const;
 
-  if (!['home', 'menu', 'queue', 'profile'].includes(focusedRouteName ?? '')) return null;
+  const currentIcon = focused ? iconConfig[name].active : iconConfig[name].inactive;
+
+  if (focused) {
+    return (
+      <View style={styles.activeTabBadge}>
+        <Ionicons name={currentIcon as any} size={22} color="#171717" />
+      </View>
+    );
+  }
 
   return (
-    <NotchedNavBar
-      items={items}
-      activeIndex={activeIndex}
-      onPress={index => {
-        const route = visibleRoutes[index];
-        const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-        if (index !== activeIndex && !event.defaultPrevented) {
-          navigation.navigate(route.name, route.params);
-        }
-      }}
-      bubbleColor={colors.primary}
-    />
+    <View style={styles.tabIconBase}>
+      <Ionicons name={currentIcon as any} size={22} color="#A3A3A3" />
+    </View>
   );
 }
 
 export default function TabLayout() {
   const { ready, profile, error, refresh } = useAuth();
-  if (!ready) return <Screen><State loading /></Screen>;
-  if (error) return <Screen title="Connection problem"><State error={error} onRetry={() => void refresh()} /></Screen>;
-  if (profile?.role !== 'CUSTOMER') return <Redirect href="/login" />;
+
+  if (!ready) {
+    return (
+      <Screen>
+        <State loading />
+      </Screen>
+    );
+  }
+
+  if (error) {
+    return (
+      <Screen title="Connection problem">
+        <State error={error} onRetry={() => void refresh()} />
+      </Screen>
+    );
+  }
+
+  if (profile?.role !== 'CUSTOMER') {
+    return <Redirect href="/login" />;
+  }
 
   return (
-    <Tabs tabBar={props => <CustomerTabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
-      <Tabs.Screen name="reservations" options={{ href: null, title: 'Bookings' }} />
-      <Tabs.Screen name="queue" options={{ title: 'Queue' }} />
-      <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Account' }} />
-      <Tabs.Screen name="update-password" options={{ href: null, title: 'Update Password' }} />
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarShowLabel: false,
+        tabBarActiveTintColor: '#E8B800',
+        tabBarInactiveTintColor: '#FFFFFF',
+        tabBarStyle: styles.tabBar,
+      }}
+    >
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ focused }) => <CustomTabIcon focused={focused} name="home" />,
+        }}
+      />
+      <Tabs.Screen
+        name="reservations"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="menu"
+        options={{
+          title: 'Menu',
+          tabBarIcon: ({ focused }) => <CustomTabIcon focused={focused} name="menu" />,
+        }}
+      />
+      <Tabs.Screen
+        name="queue"
+        options={{
+          title: 'Queue',
+          tabBarIcon: ({ focused }) => <CustomTabIcon focused={focused} name="queue" />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ focused }) => <CustomTabIcon focused={focused} name="profile" />,
+        }}
+      />
+      <Tabs.Screen
+        name="update-password"
+        options={{
+          href: null,
+          title: 'Update Password',
+        }}
+      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBar: {
+    height: 64,
+    paddingHorizontal: 16,
+    backgroundColor: '#1E1F20',
+    borderTopWidth: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  tabIconBase: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 44,
+    height: 44,
+  },
+  activeTabBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: '#E8B800',
+    marginTop: -16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.5,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+});

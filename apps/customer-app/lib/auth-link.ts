@@ -1,46 +1,50 @@
 import * as Linking from 'expo-linking';
 import { Alert } from 'react-native';
+import { router } from 'expo-router';
 import { supabase } from './supabase';
+import { useAuth } from '../stores/auth.store';
 
 async function consume(url: string) {
-  const parsed = new URL(url);
-  const isResetLink =
-    parsed.hostname === 'reset-password' ||
-    parsed.pathname.endsWith('/reset-password') ||
-    parsed.pathname === 'reset-password';
+  try {
+    const recovery = url.includes('reset-password');
+    if (!recovery && !url.includes('login') && !url.includes('auth')) return;
 
-  if (!isResetLink) return;
+    const params = new URLSearchParams(url.split('#')[1] ?? url.split('?')[1] ?? '');
+    const linkError = params.get('error_description');
+    if (linkError) throw new Error(linkError);
 
-  const params = new URLSearchParams(parsed.search);
-  new URLSearchParams(parsed.hash.slice(1)).forEach((value, key) => params.set(key, value));
+    const accessToken = params.get('access_token');
+    const refreshToken = params.get('refresh_token');
+    const code = params.get('code');
 
-  const linkError = params.get('error_description');
-  if (linkError) throw new Error(linkError);
+    let result = null;
+    if (accessToken && refreshToken) {
+      result = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+      if (result.error) throw result.error;
+    } else if (code) {
+      result = await supabase.auth.exchangeCodeForSession(code);
+      if (result.error) throw result.error;
+    }
 
-  const accessToken = params.get('access_token');
-  const refreshToken = params.get('refresh_token');
-  const code = params.get('code');
-
-  if (accessToken && refreshToken) {
-    const { error } = await supabase.auth.setSession({
-      access_token: accessToken,
-      refresh_token: refreshToken,
-    });
-    if (error) throw error;
-  } else if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) throw error;
+    if (result && !result.error) {
+      await useAuth.getState().refresh();
+      if (!recovery) {
+        router.replace('/home');
+      }
+    }
+  } catch (error) {
+    reportLinkError(error);
   }
 }
 
 function reportLinkError(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Please request a new password reset email.';
-  Alert.alert('Password reset link failed', message);
+  const message = error instanceof Error ? error.message : 'Please request a new link or try signing in again.';
+  Alert.alert('Authentication Link Notice', message);
 }
 
 export function listenForAuthLinks() {
   void Linking.getInitialURL()
-    .then(url => url ? consume(url) : undefined)
+    .then(url => (url ? consume(url) : undefined))
     .catch(reportLinkError);
 
   const subscription = Linking.addEventListener('url', event => {

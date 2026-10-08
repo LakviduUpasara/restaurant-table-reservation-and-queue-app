@@ -54,10 +54,16 @@ app.use('/api', async (req, _res, next) => {
     const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
     if (!token) fail(401,'UNAUTHENTICATED','Sign in to continue');
     const { data, error } = await publicClient.auth.getUser(token);
-    if (error || !data.user) fail(401,'UNAUTHENTICATED','Session has expired');
-    const userId = data.user!.id;
-    const profile = checked(await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('id',userId).single());
-    req.actor = profile as Actor;
+    const user = data.user!;
+    const userId = user.id;
+    let profileData = (await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('id',userId).maybeSingle()).data;
+    if (!profileData) {
+      const fullName = (user.user_metadata?.full_name as string) || '';
+      const inserted = await admin.from('profiles').insert({ id: userId, full_name: fullName, role: 'CUSTOMER' }).select().single();
+      profileData = inserted.data;
+    }
+    if (!profileData) fail(400, 'DATABASE_ERROR', 'Could not load or create user profile');
+    req.actor = profileData as Actor;
     next();
   } catch (e) { next(e); }
 });
@@ -136,7 +142,8 @@ app.patch('/api/settings/:restaurantId', async (req,res) => {
   ok(res,checked(await admin.from('restaurant_settings').update({ ...body,updated_at:new Date().toISOString() }).eq('restaurant_id',restaurantId).select().single()));
 });
 app.get('/api/tables', async (req,res) => {
-  const restaurantId = uuid.parse(req.query.restaurant_id); staffFor(req,restaurantId);
+  const restaurantId = uuid.parse(req.query.restaurant_id);
+  if (actor(req).role !== 'CUSTOMER') staffFor(req,restaurantId);
   ok(res,checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label')));
 });
 app.patch('/api/tables/:id', async (req,res) => {
