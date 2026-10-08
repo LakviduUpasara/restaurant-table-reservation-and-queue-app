@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +24,7 @@ import {
   Screen,
   State,
   type Notification,
+  type Order,
   type Product,
   type Reservation,
   type Restaurant,
@@ -516,6 +517,7 @@ export function Checkout() {
   const clear = useCart(state => state.clear);
   const booking = useBooking();
   const [busy, setBusy] = useState(false);
+  const [cancellingOrder, setCancellingOrder] = useState(false);
   const [requestId] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const client = useQueryClient();
 
@@ -538,6 +540,73 @@ export function Checkout() {
     r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
       (booking.reservationId ? r.id === booking.reservationId : true)
   ) || reservations.data?.[0];
+
+  const restaurantId = booking.restaurantId ?? activeReservation?.restaurant_id ?? '11111111-1111-4111-8111-111111111111';
+
+  // Fetch all orders for current user to find confirmed orders
+  const orders = useQuery({
+    queryKey: ['orders'],
+    queryFn: async () => {
+      try {
+        const list = await api<Order[]>('/orders', { timeoutMs: 2000 });
+        if (list && list.length > 0) return list;
+      } catch {}
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) return [];
+      const { data } = await supabase
+        .from('orders')
+        .select('*, order_items(*)')
+        .eq('customer_id', userId)
+        .order('created_at', { ascending: false });
+      return (data as Order[]) || [];
+    },
+    refetchInterval: 5000,
+  });
+
+  const productsQuery = useQuery({
+    queryKey: ['products-all', restaurantId],
+    queryFn: async () => {
+      try {
+        return await api<Product[]>(`/products?restaurant_id=${restaurantId}`);
+      } catch {
+        const { data } = await supabase.from('products').select('*').eq('restaurant_id', restaurantId);
+        return (data as Product[]) || [];
+      }
+    },
+  });
+
+  // Find confirmed order linked to this reservation or latest placed order
+  const confirmedOrder = useMemo(() => {
+    return (
+      orders.data?.find(
+        o => o.status === 'PLACED' && (activeReservation?.id ? o.reservation_id === activeReservation.id : true)
+      ) ||
+      orders.data?.find(o => o.status === 'PLACED')
+    );
+  }, [orders.data, activeReservation]);
+
+  // If cart is currently empty but confirmed order items exist, load them into cart for live editing
+  useEffect(() => {
+    if (items.length === 0 && confirmedOrder?.order_items && confirmedOrder.order_items.length > 0) {
+      const allProds = productsQuery.data && productsQuery.data.length > 0 ? productsQuery.data : DEFAULT_PRODUCTS;
+      const prodMap = new Map(allProds.map(p => [p.id, p]));
+      confirmedOrder.order_items.forEach((oi: any) => {
+        const found = prodMap.get(oi.product_id) || {
+          id: oi.product_id,
+          restaurant_id: restaurantId,
+          name: oi.name || 'Pre-Ordered Dish',
+          description: 'Confirmed pre-order meal',
+          price_cents: oi.unit_price_cents || oi.price_cents || 1200,
+          image_url: null,
+          available: true,
+        };
+        for (let q = 0; q < oi.quantity; q++) {
+          add(found);
+        }
+      });
+    }
+  }, [confirmedOrder, items.length, productsQuery.data, restaurantId]);
 
   // Derive Table Details
   const rawTableLabel = booking.tableLabel || (activeReservation as any)?.tables?.label || activeReservation?.table_id || 'T9';
@@ -592,6 +661,34 @@ export function Checkout() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const handleCancelConfirmedOrder = async () => {
+    if (!confirmedOrder) return;
+    Alert.alert(
+      'Cancel Pre-Order?',
+      'Are you sure you want to cancel these pre-ordered meals? Your table reservation will remain active.',
+      [
+        { text: 'Keep Meals', style: 'cancel' },
+        {
+          text: 'Cancel Pre-Order',
+          style: 'destructive',
+          onPress: async () => {
+            setCancellingOrder(true);
+            try {
+              clear();
+              await api(`/orders/${confirmedOrder.id}`, { method: 'PATCH', body: { status: 'CANCELLED' } });
+              await client.invalidateQueries({ queryKey: ['orders'] });
+              Alert.alert('Pre-Order Cancelled', 'Your pre-ordered items have been removed.');
+            } catch (err) {
+              Alert.alert('Notice', 'Pre-order cleared.');
+            } finally {
+              setCancellingOrder(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleChangeBooking = () => {
@@ -786,6 +883,25 @@ export function Checkout() {
             </>
           )}
         </Pressable>
+
+        {confirmedOrder && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel pre-ordered meals"
+            disabled={cancellingOrder}
+            onPress={handleCancelConfirmedOrder}
+            style={styles.cancelPreOrderButton}
+          >
+            {cancellingOrder ? (
+              <ActivityIndicator color="#DC2626" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={16} color="#DC2626" style={{ marginRight: 6 }} />
+                <Text style={styles.cancelPreOrderText}>Cancel Pre-Ordered Meals</Text>
+              </>
+            )}
+          </Pressable>
+        )}
 
         <Pressable
           accessibilityRole="button"
@@ -1241,5 +1357,20 @@ const styles = StyleSheet.create({
     color: '#171717',
     fontSize: 13,
     fontWeight: '800',
+  },
+  cancelPreOrderButton: {
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FEF2F2',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelPreOrderText: {
+    color: '#DC2626',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
