@@ -35,14 +35,83 @@ const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim
 const productCategory = z.enum(['Starter','Main Course','Dessert','Soft Drink','Hot Drink','Side Dish',]);
 const productBody = z.object({restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).nullable().optional(), category: productCategory, price_cents: z.number().int().min(0), image_url: z.url().nullable().optional(),available: z.boolean().optional(),});
 
+const timeString = z
+  .string()
+  .regex(/^\d\d:\d\d$/);
+
+const weeklyDaySchema = z.object({
+  enabled: z.boolean(),
+  open: timeString,
+  close: timeString,
+});
+
+const weeklyHoursSchema = z.object({
+  monday: weeklyDaySchema,
+  tuesday: weeklyDaySchema,
+  wednesday: weeklyDaySchema,
+  thursday: weeklyDaySchema,
+  friday: weeklyDaySchema,
+  saturday: weeklyDaySchema,
+  sunday: weeklyDaySchema,
+});
+
 const settingsBody = z.object({
-  opening_time: z.string().regex(/^\d\d:\d\d$/).optional(),
-  closing_time: z.string().regex(/^\d\d:\d\d$/).optional(),
-  slot_minutes: z.number().int().min(15).max(120).optional(),
-  booking_duration_minutes: z.number().int().min(30).max(240).optional(),
-  max_bookings_per_slot: z.number().int().min(1).optional(),
-  grace_minutes: z.number().int().min(0).max(120).optional(),
-  reminder_minutes: z.number().int().min(0).max(1440).optional(),
+  opening_time: timeString.optional(),
+  closing_time: timeString.optional(),
+
+  slot_minutes: z
+    .number()
+    .int()
+    .min(15)
+    .max(120)
+    .optional(),
+
+  booking_duration_minutes: z
+    .number()
+    .int()
+    .min(30)
+    .max(240)
+    .optional(),
+
+  max_bookings_per_slot: z
+    .number()
+    .int()
+    .min(1)
+    .optional(),
+
+  grace_minutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(120)
+    .optional(),
+
+  reminder_minutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(1440)
+    .optional(),
+
+  max_guests: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional(),
+
+  queue_capacity: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional(),
+
+  auto_confirm: z
+    .boolean()
+    .optional(),
+
+  weekly_hours: weeklyHoursSchema.optional(),
 });
 
 const staffCreateBody = z.object({
@@ -169,11 +238,19 @@ req.actor = profile as Actor;
   } catch (e) { next(e); }
 });
 
+
+
+
 app.get('/api/me', (req,res) => ok(res,actor(req)));
 app.patch('/api/me', async (req,res) => {
   const body = z.object({ full_name: z.string().trim().min(1).max(100).optional(), phone: z.string().max(30).nullable().optional() }).parse(req.body);
   ok(res,checked(await admin.from('profiles').update(body).eq('id',actor(req).id).select().single()));
 });
+
+
+
+
+
 app.post('/api/push-tokens', async (req,res) => {
   const token=z.string().regex(/^(Expo|Exponent)PushToken\[[^\]]+\]$/).parse(req.body.token);
   ok(res,checked(await admin.from('push_tokens').upsert({token,user_id:actor(req).id}).select().single()),201);
@@ -184,10 +261,106 @@ app.delete('/api/push-tokens', async (req,res) => {
 app.get('/api/restaurants', async (_req,res) => ok(res,checked(await admin.from('restaurants').select('*').order('name'))));
 app.get('/api/restaurants/:id', async (req,res) => ok(res,checked(await admin.from('restaurants').select('*').eq('id',uuid.parse(req.params.id)).single())));
 app.patch('/api/restaurants/:id', async (req,res) => {
-  const id=uuid.parse(req.params.id);staffFor(req,id,true);
+  const restaurantId = uuid.parse(req.params.id);
+  staffFor(req, restaurantId, true);
+  const body = settingsBody.parse(req.body);
   const b=z.object({name:z.string().trim().min(1).max(120).optional(),description:z.string().max(500).nullable().optional(),address:z.string().max(250).nullable().optional(),phone:z.string().max(30).nullable().optional(),image_url:z.url().nullable().optional()}).parse(req.body);
-  ok(res,checked(await admin.from('restaurants').update(b).eq('id',id).select().single()));
+  ok(res,checked(await admin.from('restaurants').update(b).eq('id',restaurantId).select().single()));
 });
+
+app.get('/api/settings/slot-overrides', async (req, res) => {
+  const restaurantId = uuid.parse(
+    String(req.query.restaurant_id)
+  );
+
+  staffFor(req, restaurantId, true);
+
+  const serviceDate = req.query.service_date
+    ? String(req.query.service_date)
+    : undefined;
+
+  let query = admin
+    .from('booking_slot_overrides')
+    .select('*')
+    .eq('restaurant_id', restaurantId)
+    .order('service_date')
+    .order('slot_time');
+
+  if (serviceDate) {
+    query = query.eq('service_date', serviceDate);
+  }
+
+  ok(res, checked(await query));
+});
+
+const bookingSlotOverrideBody = z.object({
+  restaurant_id: uuid,
+  service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  slot_time: z.string().regex(/^\d\d:\d\d$/),
+  is_available: z.boolean(),
+});
+
+app.put('/api/settings/slot-overrides', async (req, res) => {
+  const body = bookingSlotOverrideBody.parse(req.body);
+
+  staffFor(req, body.restaurant_id, true);
+
+  const result = checked(
+    await admin
+      .from('booking_slot_overrides')
+      .upsert(
+        {
+          restaurant_id: body.restaurant_id,
+          service_date: body.service_date,
+          slot_time: body.slot_time,
+          is_available: body.is_available,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict:
+            'restaurant_id,service_date,slot_time',
+        }
+      )
+      .select()
+      .single()
+  );
+
+  ok(res, result);
+});
+
+app.delete(
+  '/api/settings/slot-overrides',
+  async (req, res) => {
+    const restaurantId = uuid.parse(
+      String(req.query.restaurant_id)
+    );
+
+    const serviceDate = String(
+      req.query.service_date
+    );
+
+    const slotTime = String(
+      req.query.slot_time
+    );
+
+    staffFor(req, restaurantId, true);
+
+    checked(
+      await admin
+        .from('booking_slot_overrides')
+        .delete()
+        .eq('restaurant_id', restaurantId)
+        .eq('service_date', serviceDate)
+        .eq('slot_time', slotTime)
+    );
+
+    ok(res, {
+      deleted: true,
+    });
+  }
+);
+
+
 app.get('/api/restaurants/:id/availability', async (req,res) => {
   const restaurantId = uuid.parse(req.params.id); const start = iso.parse(req.query.starts_at); const party = z.coerce.number().int().min(1).max(20).parse(req.query.party_size);
   const settings = checked(await admin.from('restaurant_settings').select('*').eq('restaurant_id',restaurantId).single());
