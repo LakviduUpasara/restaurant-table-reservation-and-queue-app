@@ -32,7 +32,6 @@ import { api } from '../lib/api';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
 import { getMenuItemImage, preOrderBannerImage } from '../lib/menu-image-assets';
-import { NotchedNavBar } from '../components/NotchedNavBar';
 
 const colors = {
   ink: '#262626',
@@ -123,23 +122,6 @@ function HeaderIconButton({ icon, onPress, accessibilityLabel }: { icon: 'option
   );
 }
 
-function CartBottomNav({ router }: { router: ReturnType<typeof useRouter> }) {
-  const items = [
-    { key: 'home', label: 'Home', icon: 'home-outline' as const, route: '/home' },
-    { key: 'queue', label: 'Queue', icon: 'chatbubble-ellipses-outline' as const, route: '/queue' },
-    { key: 'menu', label: 'Menu', icon: 'search-outline' as const, route: '/menu' },
-    { key: 'profile', label: 'Account', icon: 'person-outline' as const, route: '/profile' },
-  ];
-  return (
-    <NotchedNavBar
-      items={items}
-      activeIndex={2}
-      onPress={index => router.replace(items[index].route as '/home' | '/menu' | '/queue' | '/profile')}
-      bubbleColor={colors.accent}
-    />
-  );
-}
-
 function ProductCard({
   product,
   onOpen,
@@ -195,7 +177,7 @@ function ProductListState({
   );
 }
 
-export function Menu() {
+function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
   const router = useRouter();
   const booking = useBooking();
   const [search, setSearch] = useState('');
@@ -229,10 +211,10 @@ export function Menu() {
   };
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <Header
         dark
-        onBack={() => router.replace('/home')}
+        onBack={() => router.replace(preOrder ? '/booking/confirmation' : '/home')}
         onCart={() => router.push('/cart')}
         count={itemCount}
       />
@@ -307,6 +289,14 @@ export function Menu() {
       </View>
     </SafeAreaView>
   );
+}
+
+export function Menu() {
+  return <MenuScreen />;
+}
+
+export function PreOrderMenu() {
+  return <MenuScreen preOrder />;
 }
 
 export function ProductDetail() {
@@ -462,7 +452,6 @@ export function Cart() {
           </View>
         )}
       </ScrollView>
-      <CartBottomNav router={router} />
     </SafeAreaView>
   );
 }

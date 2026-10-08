@@ -45,6 +45,7 @@ app.get('/api/jobs/notifications', async (req,res) => {
   for(const r of reservations){const due=new Date(r.starts_at).getTime()-Number(minutes.get(r.restaurant_id)??60)*60000;if(due>now||due<now-5*60000)continue;
     const inserted=await admin.from('notifications').insert({user_id:r.customer_id,title:'Your booking is coming up',body:'Please arrive on time for your reservation.',kind:'REMINDER',source_id:r.id}).select('id').single();
     if(!inserted.error){sent++;await sendPush(r.customer_id,'Your booking is coming up','Please arrive on time for your reservation.').catch(console.error)}
+    else if(inserted.error.code!=='23505')console.error('Reminder notification could not be saved',inserted.error);
   }
   const receipts=await checkPushReceipts();ok(res,{reminders_sent:sent,receipts_checked:receipts});
 });
@@ -78,7 +79,13 @@ app.patch('/api/me', async (req,res) => {
       phone_confirm: Boolean(nextPhone),
     });
     if (authUpdate.error) {
-      await admin.from('profiles').update({ phone: current.phone }).eq('id', current.id);
+      const rollback = await admin.from('profiles').update({
+        ...(body.full_name === undefined ? {} : { full_name: current.full_name }),
+        phone: current.phone,
+      }).eq('id', current.id);
+      if (rollback.error) {
+        console.error('Could not roll back profile after phone sync failed', rollback.error);
+      }
       fail(400, 'AUTH_PROFILE_SYNC_FAILED', authUpdate.error.message);
     }
   }

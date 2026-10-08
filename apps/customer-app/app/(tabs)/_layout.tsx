@@ -12,17 +12,11 @@ const tabIcons: Record<string, NavItem['icon']> = {
 };
 
 function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const focusedRouteName = state.routes[state.index]?.name;
   const visibleRoutes = state.routes.filter(
     route => route.name !== 'reservations' && tabIcons[route.name],
   );
-  const activeIndex = Math.max(
-    0,
-    visibleRoutes.findIndex(route =>
-      route.name === (state.routes[state.index]?.name === 'update-password'
-        ? 'profile'
-        : state.routes[state.index]?.name),
-    ),
-  );
+  const activeIndex = visibleRoutes.findIndex(route => route.name === focusedRouteName);
   const items: NavItem[] = visibleRoutes.map(route => ({
     key: route.key,
     label: String(
@@ -33,7 +27,7 @@ function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
     icon: tabIcons[route.name],
   }));
 
-  if (['menu', 'update-password'].includes(state.routes[state.index]?.name ?? '')) return null;
+  if (!['home', 'menu', 'queue', 'profile'].includes(focusedRouteName ?? '')) return null;
 
   return (
     <NotchedNavBar
@@ -62,7 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="reservations" options={{ href: null, title: 'Bookings' }} />
       <Tabs.Screen name="queue" options={{ title: 'Queue' }} />
-      <Tabs.Screen name="menu" options={{ title: 'Menu', tabBarStyle: { display: 'none' } }} />
+      <Tabs.Screen name="menu" options={{ title: 'Menu' }} />
       <Tabs.Screen name="profile" options={{ title: 'Account' }} />
       <Tabs.Screen name="update-password" options={{ href: null, title: 'Update Password' }} />
     </Tabs>
