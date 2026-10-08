@@ -29,7 +29,7 @@ const iso = z.iso.datetime({ offset: true });
 const localDay=(when=new Date())=>new Date(when.getTime()+330*60000).toISOString().slice(0,10);
 const dayRange=(day:string)=>{const date=z.iso.date().parse(day);const start=new Date(`${date}T00:00:00+05:30`);if(Number.isNaN(start.getTime()))fail(400,'INVALID_DATE','Choose a valid date');return {start:start.toISOString(),end:new Date(start.getTime()+24*60*60*1000).toISOString()}};
 const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
-const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
+const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional(), special_request: z.string().trim().max(500).optional() });
 
 
 const productCategory = z.enum(['Starter','Main Course','Dessert','Soft Drink','Hot Drink','Side Dish',]);
@@ -410,6 +410,12 @@ app.get('/api/tables', async (req,res) => {
   const restaurantId = uuid.parse(req.query.restaurant_id); staffFor(req,restaurantId);
   ok(res,checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label')));
 });
+app.get('/api/tables/:id', async (req,res) => {
+  const id = uuid.parse(req.params.id);
+  const table = checked(await admin.from('tables').select('*').eq('id',id).single());
+  staffFor(req,table.restaurant_id);
+  ok(res,table);
+});
 app.patch('/api/tables/:id', async (req,res) => {
   const id = uuid.parse(req.params.id); const table = checked(await admin.from('tables').select('*').eq('id',id).single()); staffFor(req,table.restaurant_id);
   const body = z.object({ status: z.enum(['AVAILABLE','RESERVED','OCCUPIED','CLEANING','UNAVAILABLE']) }).parse(req.body);
@@ -479,6 +485,12 @@ app.get('/api/queue', async (req,res) => {
     }
     ok(res,entries.map((e:any)=>({...e,position:ranks.get(e.id)??null})));
   } else { let rank=0;ok(res,entries.map((e:any)=>({...e,position:active.includes(e.status)?++rank:null}))); }
+});
+app.get('/api/queue/:id', async (req,res) => {
+  const id=uuid.parse(req.params.id); const e=checked(await admin.from('queue_entries').select('*').eq('id',id).single()); const a=actor(req);
+  if (a.role==='CUSTOMER') { if (e.customer_id!==a.id) fail(403,'FORBIDDEN','This is not your queue entry'); }
+  else staffFor(req,e.restaurant_id);
+  ok(res,e);
 });
 app.post('/api/queue', async (req,res) => {
   const b=queueBody.parse(req.body); const a=actor(req);
