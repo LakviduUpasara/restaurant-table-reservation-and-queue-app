@@ -32,6 +32,16 @@ const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), s
 const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
 const productBody = z.object({ restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).optional(), price_cents: z.number().int().min(0), image_url: z.url().optional().nullable(), available: z.boolean().optional() });
 
+const settingsBody = z.object({
+  opening_time: z.string().regex(/^\d\d:\d\d$/).optional(),
+  closing_time: z.string().regex(/^\d\d:\d\d$/).optional(),
+  slot_minutes: z.number().int().min(15).max(120).optional(),
+  booking_duration_minutes: z.number().int().min(30).max(240).optional(),
+  max_bookings_per_slot: z.number().int().min(1).optional(),
+  grace_minutes: z.number().int().min(0).max(120).optional(),
+  reminder_minutes: z.number().int().min(0).max(1440).optional(),
+});
+
 const staffCreateBody = z.object({
   restaurant_id: uuid,
 
@@ -68,13 +78,6 @@ const staffCreateBody = z.object({
     .min(6)
     .max(72),
 
-  /*
-   * Optional because your Figma Add User screen
-   * does not currently ask for an email.
-   *
-   * If omitted, the backend generates an internal
-   * Supabase Auth email for the staff account.
-   */
   email: z
     .email()
     .optional(),
@@ -406,26 +409,35 @@ app.post('/api/staff', async (req, res) => {
     body.email ??
     `staff-${safeRestaurantId}-${safeStaffId}@dineflow.local`;
 
-  const created =
-    await admin.auth.admin.createUser({
-      email: authEmail,
-      password: body.password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: body.full_name.trim(),
-      },
-    });
+  const created = await admin.auth.admin.createUser({
+  email: body.email,
+  password: body.password,
+  email_confirm: true,
+  user_metadata: {
+    full_name: body.full_name,
+    phone: body.phone,
+  },
+});
 
-  if (created.error || !created.data.user) {
-    fail(
-      400,
-      'STAFF_CREATE_FAILED',
-      created.error?.message ??
-        'Could not create staff account'
-    );
-  }
+if (created.error) {
+  return fail(
+    400,
+    'STAFF_CREATE_FAILED',
+    created.error.message
+  );
+}
 
-  const userId = created.data.user.id;
+const createdUser = created.data.user;
+
+if (!createdUser) {
+  return fail(
+    400,
+    'STAFF_CREATE_FAILED',
+    'Could not create staff account'
+  );
+}
+
+const userId = createdUser.id;
 
   try {
     const profile = checked(
