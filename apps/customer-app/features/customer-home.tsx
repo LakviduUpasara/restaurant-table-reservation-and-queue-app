@@ -330,13 +330,14 @@ export function CustomerHome() {
     }
 
     const capacity = table.capacity || (labelNum <= 2 ? 2 : labelNum <= 8 ? 4 : 6);
+    const chosenDbTable = tables.data?.find(t => prettyTableNumber(t.label) === labelNum);
     booking.reset();
     booking.set({
       restaurantId,
       date: slot.day,
       time: slot.time,
       partySize: capacity,
-      tableId: table.id,
+      tableId: chosenDbTable?.id || table.id,
       tableLabel: `T${labelClean}`,
     });
     router.push('/booking/special-request');

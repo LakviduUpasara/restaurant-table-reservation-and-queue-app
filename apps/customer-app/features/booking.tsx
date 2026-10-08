@@ -1044,7 +1044,52 @@ export function SpecialRequest() {
                   const targetDate = b.date || currentDate();
                   const targetTime = b.time || '19:00';
                   const targetParty = b.partySize || 2;
-                  const targetTableId = b.tableId && b.tableId.length > 10 ? b.tableId : undefined;
+                  const targetLabelClean = b.tableLabel ? prettyTable(b.tableLabel) : undefined;
+
+                  const isUuid = (id?: string | null): id is string => !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+                  let targetTableId: string | undefined = undefined;
+                  if (isUuid(b.tableId)) {
+                    targetTableId = b.tableId;
+                  }
+
+                  // If tableId is not a UUID, resolve it from the database tables table
+                  try {
+                    const { data: dbTables } = await supabase
+                      .from('tables')
+                      .select('id, label')
+                      .eq('restaurant_id', targetRestaurant);
+                    
+                    if (dbTables && dbTables.length > 0) {
+                      const match = dbTables.find(t => 
+                        (targetLabelClean && prettyTable(t.label) === targetLabelClean) ||
+                        t.label === b.tableLabel ||
+                        t.id === b.tableId
+                      );
+                      if (match?.id) {
+                        targetTableId = match.id;
+                      }
+                    }
+
+                    // If table row doesn't exist in DB yet, create it and get its UUID
+                    if (!targetTableId && targetLabelClean) {
+                      const { data: createdTable } = await supabase
+                        .from('tables')
+                        .insert({
+                          restaurant_id: targetRestaurant,
+                          label: `T${targetLabelClean}`,
+                          capacity: targetParty <= 2 ? 2 : targetParty <= 4 ? 4 : 6,
+                          status: 'RESERVED',
+                        })
+                        .select('id')
+                        .single();
+                      if (createdTable?.id) {
+                        targetTableId = createdTable.id;
+                      }
+                    }
+                  } catch (err) {
+                    console.warn('Table ID resolution notice:', err);
+                  }
 
                   const startsAtIso = startIso(targetDate, targetTime);
                   const startDateObj = new Date(startsAtIso);
@@ -1107,16 +1152,22 @@ export function SpecialRequest() {
                     }
                   }
 
-                  // 2. Mark table as reserved in DB
-                  if (targetTableId) {
-                    try {
+                  // 2. Mark table as reserved in DB for all customers to see
+                  try {
+                    if (targetTableId) {
                       await supabase.from('tables').update({
                         status: 'RESERVED',
                         updated_at: new Date().toISOString(),
                       }).eq('id', targetTableId);
-                    } catch {
-                      // ignore
                     }
+                    if (targetLabelClean) {
+                      await supabase.from('tables').update({
+                        status: 'RESERVED',
+                        updated_at: new Date().toISOString(),
+                      }).or(`label.eq.T${targetLabelClean},label.eq.${targetLabelClean}`);
+                    }
+                  } catch {
+                    // ignore
                   }
 
                   // 3. If user had pre-order items in Cart, automatically assign them to this reservation & clear cart!
