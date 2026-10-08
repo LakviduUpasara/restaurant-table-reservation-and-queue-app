@@ -908,17 +908,140 @@ app.delete('/api/staff/:id', async (req, res) => {
 });
 
 
-app.get('/api/analytics/:restaurantId', async (req,res) => {
-  const id=uuid.parse(req.params.restaurantId); staffFor(req,id,true); const today=dayRange(localDay());
-  const [reservations,queue,tables]=await Promise.all([
-    admin.from('reservations').select('status,starts_at').eq('restaurant_id',id).gte('starts_at',today.start).lt('starts_at',today.end),
-    admin.from('queue_entries').select('status,estimated_wait_minutes').eq('restaurant_id',id).gte('created_at',today.start).lt('created_at',today.end),
-    admin.from('tables').select('status').eq('restaurant_id',id)
+app.get('/api/dashboard/:restaurantId', async (req, res) => {
+  const restaurantId = uuid.parse(req.params.restaurantId);
+
+  staffFor(req, restaurantId, true);
+
+  const today = dayRange(localDay());
+
+  const now = new Date();
+  const nextHour = new Date(
+    now.getTime() + 60 * 60 * 1000
+  ).toISOString();
+
+  const [
+    reservationsResult,
+    queueResult,
+    tablesResult,
+    staffResult,
+  ] = await Promise.all([
+    admin
+      .from('reservations')
+      .select('id,status,starts_at,party_size')
+      .eq('restaurant_id', restaurantId)
+      .gte('starts_at', today.start)
+      .lt('starts_at', today.end),
+
+    admin
+      .from('queue_entries')
+      .select(
+        'id,status,created_at,customer_name,party_size,estimated_wait_minutes'
+      )
+      .eq('restaurant_id', restaurantId)
+      .gte('created_at', today.start)
+      .lt('created_at', today.end)
+      .order('created_at'),
+
+    admin
+      .from('tables')
+      .select('id,label,status,capacity')
+      .eq('restaurant_id', restaurantId),
+
+    admin
+      .from('profiles')
+      .select('id')
+      .eq('restaurant_id', restaurantId)
+      .eq('role', 'STAFF'),
   ]);
-  const r=checked(reservations),q=checked(queue),t=checked(tables);
-  ok(res,{ bookings:r.length,cancellations:r.filter((x:any)=>x.status==='CANCELLED').length,no_shows:r.filter((x:any)=>x.status==='NO_SHOW').length,
-    waiting:q.filter((x:any)=>x.status==='WAITING').length,average_wait_minutes:q.length?Math.round(q.reduce((n:number,x:any)=>n+x.estimated_wait_minutes,0)/q.length):0,
-    tables:Object.fromEntries(['AVAILABLE','RESERVED','OCCUPIED','CLEANING','UNAVAILABLE'].map(s=>[s,t.filter((x:any)=>x.status===s).length])) });
+
+  const reservations = checked(reservationsResult);
+  const queue = checked(queueResult);
+  const tables = checked(tablesResult);
+  const staff = checked(staffResult);
+
+  const activeReservationStatuses = [
+    'PENDING',
+    'CONFIRMED',
+    'ARRIVED',
+    'SEATED',
+  ];
+
+  const activeQueueStatuses = [
+    'WAITING',
+    'NOTIFIED',
+    'TABLE_READY',
+  ];
+
+  const totalReservations = reservations.length;
+
+  const activeReservations = reservations.filter(
+    (reservation: any) =>
+      activeReservationStatuses.includes(reservation.status)
+  ).length;
+
+  const upcomingNextHour = reservations.filter(
+    (reservation: any) =>
+      activeReservationStatuses.includes(reservation.status) &&
+      new Date(reservation.starts_at) > now &&
+      new Date(reservation.starts_at) <= new Date(nextHour)
+  ).length;
+
+  const waitingQueue = queue.filter(
+    (entry: any) =>
+      activeQueueStatuses.includes(entry.status)
+  );
+
+  const occupiedTables = tables.filter(
+    (table: any) => table.status === 'OCCUPIED'
+  ).length;
+
+  const cleaningTables = tables.filter(
+    (table: any) => table.status === 'CLEANING'
+  ).length;
+
+  const availableTables = tables.filter(
+    (table: any) => table.status === 'AVAILABLE'
+  ).length;
+
+  ok(res, {
+    date: localDay(),
+
+    summary: {
+      reservations: totalReservations,
+      active_reservations: activeReservations,
+      staff_users: staff.length,
+      occupied_tables: occupiedTables,
+      available_tables: availableTables,
+      waiting_queue: waitingQueue.length,
+    },
+
+    tasks: {
+      upcoming_reservations_next_hour: upcomingNextHour,
+      waiting_parties: waitingQueue.length,
+      tables_needing_cleaning: cleaningTables,
+    },
+
+    queue: {
+      waiting: waitingQueue.length,
+      total_today: queue.length,
+    },
+
+    tables: {
+      total: tables.length,
+      available: availableTables,
+      occupied: occupiedTables,
+      cleaning: cleaningTables,
+      reserved: tables.filter(
+        (table: any) => table.status === 'RESERVED'
+      ).length,
+      unavailable: tables.filter(
+        (table: any) => table.status === 'UNAVAILABLE'
+      ).length,
+    },
+
+    updated_at: new Date().toISOString(),
+  });
 });
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
