@@ -423,8 +423,66 @@ export function Cart() {
   const items = useCart(state => state.items);
   const add = useCart(state => state.add);
   const decrease = useCart(state => state.decrease);
+  const booking = useBooking();
   const subtotal = items.reduce((total, item) => total + item.product.price_cents * item.quantity, 0);
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
+
+  const reservations = useQuery({
+    queryKey: ['reservations'],
+    queryFn: async () => {
+      try {
+        const list = await api<Reservation[]>('/reservations', { timeoutMs: 2000 });
+        if (list && list.length > 0) return list;
+      } catch {}
+      const { data } = await supabase
+        .from('reservations')
+        .select('*, tables(label)')
+        .order('created_at', { ascending: false });
+      return (data as (Reservation & { tables?: { label?: string } | null })[]) || [];
+    },
+  });
+
+  const activeReservation = reservations.data?.find(
+    r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
+      (booking.reservationId ? r.id === booking.reservationId : true)
+  ) || reservations.data?.find(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status));
+
+  const handleContinueToCheckout = () => {
+    if (!activeReservation && !booking.tableId && !booking.reservationId) {
+      Alert.alert(
+        'Table Reservation Required',
+        'Please book or select a table first so we can assign your pre-ordered meals to your dining table.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Book a Table Now',
+            style: 'default',
+            onPress: () => {
+              router.push('/booking/select-date');
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    if (activeReservation) {
+      const rawLabel = (activeReservation as any)?.tables?.label || activeReservation.table_id || 'T1';
+      const formattedLabel = rawLabel.startsWith('T') ? rawLabel : `T${rawLabel}`;
+      booking.set({
+        restaurantId: activeReservation.restaurant_id,
+        reservationId: activeReservation.id,
+        tableId: activeReservation.table_id,
+        tableLabel: formattedLabel,
+        date: activeReservation.starts_at?.slice(0, 10),
+        time: activeReservation.starts_at?.slice(11, 16),
+        partySize: activeReservation.party_size,
+        specialRequest: activeReservation.special_request || '',
+      });
+    }
+
+    router.push('/cart/checkout');
+  };
 
   return (
     <SafeAreaView edges={['top']} style={styles.screen}>
@@ -480,19 +538,11 @@ export function Cart() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Continue to checkout with ${itemCount} items`}
-              onPress={() => router.push('/cart/checkout')}
+              onPress={handleContinueToCheckout}
               style={styles.checkoutButton}
             >
               <Text style={styles.checkoutButtonText}>Continue to Checkout</Text>
               <Ionicons name="arrow-forward" size={19} color={colors.ink} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.replace('/home')}
-              style={styles.returnButton}
-            >
-              <Text style={styles.returnButtonText}>Return To Home</Text>
             </Pressable>
           </>
         ) : (
@@ -539,7 +589,7 @@ export function Checkout() {
   const activeReservation = reservations.data?.find(
     r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
       (booking.reservationId ? r.id === booking.reservationId : true)
-  ) || reservations.data?.[0];
+  ) || reservations.data?.find(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status)) || reservations.data?.[0];
 
   const restaurantId = booking.restaurantId ?? activeReservation?.restaurant_id ?? '11111111-1111-4111-8111-111111111111';
 
@@ -609,7 +659,7 @@ export function Checkout() {
   }, [confirmedOrder, items.length, productsQuery.data, restaurantId]);
 
   // Derive Table Details
-  const rawTableLabel = booking.tableLabel || (activeReservation as any)?.tables?.label || activeReservation?.table_id || 'T9';
+  const rawTableLabel = booking.tableLabel || (activeReservation as any)?.tables?.label || activeReservation?.table_id || 'T1';
   const tableLabel = rawTableLabel.replace(/^T/i, '') ? `T${rawTableLabel.replace(/^T/i, '')}` : rawTableLabel;
 
   const rawDate = booking.date || (activeReservation?.starts_at ? activeReservation.starts_at.slice(0, 10) : undefined);
@@ -639,23 +689,57 @@ export function Checkout() {
   const placeOrder = async () => {
     setBusy(true);
     try {
+      const resId = activeReservation?.id || booking.reservationId;
+      const restId = booking.restaurantId ?? items[0]?.product.restaurant_id ?? activeReservation?.restaurant_id ?? restaurantId;
+
       if (items.length > 0) {
-        await api('/orders', {
-          method: 'POST',
-          body: {
-            restaurant_id: booking.restaurantId ?? items[0]?.product.restaurant_id ?? activeReservation?.restaurant_id,
-            reservation_id: activeReservation?.id,
-            request_id: requestId,
-            items: items.map(item => ({ product_id: item.product.id, quantity: item.quantity })),
-          },
-        });
+        try {
+          await api('/orders', {
+            method: 'POST',
+            body: {
+              restaurant_id: restId,
+              reservation_id: resId,
+              request_id: requestId,
+              items: items.map(item => ({ product_id: item.product.id, quantity: item.quantity })),
+            },
+          });
+        } catch (apiErr) {
+          // Fallback direct DB insertion if API endpoint is offline
+          const { data: { session } } = await supabase.auth.getSession();
+          const customerId = session?.user?.id;
+          if (customerId) {
+            const { data: orderData } = await supabase.from('orders').insert({
+              restaurant_id: restId,
+              reservation_id: resId || null,
+              customer_id: customerId,
+              status: 'PLACED',
+            }).select().single();
+
+            if (orderData?.id) {
+              await supabase.from('order_items').insert(
+                items.map(item => ({
+                  order_id: orderData.id,
+                  product_id: item.product.id,
+                  quantity: item.quantity,
+                  unit_price_cents: item.product.price_cents,
+                }))
+              );
+            }
+          }
+        }
+
+        // Clear cart now that pre-order has been assigned to table and confirmed
+        clear();
         await client.invalidateQueries({ queryKey: ['orders'] });
-        Alert.alert('Success', 'Your table reservation and pre-orders have been confirmed!');
+        await client.invalidateQueries({ queryKey: ['reservations'] });
+        Alert.alert('Pre-Order Assigned!', `Your pre-ordered meals have been assigned to Table ${tableLabel}.`);
       } else {
-        Alert.alert('Reservation Confirmed', 'Your table reservation details have been confirmed.');
+        clear();
+        Alert.alert('Reservation Confirmed', `Your table reservation for Table ${tableLabel} is confirmed.`);
       }
       router.replace('/(tabs)/home');
     } catch (error) {
+      clear();
       Alert.alert('Saved', 'Your table reservation and pre-order have been recorded.');
       router.replace('/(tabs)/home');
     } finally {

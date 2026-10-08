@@ -1029,8 +1029,9 @@ export function SpecialRequest() {
                   const endsAtIso = endsDateObj.toISOString();
 
                   // 1. Create/update reservation (API + Direct Supabase DB fallback)
+                  let createdResId = b.reservationId;
                   try {
-                    await api(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
+                    const resResponse = await api<Reservation>(b.reservationId ? `/reservations/${b.reservationId}` : '/reservations', {
                       method: b.reservationId ? 'PATCH' : 'POST',
                       body: {
                         ...(b.reservationId ? {} : { restaurant_id: targetRestaurant }),
@@ -1040,6 +1041,9 @@ export function SpecialRequest() {
                         special_request: finalNote,
                       },
                     });
+                    if (resResponse?.id) {
+                      createdResId = resResponse.id;
+                    }
                   } catch {
                     try {
                       const { data: { session } } = await supabase.auth.getSession();
@@ -1060,7 +1064,7 @@ export function SpecialRequest() {
                             updated_at: new Date().toISOString(),
                           }).eq('id', b.reservationId);
                         } else {
-                          await supabase.from('reservations').insert({
+                          const { data: insertedRes } = await supabase.from('reservations').insert({
                             customer_id: customerId,
                             restaurant_id: targetRestaurant,
                             starts_at: startsAtIso,
@@ -1069,7 +1073,10 @@ export function SpecialRequest() {
                             table_id: targetTableId,
                             special_request: finalNote,
                             status: 'CONFIRMED',
-                          });
+                          }).select().single();
+                          if (insertedRes?.id) {
+                            createdResId = insertedRes.id;
+                          }
                         }
                       }
                     } catch (dbErr) {
@@ -1089,7 +1096,52 @@ export function SpecialRequest() {
                     }
                   }
 
-                  // 3. Register in Virtual Queue
+                  // 3. If user had pre-order items in Cart, automatically assign them to this reservation & clear cart!
+                  const pendingCartItems = useCart.getState().items;
+                  if (pendingCartItems.length > 0) {
+                    try {
+                      const reqId = `booking-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+                      await api('/orders', {
+                        method: 'POST',
+                        body: {
+                          restaurant_id: targetRestaurant,
+                          reservation_id: createdResId || undefined,
+                          request_id: reqId,
+                          items: pendingCartItems.map(item => ({ product_id: item.product.id, quantity: item.quantity })),
+                        },
+                      });
+                    } catch (orderApiErr) {
+                      try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        const customerId = session?.user?.id || me?.id;
+                        if (customerId) {
+                          const { data: orderData } = await supabase.from('orders').insert({
+                            restaurant_id: targetRestaurant,
+                            reservation_id: createdResId || null,
+                            customer_id: customerId,
+                            status: 'PLACED',
+                          }).select().single();
+
+                          if (orderData?.id) {
+                            await supabase.from('order_items').insert(
+                              pendingCartItems.map(item => ({
+                                order_id: orderData.id,
+                                product_id: item.product.id,
+                                quantity: item.quantity,
+                                unit_price_cents: item.product.price_cents,
+                              }))
+                            );
+                          }
+                        }
+                      } catch {
+                        // ignore
+                      }
+                    }
+                    // Clear the cart so items do not linger after assignment
+                    useCart.getState().clear();
+                  }
+
+                  // 4. Register in Virtual Queue
                   try {
                     await api('/queue', {
                       method: 'POST',
@@ -1134,6 +1186,7 @@ export function SpecialRequest() {
                   await client.invalidateQueries({ queryKey: ['tables'] });
                   await client.invalidateQueries({ queryKey: ['home-availability'] });
                   await client.invalidateQueries({ queryKey: ['queue'] });
+                  await client.invalidateQueries({ queryKey: ['orders'] });
 
                   // 4. Immediately navigate to Virtual Queue Timeline screen
                   router.replace('/queue/status');
