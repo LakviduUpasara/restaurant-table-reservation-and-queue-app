@@ -5,7 +5,15 @@ import { admin, publicClient } from './config/supabase.js';
 import { env } from './config/env.js';
 import { sendPush, checkPushReceipts } from './modules/notifications/push.js';
 
-type Actor = { id: string; full_name: string; phone: string | null; role: 'CUSTOMER'|'STAFF'|'OWNER'; restaurant_id: string | null };
+type Actor = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  role: 'CUSTOMER' | 'STAFF' | 'OWNER';
+  restaurant_id: string | null;
+  staff_id: string | null;
+  job_role: string | null;
+};
 declare global { namespace Express { interface Request { actor?: Actor } } }
 class HttpError extends Error { constructor(public status: number, public code: string, message: string) { super(message); } }
 const fail = (status: number, code: string, message: string): never => { throw new HttpError(status, code, message); };
@@ -23,7 +31,100 @@ const dayRange=(day:string)=>{const date=z.iso.date().parse(day);const start=new
 const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
 const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
 const productBody = z.object({ restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).optional(), price_cents: z.number().int().min(0), image_url: z.url().optional().nullable(), available: z.boolean().optional() });
-const settingsBody = z.object({ opening_time: z.string().regex(/^\d\d:\d\d$/).optional(), closing_time: z.string().regex(/^\d\d:\d\d$/).optional(), slot_minutes: z.number().int().min(15).max(120).optional(), booking_duration_minutes: z.number().int().min(30).max(240).optional(), max_bookings_per_slot: z.number().int().min(1).optional(), grace_minutes: z.number().int().min(0).max(120).optional(), reminder_minutes: z.number().int().min(0).max(1440).optional() });
+
+const staffCreateBody = z.object({
+  restaurant_id: uuid,
+
+  staff_id: z
+    .string()
+    .trim()
+    .min(2)
+    .max(30)
+    .regex(
+      /^[A-Za-z0-9_-]+$/,
+      'Staff ID may contain only letters, numbers, hyphens and underscores'
+    ),
+
+  full_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100),
+
+  phone: z
+    .string()
+    .trim()
+    .max(30)
+    .optional(),
+
+  job_role: z
+    .string()
+    .trim()
+    .min(2)
+    .max(50),
+
+  password: z
+    .string()
+    .min(6)
+    .max(72),
+
+  /*
+   * Optional because your Figma Add User screen
+   * does not currently ask for an email.
+   *
+   * If omitted, the backend generates an internal
+   * Supabase Auth email for the staff account.
+   */
+  email: z
+    .email()
+    .optional(),
+});
+
+const staffUpdateBody = z.object({
+  staff_id: z
+    .string()
+    .trim()
+    .min(2)
+    .max(30)
+    .regex(
+      /^[A-Za-z0-9_-]+$/,
+      'Staff ID may contain only letters, numbers, hyphens and underscores'
+    )
+    .optional(),
+
+  full_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional(),
+
+  phone: z
+    .string()
+    .trim()
+    .max(30)
+    .nullable()
+    .optional(),
+
+  job_role: z
+    .string()
+    .trim()
+    .min(2)
+    .max(50)
+    .optional(),
+});
+
+const staffResetPasswordBody = z.object({
+  password: z
+    .string()
+    .min(6)
+    .max(72),
+
+  confirm_password: z
+    .string()
+    .min(6)
+    .max(72),
+});
 
 export const app = express();
 app.use(cors());
@@ -48,8 +149,16 @@ app.use('/api', async (req, _res, next) => {
     const { data, error } = await publicClient.auth.getUser(token);
     if (error || !data.user) fail(401,'UNAUTHENTICATED','Session has expired');
     const userId = data.user!.id;
-    const profile = checked(await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('id',userId).single());
-    req.actor = profile as Actor;
+const profile = checked(
+  await admin
+    .from('profiles')
+    .select(
+      'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+    )
+    .eq('id', userId)
+    .single()
+);    
+req.actor = profile as Actor;
     next();
   } catch (e) { next(e); }
 });
@@ -232,27 +341,317 @@ app.patch('/api/orders/:id', async (req,res) => {
 
 app.get('/api/notifications', async (req,res) => ok(res,checked(await admin.from('notifications').select('*').eq('user_id',actor(req).id).order('created_at',{ascending:false}).limit(100))));
 app.patch('/api/notifications/:id', async (req,res) => ok(res,checked(await admin.from('notifications').update({read_at:new Date().toISOString()}).eq('id',uuid.parse(req.params.id)).eq('user_id',actor(req).id).select().single())));
-app.get('/api/staff', async (req,res) => {
-  const id=uuid.parse(req.query.restaurant_id??actor(req).restaurant_id); staffFor(req,id,true);
-  ok(res,checked(await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('restaurant_id',id).in('role',['STAFF','OWNER']).order('full_name')));
+
+
+// OWNER - STAFF MANAGEMENT
+app.get('/api/staff', async (req, res) => {
+  const id = uuid.parse(
+    req.query.restaurant_id ?? actor(req).restaurant_id
+  );
+
+  // Only Owners can manage restaurant staff.
+  staffFor(req, id, true);
+
+  const staff = checked(
+    await admin
+      .from('profiles')
+      .select(
+        'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+      )
+      .eq('restaurant_id', id)
+      .in('role', ['STAFF', 'OWNER'])
+      .order('full_name')
+  );
+
+  ok(res, staff);
 });
-app.post('/api/staff', async (req,res) => {
-  const b=z.object({restaurant_id:uuid,email:z.email(),full_name:z.string().trim().min(1),phone:z.string().optional()}).parse(req.body); staffFor(req,b.restaurant_id,true);
-  const {data,error}=await admin.auth.admin.inviteUserByEmail(b.email);
-  if (error || !data.user) fail(400,'INVITE_FAILED',error?.message??'Invite failed');
-  ok(res,checked(await admin.from('profiles').update({ full_name:b.full_name,phone:b.phone??null,role:'STAFF',restaurant_id:b.restaurant_id }).eq('id',data.user!.id).select().single()),201);
+
+
+app.post('/api/staff', async (req, res) => {
+  const body = staffCreateBody.parse(req.body);
+
+  staffFor(req, body.restaurant_id, true);
+
+  const normalizedStaffId =
+    body.staff_id.trim().toUpperCase();
+
+  // Check Staff ID before creating an Auth account.
+  const existing = checked(
+    await admin
+      .from('profiles')
+      .select('id')
+      .eq('restaurant_id', body.restaurant_id)
+      .ilike('staff_id', normalizedStaffId)
+      .maybeSingle()
+  );
+
+  if (existing) {
+    fail(
+      409,
+      'STAFF_ID_EXISTS',
+      'This Staff ID is already used in this restaurant'
+    );
+  }
+
+  
+  const safeRestaurantId =
+    body.restaurant_id.slice(0, 8).toLowerCase();
+
+  const safeStaffId =
+    normalizedStaffId
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-');
+
+  const authEmail =
+    body.email ??
+    `staff-${safeRestaurantId}-${safeStaffId}@dineflow.local`;
+
+  const created =
+    await admin.auth.admin.createUser({
+      email: authEmail,
+      password: body.password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: body.full_name.trim(),
+      },
+    });
+
+  if (created.error || !created.data.user) {
+    fail(
+      400,
+      'STAFF_CREATE_FAILED',
+      created.error?.message ??
+        'Could not create staff account'
+    );
+  }
+
+  const userId = created.data.user.id;
+
+  try {
+    const profile = checked(
+      await admin
+        .from('profiles')
+        .update({
+          full_name: body.full_name.trim(),
+          phone: body.phone?.trim() || null,
+          role: 'STAFF',
+          restaurant_id: body.restaurant_id,
+          staff_id: normalizedStaffId,
+          job_role: body.job_role.trim(),
+        })
+        .eq('id', userId)
+        .select(
+          'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+        )
+        .single()
+    );
+
+    ok(
+      res,
+      {
+        profile,
+        login_id: normalizedStaffId,
+        login_email: authEmail,
+      },
+      201
+    );
+  } catch (error) {
+    // Prevent an orphaned Auth account if the profile update fails.
+    await admin.auth.admin.deleteUser(userId);
+
+    throw error;
+  }
 });
-app.patch('/api/staff/:id', async (req,res) => {
-  const id=uuid.parse(req.params.id); const person=checked(await admin.from('profiles').select('*').eq('id',id).single()); staffFor(req,person.restaurant_id,true);
-  if (person.role!=='STAFF') fail(403,'FORBIDDEN','Only staff accounts may be edited');
-  const b=z.object({full_name:z.string().trim().min(1).optional(),phone:z.string().nullable().optional()}).parse(req.body);
-  ok(res,checked(await admin.from('profiles').update(b).eq('id',id).select().single()));
+
+
+app.patch('/api/staff/:id', async (req, res) => {
+  const id = uuid.parse(req.params.id);
+
+  const person = checked(
+    await admin
+      .from('profiles')
+      .select(
+        'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+      )
+      .eq('id', id)
+      .single()
+  );
+
+  staffFor(req, person.restaurant_id, true);
+
+  if (person.role !== 'STAFF') {
+    fail(
+      403,
+      'FORBIDDEN',
+      'Only staff accounts may be edited'
+    );
+  }
+
+  const body = staffUpdateBody.parse(req.body);
+
+  if (body.staff_id) {
+    const normalizedStaffId =
+      body.staff_id.trim().toUpperCase();
+
+    const existing = checked(
+      await admin
+        .from('profiles')
+        .select('id')
+        .eq(
+          'restaurant_id',
+          person.restaurant_id
+        )
+        .ilike('staff_id', normalizedStaffId)
+        .neq('id', id)
+        .maybeSingle()
+    );
+
+    if (existing) {
+      fail(
+        409,
+        'STAFF_ID_EXISTS',
+        'This Staff ID is already used in this restaurant'
+      );
+    }
+
+    body.staff_id = normalizedStaffId;
+  }
+
+  const updates = {
+    ...(body.full_name !== undefined
+      ? { full_name: body.full_name.trim() }
+      : {}),
+
+    ...(body.phone !== undefined
+      ? { phone: body.phone?.trim() || null }
+      : {}),
+
+    ...(body.staff_id !== undefined
+      ? { staff_id: body.staff_id }
+      : {}),
+
+    ...(body.job_role !== undefined
+      ? { job_role: body.job_role.trim() }
+      : {}),
+  };
+
+  const updated = checked(
+    await admin
+      .from('profiles')
+      .update(updates)
+      .eq('id', id)
+      .select(
+        'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+      )
+      .single()
+  );
+
+  ok(res, updated);
 });
-app.delete('/api/staff/:id', async (req,res) => {
-  const id=uuid.parse(req.params.id); const person=checked(await admin.from('profiles').select('*').eq('id',id).single()); staffFor(req,person.restaurant_id,true);
-  if (person.role!=='STAFF') fail(403,'FORBIDDEN','Only staff accounts may be removed');
-  checked(await admin.from('profiles').update({role:'CUSTOMER',restaurant_id:null}).eq('id',id)); ok(res,{access_removed:true});
+
+
+app.post(
+  '/api/staff/:id/reset-password',
+  async (req, res) => {
+    const id = uuid.parse(req.params.id);
+
+    const person = checked(
+      await admin
+        .from('profiles')
+        .select(
+          'id,full_name,role,restaurant_id'
+        )
+        .eq('id', id)
+        .single()
+    );
+
+    staffFor(req, person.restaurant_id, true);
+
+    if (person.role !== 'STAFF') {
+      fail(
+        403,
+        'FORBIDDEN',
+        'Only staff passwords may be reset'
+      );
+    }
+
+    const body =
+      staffResetPasswordBody.parse(req.body);
+
+    if (
+      body.password !== body.confirm_password
+    ) {
+      fail(
+        400,
+        'PASSWORD_MISMATCH',
+        'Passwords do not match'
+      );
+    }
+
+    const result =
+      await admin.auth.admin.updateUserById(
+        id,
+        {
+          password: body.password,
+        }
+      );
+
+    if (result.error) {
+      fail(
+        400,
+        'PASSWORD_RESET_FAILED',
+        result.error.message
+      );
+    }
+
+    ok(res, {
+      reset: true,
+      staff_id: id,
+    });
+  }
+);
+
+
+app.delete('/api/staff/:id', async (req, res) => {
+  const id = uuid.parse(req.params.id);
+
+  const person = checked(
+    await admin
+      .from('profiles')
+      .select(
+        'id,full_name,role,restaurant_id'
+      )
+      .eq('id', id)
+      .single()
+  );
+
+  staffFor(req, person.restaurant_id, true);
+
+  if (person.role !== 'STAFF') {
+    fail(
+      403,
+      'FORBIDDEN',
+      'Only staff accounts may be removed'
+    );
+  }
+
+  
+  checked(
+    await admin
+      .from('profiles')
+      .update({
+        role: 'CUSTOMER',
+        restaurant_id: null,
+      })
+      .eq('id', id)
+  );
+
+  ok(res, {
+    access_removed: true,
+  });
 });
+
+
 app.get('/api/analytics/:restaurantId', async (req,res) => {
   const id=uuid.parse(req.params.restaurantId); staffFor(req,id,true); const today=dayRange(localDay());
   const [reservations,queue,tables]=await Promise.all([
