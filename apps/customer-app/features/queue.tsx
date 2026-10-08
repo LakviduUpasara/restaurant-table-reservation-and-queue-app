@@ -154,10 +154,10 @@ export function QueueStatus() {
   const activeEntry = activeEntries.find(e => e.customer_id === me?.id);
 
   const activeReservation = resQuery.data?.find(r =>
-    ['PENDING', 'CONFIRMED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
+    ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
   );
 
-  const hasActiveSpot = !!activeEntry || !!activeReservation || !!localSpot?.hasActiveSpot;
+  const hasActiveSpot = !!activeEntry || (localSpot?.hasActiveSpot && localSpot?.status === 'WAITING');
 
   // Compute FIFO position:
   // If user is already in remote queue entries, use their 1-indexed position; otherwise calculate based on line count
@@ -172,10 +172,10 @@ export function QueueStatus() {
   const [simulatedStage, setSimulatedStage] = useState<'WAITING' | 'PREPARING' | 'READY'>('WAITING');
 
   // Step calculations based on current status & live progression
-  const isJoined = hasActiveSpot;
-  const isWaiting = hasActiveSpot;
-  const isPreparing = activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'NOTIFIED' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'PREPARING' || simulatedStage === 'READY' || (hasActiveSpot && position <= 2);
-  const isReady = activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'READY';
+  const isJoined: boolean = Boolean(hasActiveSpot);
+  const isWaiting: boolean = Boolean(hasActiveSpot);
+  const isPreparing: boolean = Boolean(activeEntry?.status === 'NOTIFIED' || activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'NOTIFIED' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'PREPARING' || simulatedStage === 'READY' || (hasActiveSpot && position <= 2));
+  const isReady: boolean = Boolean(activeEntry?.status === 'TABLE_READY' || localSpot?.status === 'TABLE_READY' || simulatedStage === 'READY');
 
   // Realistic auto-progression from Queue ➔ Preparing ➔ Table Ready ➔ Confirmation Screen
   useEffect(() => {
@@ -812,6 +812,37 @@ export function JoinQueue() {
 }
 
 export function Queue() {
+  const me = useAuth(s => s.profile);
+  const q = useQuery({
+    queryKey: ['queue'],
+    queryFn: () => api<QueueEntry[]>('/queue'),
+    refetchInterval: 5000,
+  });
+  const resQuery = useQuery({
+    queryKey: ['reservations'],
+    queryFn: () => api<Reservation[]>('/reservations'),
+    refetchInterval: 5000,
+  });
+  const localSpot = useQueueStore(s => s.activeSpot);
+
+  const activeReservation = resQuery.data?.find(r =>
+    ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
+    new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
+  );
+
+  const activeQueueEntry = (q.data || []).find(e =>
+    e.customer_id === me?.id && ['WAITING', 'NOTIFIED'].includes(e.status)
+  );
+
+  // If table is booked & confirmed (and not waiting in queue line), show the Table Reservation Complete token pass
+  if (activeReservation && !activeQueueEntry) {
+    return <TableReservationComplete />;
+  }
+
+  if (localSpot?.hasActiveSpot && (localSpot.status === 'TABLE_READY' || localSpot.status === 'SEATED' || localSpot.tableLabel)) {
+    return <TableReservationComplete />;
+  }
+
   return <QueueStatus />;
 }
 
