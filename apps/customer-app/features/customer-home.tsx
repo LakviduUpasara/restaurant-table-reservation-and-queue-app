@@ -210,7 +210,7 @@ export function CustomerHome() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     tables: {
-      label: localQueue.tableLabel || booking.tableLabel || (booking.tableId ? '1 , 4' : '1'),
+      label: localQueue.tableLabel || booking.tableLabel,
     },
   } as DashboardReservation : undefined);
 
@@ -256,12 +256,17 @@ export function CustomerHome() {
   }, [activeReservations]);
 
   const availableIds = useMemo(() => {
-    return new Set(
-      (availability.data?.tables || [])
-        .filter(t => !bookedTableIds.has(t.id) && !bookedTableLabels.has(t.label) && !bookedTableLabels.has(t.label.replace(/^T/i, '')))
-        .map(t => t.id)
-    );
-  }, [availability.data, bookedTableIds, bookedTableLabels]);
+    const set = new Set<string>();
+    (availability.data?.tables || []).forEach(t => {
+      if (t.id) set.add(t.id);
+      if (t.label) {
+        const clean = t.label.replace(/^T/i, '').trim();
+        set.add(clean);
+        set.add(`T${clean}`);
+      }
+    });
+    return set;
+  }, [availability.data]);
 
   const refreshing = [restaurants, products, reservations, tables, availability].some(q => q.isRefetching);
   const refresh = () => void Promise.all([restaurants.refetch(), products.refetch(), reservations.refetch(), tables.refetch(), availability.refetch()]);
@@ -705,14 +710,16 @@ export function CustomerHome() {
                 const labelClean = prettyTable(table.label);
                 const isMySelected = !!upcoming && (
                   (table.id && upcomingTableId && table.id === upcomingTableId) ||
-                  upcomingTableLabels.has(labelClean)
+                  (upcomingTableLabels.size > 0 && upcomingTableLabels.has(labelClean))
                 );
                 const isBooked = !isMySelected && (
+                  table.status === 'RESERVED' ||
+                  table.status === 'OCCUPIED' ||
+                  table.status === 'UNAVAILABLE' ||
                   (table.id && bookedTableIds.has(table.id)) ||
                   bookedTableLabels.has(table.label) ||
                   bookedTableLabels.has(labelClean) ||
-                  table.status === 'OCCUPIED' ||
-                  table.status === 'RESERVED'
+                  (availability.data?.tables ? (!availableIds.has(table.id) && !availableIds.has(labelClean) && !availableIds.has(`T${labelClean}`)) : false)
                 );
                 const isAvailable = !isMySelected && !isBooked;
 

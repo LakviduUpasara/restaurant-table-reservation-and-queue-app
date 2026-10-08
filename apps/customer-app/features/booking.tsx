@@ -663,17 +663,39 @@ export function SelectTable() {
     { id: '12', restaurant_id: b.restaurantId || '', label: 'T12', capacity: 8, status: 'AVAILABLE', updated_at: '' },
   ] as Table[];
 
-  // Set of available table IDs for this slot
-  const availableTableIds = new Set((availabilityQuery.data?.tables || []).map(t => t.id));
+  // Set of available table IDs and labels for this slot
+  const availableTableIds = useMemo(() => {
+    const set = new Set<string>();
+    (availabilityQuery.data?.tables || []).forEach(t => {
+      if (t.id) set.add(t.id);
+      if (t.label) {
+        const clean = prettyTable(t.label);
+        set.add(clean);
+        set.add(`T${clean}`);
+      }
+    });
+    return set;
+  }, [availabilityQuery.data]);
+
+  const checkTableBooked = (table: Table) => {
+    const label = prettyTable(table.label);
+    if (table.status === 'RESERVED' || table.status === 'OCCUPIED' || table.status === 'UNAVAILABLE') {
+      return true;
+    }
+    if (availabilityQuery.data?.tables) {
+      return !availableTableIds.has(table.id) && !availableTableIds.has(label) && !availableTableIds.has(`T${label}`);
+    }
+    return false;
+  };
 
   // Multi-table calculations
   const selectedTables = allTables.filter(t => selectedTableIds.has(t.id));
   const totalCapacity = selectedTables.reduce((sum, t) => sum + t.capacity, 0);
 
   const handleTablePress = (table: Table) => {
-    const isAvailable = availableTableIds.has(table.id) || table.status === 'AVAILABLE';
-    if (!isAvailable) {
-      Alert.alert('Table Booked', `Table T${prettyTable(table.label)} is not available for this time slot. Please choose an available green table.`);
+    const isBooked = checkTableBooked(table);
+    if (isBooked) {
+      Alert.alert('Table Booked', `Table T${prettyTable(table.label)} is already reserved for this time slot. Please choose an available green table.`);
       return;
     }
 
@@ -764,10 +786,11 @@ export function SelectTable() {
           <View style={styles.floorGrid}>
             {allTables.slice(0, 12).map(table => {
               const isSelected = selectedTableIds.has(table.id);
-              const isAvailable = availableTableIds.has(table.id) || table.status === 'AVAILABLE';
+              const isBooked = !isSelected && checkTableBooked(table);
+              const isAvailable = !isSelected && !isBooked;
               const label = prettyTable(table.label);
 
-              // 3 Clean Colors matching reference image: Green (Available), Gold (Selected), Red (Booked)
+              // 3 Clean Colors: Green (Available), Gold (Selected), Red (Booked)
               const chairColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
               const tableColor = isSelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
               const textColor = isSelected ? '#171717' : '#FFFFFF';
