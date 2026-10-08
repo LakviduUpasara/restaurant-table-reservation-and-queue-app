@@ -438,15 +438,21 @@ export function CustomerHome() {
       {/* Top Header Bar */}
       <View style={styles.topbar}>
         <Pressable
-          accessibilityLabel="Back or Menu"
+          accessibilityLabel="Menu"
           onPress={() => {
             if (router.canGoBack()) {
-              router.back();
+              try {
+                router.back();
+              } catch {
+                router.replace('/(tabs)/menu');
+              }
+            } else {
+              router.replace('/(tabs)/menu');
             }
           }}
           style={styles.backButton}
         >
-          <Ionicons name={router.canGoBack() ? "chevron-back" : "restaurant-outline"} size={20} color="#262626" />
+          <Ionicons name="restaurant-outline" size={20} color="#262626" />
         </Pressable>
         <View style={styles.brandContainer}>
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
@@ -557,48 +563,49 @@ export function CustomerHome() {
           <Text style={styles.sectionTitle}>Reserve Your Table</Text>
         </View>
         {upcoming ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View table details and pre-ordered meals"
-            onPress={() => {
-              const local = new Date(upcoming.starts_at).toISOString();
-              booking.set({
-                restaurantId: upcoming.restaurant_id,
-                reservationId: upcoming.id,
-                date: local.slice(0, 10),
-                time: local.slice(11, 16),
-                partySize: upcoming.party_size,
-                tableId: upcoming.table_id,
-                tableLabel: upcoming.tables?.label || prettyTable(upcoming.table_id || 'T1'),
-                specialRequest: upcoming.special_request ?? '',
-              });
-              router.push('/cart/checkout');
-            }}
-            style={styles.reservationCard}
-          >
-            <Image source={INTERIOR_IMAGE} style={styles.reservationThumb} resizeMode="cover" />
-            <View style={styles.reservationInfo}>
-              <Text style={styles.reservationRow}>
-                <Text style={styles.reservationLabel}>Table No : </Text>
-                {upcoming.tables?.label ?? prettyTable(upcoming.table_id || 'T1')}
-              </Text>
-              <Text style={styles.reservationRow}>
-                <Text style={styles.reservationLabel}>Date : </Text>
-                {new Date(upcoming.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </Text>
-              <Text style={styles.reservationRow}>
-                <Text style={styles.reservationLabel}>Time : </Text>
-                {new Date(upcoming.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
-              </Text>
-            </View>
+          <View style={styles.reservationCard}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View table details and pre-ordered meals"
+              onPress={() => {
+                const local = new Date(upcoming.starts_at).toISOString();
+                booking.set({
+                  restaurantId: upcoming.restaurant_id,
+                  reservationId: upcoming.id,
+                  date: local.slice(0, 10),
+                  time: local.slice(11, 16),
+                  partySize: upcoming.party_size,
+                  tableId: upcoming.table_id,
+                  tableLabel: upcoming.tables?.label || prettyTable(upcoming.table_id || 'T1'),
+                  specialRequest: upcoming.special_request ?? '',
+                });
+                router.push('/cart/checkout');
+              }}
+              style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+            >
+              <Image source={INTERIOR_IMAGE} style={styles.reservationThumb} resizeMode="cover" />
+              <View style={styles.reservationInfo}>
+                <Text style={styles.reservationRow}>
+                  <Text style={styles.reservationLabel}>Table No : </Text>
+                  {upcoming.tables?.label ?? prettyTable(upcoming.table_id || 'T1')}
+                </Text>
+                <Text style={styles.reservationRow}>
+                  <Text style={styles.reservationLabel}>Date : </Text>
+                  {new Date(upcoming.starts_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                </Text>
+                <Text style={styles.reservationRow}>
+                  <Text style={styles.reservationLabel}>Time : </Text>
+                  {new Date(upcoming.starts_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase()}
+                </Text>
+              </View>
+            </Pressable>
             <View style={styles.cardActionIcons}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Edit reservation details"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
-                onPress={(e) => {
-                  e?.stopPropagation?.();
+                onPress={() => {
                   const local = new Date(upcoming.starts_at).toISOString();
                   booking.set({
                     restaurantId: upcoming.restaurant_id,
@@ -620,15 +627,14 @@ export function CustomerHome() {
                 accessibilityLabel="Cancel reservation"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4, marginTop: 4 }]}
-                onPress={(e) => {
-                  e?.stopPropagation?.();
+                onPress={() => {
                   cancelReservation(upcoming);
                 }}
               >
                 <Ionicons name="close-circle-outline" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
-          </Pressable>
+          </View>
         ) : (
           <Pressable onPress={startBooking} style={styles.noReservationCard}>
             <View style={styles.noResIconBox}>

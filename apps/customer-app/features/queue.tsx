@@ -742,7 +742,7 @@ export function JoinQueue() {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Top Header */}
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/home')} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
         <View style={styles.brandContainer}>

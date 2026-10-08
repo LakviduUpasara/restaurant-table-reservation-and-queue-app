@@ -527,7 +527,7 @@ export function SelectGuests() {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Top Header */}
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/booking/select-date')} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
         <View style={styles.brandContainer}>
@@ -717,7 +717,7 @@ export function SelectTable() {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Top Header */}
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/booking/select-guests')} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
         <View style={styles.brandContainer}>
@@ -891,7 +891,7 @@ export function SpecialRequest() {
     <SafeAreaView style={styles.root} edges={['top']}>
       {/* Top Header */}
       <View style={styles.topbar}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable onPress={() => router.canGoBack() ? router.back() : router.replace('/booking/select-table')} style={styles.backButton}>
           <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
         <View style={styles.brandContainer}>
