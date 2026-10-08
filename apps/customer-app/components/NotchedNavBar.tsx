@@ -16,11 +16,11 @@ type Props = {
   bubbleColor?: string;
 };
 
-const BAR_HEIGHT = 70;
+const BAR_HEIGHT = 58;
 const SIDE_PADDING = 24;
-const NOTCH_HALF = 56;
-const NOTCH_DEPTH = 38;
-const BUBBLE = 54;
+const NOTCH_HALF = 48;
+const NOTCH_DEPTH = 30;
+const BUBBLE = 46;
 const BAR_COLOR = '#292929';
 
 function buildPath(width: number, height: number, center: number) {
@@ -54,7 +54,7 @@ export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB
         pointerEvents="none"
         style={[styles.bubble, { left: center - BUBBLE / 2, backgroundColor: bubbleColor }]}
       >
-        <Ionicons name={active.icon} size={26} color="#111111" />
+        <Ionicons name={active.icon} size={23} color="#111111" />
       </View>
 
       <View style={[styles.row, { paddingHorizontal: SIDE_PADDING }]}>
@@ -67,7 +67,7 @@ export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB
             onPress={() => onPress(index)}
             style={styles.item}
           >
-            {index !== safeActiveIndex && <Ionicons name={item.icon} size={26} color="#F5F5F5" />}
+            {index !== safeActiveIndex && <Ionicons name={item.icon} size={23} color="#F5F5F5" />}
           </Pressable>
         ))}
       </View>
@@ -77,11 +77,11 @@ export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB
 
 const styles = StyleSheet.create({
   container: { position: 'relative' },
-  row: { height: BAR_HEIGHT, flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  item: { flex: 1, height: 52, alignItems: 'center', justifyContent: 'center' },
+  row: { height: BAR_HEIGHT, flexDirection: 'row', alignItems: 'center', marginTop: 6 },
+  item: { flex: 1, height: 46, alignItems: 'center', justifyContent: 'center' },
   bubble: {
     position: 'absolute',
-    top: -20,
+    top: -16,
     width: BUBBLE,
     height: BUBBLE,
     borderRadius: BUBBLE / 2,
