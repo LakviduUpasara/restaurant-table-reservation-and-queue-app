@@ -8,7 +8,7 @@ import { sendPush, checkPushReceipts } from './modules/notifications/push.js';
 type Actor = { id: string; full_name: string; phone: string | null; role: 'CUSTOMER'|'STAFF'|'OWNER'; restaurant_id: string | null };
 declare global { namespace Express { interface Request { actor?: Actor } } }
 class HttpError extends Error { constructor(public status: number, public code: string, message: string) { super(message); } }
-const fail = (status: number, code: string, message: string): never => { throw new HttpError(status, code, message); };
+function fail(status: number, code: string, message: string): never { throw new HttpError(status, code, message); }
 const ok = (res: Response, data: unknown, status = 200) => res.status(status).json({ success: true, data });
 const checked = <T extends { data: any; error: any }>(result: T) => { if (result.error) fail(400, 'DATABASE_ERROR', result.error.message); return result.data; };
 const actor = (req: Request) => req.actor!;
@@ -54,7 +54,10 @@ app.use('/api', async (req, _res, next) => {
     const token = req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
     if (!token) fail(401,'UNAUTHENTICATED','Sign in to continue');
     const { data, error } = await publicClient.auth.getUser(token);
-    const user = data.user!;
+    const user = data?.user;
+    if (error || !user) {
+      fail(401, 'UNAUTHENTICATED', error?.message || 'Sign in to continue');
+    }
     const userId = user.id;
     let profileData = (await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('id',userId).maybeSingle()).data;
     if (!profileData) {
