@@ -300,11 +300,11 @@ export function CustomerHome() {
     const labelNum = prettyTableNumber(table.label);
     const labelClean = prettyTable(table.label);
 
-    const isMySelected = !!upcoming && (
+    const isMyReservation = !!upcoming && (
       (table.id && upcomingTableId && table.id === upcomingTableId) ||
-      upcomingTableLabels.has(labelClean)
+      (upcomingTableLabels.size > 0 && upcomingTableLabels.has(labelClean))
     );
-    if (isMySelected) {
+    if (isMyReservation) {
       Alert.alert(
         'Your Reserved Table',
         `Table T${labelClean} is your currently reserved table.`
@@ -313,16 +313,18 @@ export function CustomerHome() {
     }
 
     const isBooked =
+      table.status === 'OCCUPIED' ||
+      table.status === 'RESERVED' ||
+      table.status === 'UNAVAILABLE' ||
       (table.id && bookedTableIds.has(table.id)) ||
       bookedTableLabels.has(table.label) ||
       bookedTableLabels.has(labelClean) ||
-      table.status === 'OCCUPIED' ||
-      table.status === 'RESERVED';
+      (availability.data?.tables ? (!availableIds.has(table.id) && !availableIds.has(labelClean) && !availableIds.has(`T${labelClean}`)) : false);
 
     if (isBooked) {
       Alert.alert(
         'Table Booked',
-        `Table T${labelClean} is currently occupied/booked. Please choose an available green table.`
+        `Table T${labelClean} is already reserved/booked. Please choose an available green table.`
       );
       return;
     }
@@ -684,15 +686,11 @@ export function CustomerHome() {
         </View>
 
         <View style={styles.tablePanel}>
-          {/* 3-Color Status Legend Bar */}
+          {/* Status Legend Bar */}
           <View style={styles.legendContainer}>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
               <Text style={styles.legendLabel}>Available</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#E8B800' }]} />
-              <Text style={styles.legendLabel}>Selected</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
@@ -708,11 +706,12 @@ export function CustomerHome() {
             <View style={styles.floorGrid}>
               {defaultTablesList.map(table => {
                 const labelClean = prettyTable(table.label);
-                const isMySelected = !!upcoming && (
+                const isMyReservation = !!upcoming && (
                   (table.id && upcomingTableId && table.id === upcomingTableId) ||
                   (upcomingTableLabels.size > 0 && upcomingTableLabels.has(labelClean))
                 );
-                const isBooked = !isMySelected && (
+                const isBooked = (
+                  isMyReservation ||
                   table.status === 'RESERVED' ||
                   table.status === 'OCCUPIED' ||
                   table.status === 'UNAVAILABLE' ||
@@ -721,11 +720,11 @@ export function CustomerHome() {
                   bookedTableLabels.has(labelClean) ||
                   (availability.data?.tables ? (!availableIds.has(table.id) && !availableIds.has(labelClean) && !availableIds.has(`T${labelClean}`)) : false)
                 );
-                const isAvailable = !isMySelected && !isBooked;
+                const isAvailable = !isBooked;
 
-                const chairColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
-                const tableColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
-                const textColor = isMySelected ? '#171717' : '#FFFFFF';
+                const chairColor = isAvailable ? '#10B981' : '#EF4444';
+                const tableColor = isAvailable ? '#10B981' : '#EF4444';
+                const textColor = '#FFFFFF';
                 const capacity = table.capacity || (prettyTableNumber(table.label) <= 2 ? 2 : prettyTableNumber(table.label) <= 8 ? 4 : 6);
 
                 return (
@@ -742,30 +741,23 @@ export function CustomerHome() {
                       <View style={[styles.diagonalChair, styles.chairBottomRight, { backgroundColor: chairColor }]} />
 
                       {/* Outer Beveled Circle */}
-                      <View style={[styles.tableOuterDisc, isMySelected && styles.tableOuterDiscSelected]}>
+                      <View style={styles.tableOuterDisc}>
                         {/* Inner Core Disc */}
                         <View style={[styles.tableInnerDisc, { backgroundColor: tableColor }]}>
                           <Text style={[styles.tableDiscNumber, { color: textColor }]}>T{labelClean}</Text>
                         </View>
                       </View>
-
-                      {/* Selected Active Checkmark Pill */}
-                      {isMySelected && (
-                        <View style={styles.tableActiveBadge}>
-                          <Ionicons name="checkmark" size={11} color="#171717" />
-                        </View>
-                      )}
                     </View>
 
                     {/* Guest Count Badge */}
-                    <View style={[styles.tableGuestBadge, isMySelected && styles.tableGuestBadgeSelected]}>
+                    <View style={styles.tableGuestBadge}>
                       <Ionicons
                         name="people"
                         size={11}
-                        color={isMySelected ? '#171717' : isAvailable ? '#059669' : '#DC2626'}
+                        color={isAvailable ? '#059669' : '#DC2626'}
                         style={{ marginRight: 3 }}
                       />
-                      <Text style={[styles.tableGuestCountText, isMySelected && styles.tableGuestCountTextSelected]}>
+                      <Text style={[styles.tableGuestCountText, !isAvailable && styles.tableGuestCountTextBooked]}>
                         {capacity} Guests
                       </Text>
                     </View>
@@ -1179,6 +1171,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#374151',
+  },
+  tableGuestCountTextBooked: {
+    color: '#DC2626',
+    fontWeight: '700',
   },
   tableGuestCountTextSelected: {
     color: '#171717',
