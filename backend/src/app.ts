@@ -23,6 +23,13 @@ const dayRange=(day:string)=>{const date=z.iso.date().parse(day);const start=new
 const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
 const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
 const productBody = z.object({ restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).optional(), price_cents: z.number().int().min(0), image_url: z.url().optional().nullable(), available: z.boolean().optional() });
+const phoneValue = z.string().trim().refine(value => {
+  const digits = value.replace(/\D/g, '');
+  return /^[+]?[0-9 ()-]+$/.test(value) && digits.length >= 7 && digits.length <= 15;
+}, 'Enter a valid phone number');
+const normalizePhone = (value: string | null | undefined) => value
+  ? value.trim().replace(/[()\s-]/g, '')
+  : null;
 const settingsBody = z.object({ opening_time: z.string().regex(/^\d\d:\d\d$/).optional(), closing_time: z.string().regex(/^\d\d:\d\d$/).optional(), slot_minutes: z.number().int().min(15).max(120).optional(), booking_duration_minutes: z.number().int().min(30).max(240).optional(), max_bookings_per_slot: z.number().int().min(1).optional(), grace_minutes: z.number().int().min(0).max(120).optional(), reminder_minutes: z.number().int().min(0).max(1440).optional() });
 
 export const app = express();
@@ -56,8 +63,27 @@ app.use('/api', async (req, _res, next) => {
 
 app.get('/api/me', (req,res) => ok(res,actor(req)));
 app.patch('/api/me', async (req,res) => {
-  const body = z.object({ full_name: z.string().trim().min(1).max(100).optional(), phone: z.string().max(30).nullable().optional() }).parse(req.body);
-  ok(res,checked(await admin.from('profiles').update(body).eq('id',actor(req).id).select().single()));
+  const body = z.object({ full_name: z.string().trim().min(2).max(100).optional(), phone: phoneValue.nullable().optional() }).parse(req.body);
+  const current = actor(req);
+  const nextPhone = body.phone === undefined ? undefined : normalizePhone(body.phone);
+  const profileUpdate = {
+    ...(body.full_name === undefined ? {} : { full_name: body.full_name }),
+    ...(nextPhone === undefined ? {} : { phone: nextPhone }),
+  };
+  const updated = checked(await admin.from('profiles').update(profileUpdate).eq('id',current.id).select().single());
+
+  if (nextPhone !== undefined) {
+    const authUpdate = await admin.auth.admin.updateUserById(current.id, {
+      phone: nextPhone ?? '',
+      phone_confirm: Boolean(nextPhone),
+    });
+    if (authUpdate.error) {
+      await admin.from('profiles').update({ phone: current.phone }).eq('id', current.id);
+      fail(400, 'AUTH_PROFILE_SYNC_FAILED', authUpdate.error.message);
+    }
+  }
+
+  ok(res,updated);
 });
 app.post('/api/push-tokens', async (req,res) => {
   const token=z.string().regex(/^(Expo|Exponent)PushToken\[[^\]]+\]$/).parse(req.body.token);
@@ -221,7 +247,8 @@ app.post('/api/orders', async (req,res) => {
   ok(res,checked(await admin.rpc('place_order',{p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_reservation:b.reservation_id??null,p_items:b.items,p_request_id:b.request_id})),201);
 });
 app.patch('/api/orders/:id', async (req,res) => {
-  const id=uuid.parse(req.params.id); const order=checked(await admin.from('orders').select('*').eq('id',id).single());
+  const id=uuid.parse(req.params.id); const order=checked(await admin.from('orders').select('*').eq('id',id).maybeSingle());
+  if (!order) fail(404,'ORDER_NOT_FOUND','Order was not found');
   if (actor(req).role==='CUSTOMER') { if (order.customer_id!==actor(req).id) fail(403,'FORBIDDEN','Not your order'); z.object({status:z.literal('CANCELLED')}).parse(req.body); }
   else { staffFor(req,order.restaurant_id); z.object({status:z.enum(['CANCELLED','COMPLETED'])}).parse(req.body); }
   if (order.status!=='PLACED') fail(409,'INVALID_STATE','Order is already complete');
@@ -231,7 +258,16 @@ app.patch('/api/orders/:id', async (req,res) => {
 });
 
 app.get('/api/notifications', async (req,res) => ok(res,checked(await admin.from('notifications').select('*').eq('user_id',actor(req).id).order('created_at',{ascending:false}).limit(100))));
-app.patch('/api/notifications/:id', async (req,res) => ok(res,checked(await admin.from('notifications').update({read_at:new Date().toISOString()}).eq('id',uuid.parse(req.params.id)).eq('user_id',actor(req).id).select().single())));
+app.patch('/api/notifications/:id', async (req,res) => {
+  const notification = checked(await admin.from('notifications')
+    .update({read_at:new Date().toISOString()})
+    .eq('id',uuid.parse(req.params.id))
+    .eq('user_id',actor(req).id)
+    .select()
+    .maybeSingle());
+  if (!notification) fail(404,'NOTIFICATION_NOT_FOUND','Notification was not found');
+  ok(res,notification);
+});
 app.get('/api/staff', async (req,res) => {
   const id=uuid.parse(req.query.restaurant_id??actor(req).restaurant_id); staffFor(req,id,true);
   ok(res,checked(await admin.from('profiles').select('id,full_name,phone,role,restaurant_id').eq('restaurant_id',id).in('role',['STAFF','OWNER']).order('full_name')));

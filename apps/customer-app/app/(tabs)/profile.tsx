@@ -1,1 +1,1 @@
-export { Profile as default } from '../../features/account';
+export { AccountSettings as default } from '../../features/account-settings';

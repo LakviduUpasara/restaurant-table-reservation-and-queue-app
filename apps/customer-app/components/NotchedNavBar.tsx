@@ -26,7 +26,6 @@ const BAR_COLOR = '#292929';
 function buildPath(width: number, height: number, center: number) {
   const left = center - NOTCH_HALF;
   const right = center + NOTCH_HALF;
-
   return [
     `M0 0 H${left}`,
     `C${left + 24} 0 ${center - 34} ${NOTCH_DEPTH} ${center} ${NOTCH_DEPTH}`,
@@ -40,15 +39,16 @@ export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB
   const insets = useSafeAreaInsets();
   const safeIndex = Math.min(Math.max(activeIndex, 0), items.length - 1);
   const active = items[safeIndex];
+  const totalHeight = BAR_HEIGHT + insets.bottom;
   const columnWidth = items.length ? (width - SIDE_PADDING * 2) / items.length : 0;
   const center = SIDE_PADDING + columnWidth * safeIndex + columnWidth / 2;
 
   if (!active) return null;
 
   return (
-    <View style={[styles.container, { height: BAR_HEIGHT + insets.bottom }]}>
-      <Svg width={width} height={BAR_HEIGHT + insets.bottom} style={StyleSheet.absoluteFill}>
-        <Path d={buildPath(width, BAR_HEIGHT + insets.bottom, center)} fill={BAR_COLOR} />
+    <View style={[styles.container, { height: totalHeight }]}>
+      <Svg width={width} height={totalHeight} style={StyleSheet.absoluteFill}>
+        <Path d={buildPath(width, totalHeight, center)} fill={BAR_COLOR} />
       </Svg>
       <View
         style={[styles.bubble, { left: center - BUBBLE / 2, backgroundColor: bubbleColor }]}

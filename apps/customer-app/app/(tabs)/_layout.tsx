@@ -46,8 +46,8 @@ export default function TabLayout() {
     <Tabs tabBar={props => <CustomerTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="home" options={{ title: 'Home' }} />
       <Tabs.Screen name="reservations" options={{ href: null, title: 'Bookings' }} />
-      <Tabs.Screen name="menu" options={{ title: 'Menu', tabBarStyle: { display: 'none' } }} />
       <Tabs.Screen name="queue" options={{ title: 'Queue' }} />
+      <Tabs.Screen name="menu" options={{ title: 'Menu', tabBarStyle: { display: 'none' } }} />
       <Tabs.Screen name="profile" options={{ title: 'Account' }} />
     </Tabs>
   );
