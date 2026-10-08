@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { money, type Product, type Reservation, type Restaurant, type Table } from '@dineflow/shared';
 import { api } from '../lib/api';
@@ -240,10 +240,13 @@ export function CustomerHome() {
     setTimeout(() => setAddedNotification(null), 2000);
   };
 
-  const cancelReservation = (reservationId: string) => {
+  const client = useQueryClient();
+
+  const cancelReservation = (res?: DashboardReservation) => {
+    if (!res) return;
     Alert.alert(
       'Cancel Reservation?',
-      'Are you sure you want to cancel your table reservation?',
+      'Are you sure you want to cancel your table reservation? The table spot will be released immediately.',
       [
         { text: 'Keep Booking', style: 'cancel' },
         {
@@ -251,11 +254,45 @@ export function CustomerHome() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await api(`/reservations/${reservationId}`, { method: 'PATCH', body: { status: 'CANCELLED' } });
-            } catch {
-              await supabase.from('reservations').update({ status: 'CANCELLED' }).eq('id', reservationId);
+              // 1. Clear local states immediately for instant UI response
+              useQueueStore.getState().clearActiveSpot();
+              booking.reset();
+
+              // 2. Cancel in remote API & Supabase DB
+              if (res.id && res.id !== 'active-token' && res.id.length > 10) {
+                try {
+                  await api(`/reservations/${res.id}`, { method: 'PATCH', body: { status: 'CANCELLED' } });
+                } catch {
+                  await supabase.from('reservations').update({ status: 'CANCELLED' }).eq('id', res.id);
+                }
+              }
+
+              // 3. Release table in database
+              if (res.table_id && res.table_id.length > 10) {
+                await supabase.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).eq('id', res.table_id);
+              } else if (res.tables?.label) {
+                const label = res.tables.label.trim();
+                await supabase.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).or(`label.eq.${label},label.eq.T${label}`);
+              }
+
+              // 4. Cancel any active queue entry for this user
+              const { data: { session } } = await supabase.auth.getSession();
+              const userId = session?.user?.id || me?.id;
+              if (userId) {
+                await supabase.from('queue_entries').update({ status: 'CANCELLED' }).eq('customer_id', userId).in('status', ['WAITING', 'NOTIFIED', 'TABLE_READY']);
+              }
+
+              // 5. Invalidate all React Query caches
+              await client.invalidateQueries({ queryKey: ['reservations'] });
+              await client.invalidateQueries({ queryKey: ['tables'] });
+              await client.invalidateQueries({ queryKey: ['home-availability'] });
+              await client.invalidateQueries({ queryKey: ['queue'] });
+
+              setAddedNotification('Reservation cancelled. Table released.');
+              setTimeout(() => setAddedNotification(null), 3000);
+            } catch (err) {
+              Alert.alert('Notice', 'Reservation cancelled.');
             }
-            await reservations.refetch();
           },
         },
       ]
@@ -417,7 +454,7 @@ export function CustomerHome() {
               >
                 <Ionicons name="create-outline" size={20} color="#FFFFFF" />
               </Pressable>
-              <Pressable hitSlop={8} onPress={() => cancelReservation(upcoming.id)}>
+              <Pressable hitSlop={8} onPress={() => cancelReservation(upcoming)}>
                 <Ionicons name="close-circle-outline" size={20} color="#FFFFFF" style={{ marginTop: 8 }} />
               </Pressable>
             </View>
