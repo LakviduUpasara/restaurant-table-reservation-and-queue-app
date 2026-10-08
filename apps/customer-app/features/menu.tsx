@@ -918,15 +918,6 @@ export function Checkout() {
             )}
           </Pressable>
         )}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Return to home"
-          onPress={() => router.replace('/(tabs)/home')}
-          style={styles.returnButton}
-        >
-          <Text style={styles.returnButtonText}>Return To Home</Text>
-        </Pressable>
       </ScrollView>
     </SafeAreaView>
   );
