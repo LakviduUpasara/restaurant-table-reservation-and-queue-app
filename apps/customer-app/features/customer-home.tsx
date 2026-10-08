@@ -214,33 +214,54 @@ export function CustomerHome() {
     },
   } as DashboardReservation : undefined);
 
-  // Collect booked table IDs and labels from active bookings
-  const bookedTableIds = new Set(
-    (reservations.data || [])
-      .filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) && r.table_id)
-      .map(r => r.table_id as string)
-  );
+  // User's active reservation tables
+  const upcomingTableId = upcoming?.table_id;
+  const upcomingTableLabels = useMemo(() => {
+    const set = new Set<string>();
+    if (upcoming?.tables?.label) {
+      upcoming.tables.label.split(',').forEach(l => {
+        const clean = l.replace(/^T/i, '').trim();
+        if (clean) set.add(clean);
+      });
+    }
+    return set;
+  }, [upcoming]);
 
-  const bookedTableLabels = new Set(
-    (reservations.data || [])
-      .filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status))
-      .map(r => r.tables?.label || '')
-      .filter(Boolean)
-  );
+  // Booked tables from active reservations (excluding user's own upcoming if it exists)
+  const activeReservations = useMemo(() => {
+    return (reservations.data || []).filter(r =>
+      ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
+      (!upcoming?.id || r.id !== upcoming.id)
+    );
+  }, [reservations.data, upcoming]);
 
-  if (upcoming?.tables?.label) {
-    upcoming.tables.label.split(',').forEach(l => {
-      const clean = l.replace(/^T/i, '').trim();
-      bookedTableLabels.add(`T${clean}`);
-      bookedTableLabels.add(clean);
+  const bookedTableIds = useMemo(() => {
+    return new Set(activeReservations.map(r => r.table_id).filter(Boolean) as string[]);
+  }, [activeReservations]);
+
+  const bookedTableLabels = useMemo(() => {
+    const set = new Set<string>();
+    activeReservations.forEach(r => {
+      if (r.tables?.label) {
+        r.tables.label.split(',').forEach(l => {
+          const clean = l.replace(/^T/i, '').trim();
+          if (clean) {
+            set.add(clean);
+            set.add(`T${clean}`);
+          }
+        });
+      }
     });
-  }
+    return set;
+  }, [activeReservations]);
 
-  const availableIds = new Set(
-    (availability.data?.tables || [])
-      .filter(t => !bookedTableIds.has(t.id) && !bookedTableLabels.has(t.label) && !bookedTableLabels.has(t.label.replace(/^T/i, '')))
-      .map(t => t.id)
-  );
+  const availableIds = useMemo(() => {
+    return new Set(
+      (availability.data?.tables || [])
+        .filter(t => !bookedTableIds.has(t.id) && !bookedTableLabels.has(t.label) && !bookedTableLabels.has(t.label.replace(/^T/i, '')))
+        .map(t => t.id)
+    );
+  }, [availability.data, bookedTableIds, bookedTableLabels]);
 
   const refreshing = [restaurants, products, reservations, tables, availability].some(q => q.isRefetching);
   const refresh = () => void Promise.all([restaurants.refetch(), products.refetch(), reservations.refetch(), tables.refetch(), availability.refetch()]);
@@ -273,20 +294,31 @@ export function CustomerHome() {
     if (!restaurantId) return;
     const labelNum = prettyTableNumber(table.label);
     const labelClean = prettyTable(table.label);
-    const isMySelected = upcoming && (
-      upcoming.table_id === table.id ||
-      (upcoming.tables?.label ? upcoming.tables.label.includes(labelClean) : false) ||
-      (upcoming.table_id ? upcoming.table_id.includes(labelClean) : false)
+
+    const isMySelected = !!upcoming && (
+      (table.id && upcomingTableId && table.id === upcomingTableId) ||
+      upcomingTableLabels.has(labelClean)
     );
     if (isMySelected) {
-      Alert.alert('Your Reserved Table', `Table T${labelClean} is your currently reserved table.`);
+      Alert.alert(
+        'Your Reserved Table',
+        `Table T${labelClean} is your currently reserved table.`
+      );
       return;
     }
 
-    const isBooked = bookedTableIds.has(table.id) || bookedTableLabels.has(table.label) || bookedTableLabels.has(labelClean) || table.status === 'OCCUPIED' || table.status === 'RESERVED';
-    const isAvailable = !isBooked && (availableIds.has(table.id) || table.status === 'AVAILABLE');
-    if (!isAvailable) {
-      Alert.alert('Table Booked', `Table T${labelClean} is currently occupied/booked. Please choose an available green table.`);
+    const isBooked =
+      (table.id && bookedTableIds.has(table.id)) ||
+      bookedTableLabels.has(table.label) ||
+      bookedTableLabels.has(labelClean) ||
+      table.status === 'OCCUPIED' ||
+      table.status === 'RESERVED';
+
+    if (isBooked) {
+      Alert.alert(
+        'Table Booked',
+        `Table T${labelClean} is currently occupied/booked. Please choose an available green table.`
+      );
       return;
     }
 
@@ -618,21 +650,17 @@ export function CustomerHome() {
               {defaultTablesList.map(table => {
                 const labelClean = prettyTable(table.label);
                 const isMySelected = !!upcoming && (
-                  upcoming.table_id === table.id ||
-                  (upcoming.tables?.label ? upcoming.tables.label.includes(labelClean) : false) ||
-                  (upcoming.table_id ? upcoming.table_id.includes(labelClean) : false)
+                  (table.id && upcomingTableId && table.id === upcomingTableId) ||
+                  upcomingTableLabels.has(labelClean)
                 );
                 const isBooked = !isMySelected && (
-                  bookedTableIds.has(table.id) ||
+                  (table.id && bookedTableIds.has(table.id)) ||
                   bookedTableLabels.has(table.label) ||
                   bookedTableLabels.has(labelClean) ||
                   table.status === 'OCCUPIED' ||
                   table.status === 'RESERVED'
                 );
-                const isAvailable = !isMySelected && !isBooked && (
-                  availableIds.has(table.id) ||
-                  table.status === 'AVAILABLE'
-                );
+                const isAvailable = !isMySelected && !isBooked;
 
                 const chairColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
                 const tableColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
