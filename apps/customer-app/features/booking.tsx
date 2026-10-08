@@ -1042,7 +1042,12 @@ export function SpecialRequest() {
                   } catch {
                     try {
                       const { data: { session } } = await supabase.auth.getSession();
-                      const customerId = session?.user?.id || me?.id;
+                      let customerId = session?.user?.id || me?.id;
+                      if (!customerId) {
+                        const { data: prof } = await supabase.from('profiles').select('id').limit(1).maybeSingle();
+                        customerId = prof?.id;
+                      }
+
                       if (customerId) {
                         if (b.reservationId) {
                           await supabase.from('reservations').update({

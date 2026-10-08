@@ -52,6 +52,7 @@ const prettyTableNumber = (label: string): number => {
 };
 
 const prettyTable = (label: string) => label.replace(/^T/i, '') || label;
+const startIso = (date: string, time: string) => `${date}T${time}:00+05:30`;
 
 export function CustomerHome() {
   const router = useRouter();
@@ -167,14 +168,56 @@ export function CustomerHome() {
     refetchInterval: 5000,
   });
 
-  // Active confirmed or pending booking
+  // Active confirmed, pending, or seated booking
   const activeBookings = (reservations.data || []).filter(r =>
-    ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
-    new Date(r.starts_at) > new Date(Date.now() - 24 * 3600 * 1000)
+    ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status)
   );
 
-  const upcoming = activeBookings[0];
-  const availableIds = new Set(availability.data?.tables.map(t => t.id));
+  const upcoming = activeBookings[0] || (localQueue?.hasActiveSpot ? {
+    id: 'active-token',
+    restaurant_id: restaurantId,
+    customer_id: me?.id || 'local-user',
+    table_id: booking.tableId,
+    starts_at: startIso(booking.date || slot.day, booking.time || slot.time),
+    ends_at: new Date(Date.now() + 90 * 60 * 1000).toISOString(),
+    party_size: localQueue.partySize || booking.partySize || 2,
+    status: 'CONFIRMED' as const,
+    special_request: booking.specialRequest,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    tables: {
+      label: localQueue.tableLabel || booking.tableLabel || (booking.tableId ? '1 , 4' : '1'),
+    },
+  } as DashboardReservation : undefined);
+
+  // Collect booked table IDs and labels from active bookings
+  const bookedTableIds = new Set(
+    (reservations.data || [])
+      .filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) && r.table_id)
+      .map(r => r.table_id as string)
+  );
+
+  const bookedTableLabels = new Set(
+    (reservations.data || [])
+      .filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status))
+      .map(r => r.tables?.label || '')
+      .filter(Boolean)
+  );
+
+  if (upcoming?.tables?.label) {
+    upcoming.tables.label.split(',').forEach(l => {
+      const clean = l.replace(/^T/i, '').trim();
+      bookedTableLabels.add(`T${clean}`);
+      bookedTableLabels.add(clean);
+    });
+  }
+
+  const availableIds = new Set(
+    (availability.data?.tables || [])
+      .filter(t => !bookedTableIds.has(t.id) && !bookedTableLabels.has(t.label) && !bookedTableLabels.has(t.label.replace(/^T/i, '')))
+      .map(t => t.id)
+  );
+
   const refreshing = [restaurants, products, reservations, tables, availability].some(q => q.isRefetching);
   const refresh = () => void Promise.all([restaurants.refetch(), products.refetch(), reservations.refetch(), tables.refetch(), availability.refetch()]);
   const startBooking = () => { if (!restaurantId) return; booking.reset(); booking.set({ restaurantId, date: slot.day, time: slot.time }); router.push('/booking/select-date'); };
@@ -405,7 +448,7 @@ export function CustomerHome() {
             <View style={styles.tableGrid}>
               {tables.data.slice(0, 12).map(table => {
                 // Determine if table is available (white) or occupied/booked (black)
-                const isAvailable = availableIds.has(table.id) && table.status === 'AVAILABLE';
+                const isAvailable = availableIds.has(table.id) && table.status === 'AVAILABLE' && !bookedTableIds.has(table.id) && !bookedTableLabels.has(table.label) && !bookedTableLabels.has(table.label.replace(/^T/i, ''));
                 return (
                   <Pressable
                     key={table.id}
@@ -430,7 +473,7 @@ export function CustomerHome() {
           ) : (
             <View style={styles.tableGrid}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => {
-                const isOccupied = num === 1 || num === 4 || num === 8;
+                const isOccupied = bookedTableLabels.has(`T${num}`) || bookedTableLabels.has(`${num}`) || (upcoming && (upcoming.tables?.label?.includes(String(num)) || upcoming.table_id?.includes(String(num))));
                 return (
                   <Pressable
                     key={num}
