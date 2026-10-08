@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Pressable,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -16,6 +17,10 @@ import { z } from 'zod';
 import { supabase } from '../lib/supabase';
 
 const recoveryEmailSchema = z.email();
+const recoveryRedirectTo = () =>
+  Platform.OS === 'web' && typeof window !== 'undefined'
+    ? new URL('/reset-password', window.location.href).toString()
+    : 'dineflow-customer://reset-password';
 
 function RecoveryScreen({
   children,
@@ -154,7 +159,7 @@ export function ForgotPasswordScreen() {
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: 'dineflow-customer://reset-password',
+        redirectTo: recoveryRedirectTo(),
       });
       if (error) throw error;
 
@@ -195,24 +200,35 @@ export function ForgotPasswordScreen() {
 export function PhoneRecoveryScreen() {
   const router = useRouter();
   const [phone, setPhone] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const continueWithPhone = () => {
-    if (phone.trim().length < 7) {
-      Alert.alert('Enter a valid phone number', 'Please check the phone number and try again.');
+  const continueWithPhone = async () => {
+    const normalizedPhone = phone.trim().replace(/[()\s-]/g, '');
+    if (!/^\+[1-9]\d{6,14}$/.test(normalizedPhone)) {
+      Alert.alert('Enter a valid phone number', 'Use the international format, including your country code, such as +94712345678.');
       return;
     }
-    Alert.alert(
-      'Phone recovery is unavailable',
-      'Password recovery is currently set up with email. Continue with your account email instead.',
-      [{ text: 'Continue with email', onPress: () => router.replace('/forgot-password') }],
-    );
+
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone: normalizedPhone,
+        options: { shouldCreateUser: false, channel: 'sms' },
+      });
+      if (error) throw error;
+      router.push({ pathname: '/phone-recovery-verify', params: { phone: normalizedPhone } });
+    } catch (error) {
+      Alert.alert('Could not send verification code', String((error as Error).message));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <RecoveryScreen footer={<RecoveryButton title="Confirm" onPress={continueWithPhone} />}>
+    <RecoveryScreen footer={<RecoveryButton title="Send Code" onPress={() => void continueWithPhone()} busy={busy} />}>
       <RecoveryHeading
         title="Enter your phone number"
-        description="Enter the phone number associated with your account."
+        description="Enter the phone number linked to your account, including its country code. We’ll send you a verification code by SMS."
       />
       <RecoveryField
         label="Phone number"
@@ -226,20 +242,96 @@ export function PhoneRecoveryScreen() {
   );
 }
 
+export function VerifyPhoneRecoveryScreen() {
+  const router = useRouter();
+  const { phone: phoneParam } = useLocalSearchParams<{ phone?: string }>();
+  const phone = typeof phoneParam === 'string' ? phoneParam : '';
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const verifyCode = async () => {
+    if (!/^\d{6}$/.test(code)) {
+      Alert.alert('Enter the verification code', 'Enter the 6-digit code sent to your phone.');
+      return;
+    }
+    if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
+      Alert.alert('Phone number unavailable', 'Go back and enter your phone number again.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({ phone, token: code, type: 'sms' });
+      if (error) throw error;
+      if (!data.session) throw new Error('Verification succeeded, but no recovery session was created. Request a new code.');
+      router.replace('/reset-password');
+    } catch (error) {
+      Alert.alert('Could not verify code', String((error as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (!/^\+[1-9]\d{6,14}$/.test(phone)) {
+      Alert.alert('Phone number unavailable', 'Go back and enter your phone number again.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: false, channel: 'sms' },
+      });
+      if (error) throw error;
+      setCode('');
+      Alert.alert('Code sent', 'A new verification code has been sent to your phone.');
+    } catch (error) {
+      Alert.alert('Could not resend code', String((error as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <RecoveryScreen
+      footer={
+        <>
+          <RecoveryButton title="Verify Code" onPress={() => void verifyCode()} busy={busy} />
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => void resendCode()}
+            style={styles.resendButton}
+          >
+            <Text style={styles.resendText}>
+              Didn’t receive a code? <Text style={styles.resendLink}>Resend SMS</Text>
+            </Text>
+          </Pressable>
+        </>
+      }
+    >
+      <RecoveryHeading
+        title="Verify your phone"
+        description={phone ? `Enter the 6-digit code sent to ${phone}.` : 'Enter the 6-digit code sent to your phone.'}
+      />
+      <RecoveryField
+        label="Verification code"
+        value={code}
+        onChangeText={value => setCode(value.replace(/\D/g, '').slice(0, 6))}
+        keyboardType="phone-pad"
+        placeholder="6-digit code"
+      />
+    </RecoveryScreen>
+  );
+}
+
 export function CheckEmailScreen() {
   const router = useRouter();
   const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const email = typeof emailParam === 'string' ? emailParam : '';
-  const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
-  const codeInput = useRef<TextInput>(null);
-
-  const verifyCode = () => {
-    Alert.alert(
-      'Use your reset link',
-      'This app sends a password reset link by email. Open that link to continue; email-code verification is not enabled.',
-    );
-  };
 
   const resend = async () => {
     if (!recoveryEmailSchema.safeParse(email).success) {
@@ -250,7 +342,7 @@ export function CheckEmailScreen() {
     setBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'dineflow-customer://reset-password',
+        redirectTo: recoveryRedirectTo(),
       });
       if (error) throw error;
       Alert.alert('Reset link sent', 'Check your email for the password reset link.');
@@ -265,16 +357,19 @@ export function CheckEmailScreen() {
     <RecoveryScreen
       footer={
         <>
-          <RecoveryButton title="Verify Code" onPress={verifyCode} busy={busy} />
           <Pressable
             accessibilityRole="button"
             disabled={busy}
             onPress={resend}
             style={styles.resendButton}
           >
-            <Text style={styles.resendText}>
-              Haven’t got the email yet? <Text style={styles.resendLink}>Resend email</Text>
-            </Text>
+            {busy
+              ? <ActivityIndicator color={colors.accent} />
+              : (
+                <Text style={styles.resendText}>
+                  Haven’t got the email yet? <Text style={styles.resendLink}>Resend email</Text>
+                </Text>
+              )}
           </Pressable>
         </>
       }
@@ -287,28 +382,6 @@ export function CheckEmailScreen() {
             : 'Open the password reset link we sent to your email to continue.'
         }
       />
-      <Pressable
-        accessibilityLabel="Enter the 5-digit email verification code"
-        accessibilityRole="button"
-        onPress={() => codeInput.current?.focus()}
-        style={styles.codeFields}
-      >
-        {Array.from({ length: 5 }, (_, index) => (
-          <View key={index} style={styles.codeCell}>
-            <Text style={styles.codeDigit}>{token[index] ?? ''}</Text>
-          </View>
-        ))}
-        <TextInput
-          ref={codeInput}
-          accessibilityLabel="Verification code"
-          autoComplete="one-time-code"
-          keyboardType="number-pad"
-          maxLength={5}
-          onChangeText={value => setToken(value.replace(/\D/g, '').slice(0, 5))}
-          style={styles.hiddenCodeInput}
-          value={token}
-        />
-      </Pressable>
     </RecoveryScreen>
   );
 }
@@ -330,14 +403,25 @@ export function ResetPasswordScreen() {
     }
 
     setBusy(true);
+    let passwordUpdated = false;
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
+      passwordUpdated = true;
+
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) throw signOutError;
 
       Alert.alert('Password updated', 'You can now sign in with your new password.');
       router.replace('/login');
     } catch (error) {
-      Alert.alert('Could not reset password', String((error as Error).message));
+      Alert.alert(
+        passwordUpdated ? 'Password updated' : 'Could not reset password',
+        passwordUpdated
+          ? `Your password was changed, but automatic sign-out failed. Please sign out manually. ${String((error as Error).message)}`
+          : String((error as Error).message),
+      );
+      if (passwordUpdated) router.replace('/login');
     } finally {
       setBusy(false);
     }
@@ -423,27 +507,6 @@ const styles = StyleSheet.create({
   },
   alternateMethod: { alignSelf: 'flex-end', minHeight: 44, paddingVertical: 10, justifyContent: 'center' },
   alternateMethodText: { fontFamily: 'Inter_600SemiBold', color: colors.accent, fontSize: 14, fontWeight: '600' },
-  codeFields: {
-    position: 'relative',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 1,
-  },
-  codeCell: {
-    width: 44,
-    height: 48,
-    borderRadius: 9,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  codeDigit: { fontFamily: 'Inter_600SemiBold', color: colors.text, fontSize: 22, fontWeight: '600' },
-  hiddenCodeInput: {
-    ...StyleSheet.absoluteFill,
-    opacity: 0,
-  },
   footer: { marginTop: 18, gap: 10 },
   actionButton: {
     height: 50,
