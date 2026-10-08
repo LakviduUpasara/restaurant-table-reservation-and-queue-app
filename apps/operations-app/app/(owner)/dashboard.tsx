@@ -11,10 +11,10 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  OwnerLayout,
-  useRestaurant,
-} from '../../components/common/OwnerLayout';
+import { OwnerLayout } from '../../components/common/OwnerLayout';
+import { useAuth } from '../../stores/auth.store';
+
+
 import {
   Card,
   SectionTitle,
@@ -26,8 +26,9 @@ import { getOwnerDashboard } from '../../services/owner.service';
 
 export default function OwnerDashboard() {
   const router = useRouter();
-  const restaurantId = useRestaurant();
-
+  const restaurantId = useAuth(
+  (state) => state.profile?.restaurant_id
+  );
   // ------------------------------------------------------------
   // REAL OWNER DASHBOARD DATA
   // ------------------------------------------------------------

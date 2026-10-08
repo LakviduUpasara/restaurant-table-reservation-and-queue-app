@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 
-import {
-  OwnerLayout,
-  useRestaurant,
-} from '../../components/common/OwnerLayout';
+import { OwnerLayout } from '../../components/common/OwnerLayout';
+import { useAuth } from '../../stores/auth.store';
+
+
 import { ActionButton } from '../../components/common/ActionButton';
 import {
   Card,
@@ -24,7 +24,9 @@ import { getOwnerAnalytics } from '../../services/owner.service';
 
 export default function Analytics() {
   const router = useRouter();
-  const restaurantId = useRestaurant();
+  const restaurantId = useAuth(
+  (state) => state.profile?.restaurant_id
+);
 
   // ------------------------------------------------------------
   // LOAD LIVE OWNER ANALYTICS
