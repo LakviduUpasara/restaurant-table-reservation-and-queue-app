@@ -16,7 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { type QueueEntry, type Restaurant, type Reservation } from '@dineflow/shared';
+import { type QueueEntry, type Restaurant, type Reservation, type Notification } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
@@ -145,6 +145,13 @@ export function QueueStatus() {
     queryFn: () => api<any[]>('/reservations'),
     refetchInterval: 5000,
   });
+
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api<Notification[]>('/notifications').catch(() => []),
+    refetchInterval: 5000,
+  });
+  const unreadCount = (notificationsQuery.data || []).filter(n => !n.read_at).length;
 
   const localSpot = useQueueStore(s => s.activeSpot);
   const clearLocalSpot = useQueueStore(s => s.clearActiveSpot);
@@ -286,11 +293,15 @@ export function QueueStatus() {
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
         </View>
 
-        <Pressable accessibilityLabel="Cart" onPress={() => router.push('/cart')} style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
-          {cartCount > 0 && (
+        <Pressable
+          accessibilityLabel={`Notifications with ${unreadCount} unread`}
+          onPress={() => router.push('/notifications')}
+          style={styles.cartButton}
+        >
+          <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+          {unreadCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              <Text style={styles.cartBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
             </View>
           )}
         </Pressable>
@@ -520,6 +531,13 @@ export function TableReservationComplete() {
     queryFn: () => api<Reservation[]>('/reservations'),
   });
 
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api<Notification[]>('/notifications').catch(() => []),
+    refetchInterval: 5000,
+  });
+  const unreadCount = (notificationsQuery.data || []).filter(n => !n.read_at).length;
+
   const latestRes = resQuery.data?.filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status))?.[0];
 
   // Token Number derivation (e.g. #DF-1048)
@@ -561,11 +579,15 @@ export function TableReservationComplete() {
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
         </View>
 
-        <Pressable accessibilityLabel="Cart" onPress={() => router.push('/cart')} style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
-          {cartCount > 0 && (
+        <Pressable
+          accessibilityLabel={`Notifications with ${unreadCount} unread`}
+          onPress={() => router.push('/notifications')}
+          style={styles.cartButton}
+        >
+          <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+          {unreadCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              <Text style={styles.cartBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
             </View>
           )}
         </Pressable>

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { money, type Product, type Reservation, type Restaurant, type Table } from '@dineflow/shared';
+import { money, type Notification, type Product, type Reservation, type Restaurant, type Table } from '@dineflow/shared';
 import { api } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../stores/auth.store';
@@ -67,6 +67,30 @@ export function CustomerHome() {
   useRealtime('reservations');
   useRealtime('tables');
   useRealtime('queue_entries');
+  useRealtime('notifications');
+
+  // Notifications for unread count badge
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      try {
+        return await api<Notification[]>('/notifications', { timeoutMs: 2000 });
+      } catch {
+        const { data: { session } } = await supabase.auth.getSession();
+        const userId = session?.user?.id || me?.id;
+        if (!userId) return [];
+        const { data } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        return (data as Notification[]) || [];
+      }
+    },
+    refetchInterval: 5000,
+  });
+
+  const unreadNotificationsCount = (notificationsQuery.data || []).filter(n => !n.read_at).length;
   
   // Real-time live date & time updater
   const [nowDate, setNowDate] = useState(() => new Date());
@@ -350,11 +374,17 @@ export function CustomerHome() {
         <View style={styles.brandContainer}>
           <Text style={styles.brandTitle}>Dine<Text style={styles.brandHighlight}>Flow</Text></Text>
         </View>
-        <Pressable accessibilityLabel={`Cart with ${cartCount} items`} onPress={() => router.push('/cart')} style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
-          {cartCount > 0 && (
+        <Pressable
+          accessibilityLabel={`Notifications with ${unreadNotificationsCount} unread`}
+          onPress={() => router.push('/notifications')}
+          style={styles.cartButton}
+        >
+          <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+          {unreadNotificationsCount > 0 && (
             <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{cartCount}</Text>
+              <Text style={styles.cartBadgeText}>
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </Text>
             </View>
           )}
         </Pressable>

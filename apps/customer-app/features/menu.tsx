@@ -23,6 +23,7 @@ import {
   Label,
   Screen,
   State,
+  type Notification,
   type Product,
   type Reservation,
   type Restaurant,
@@ -87,13 +88,29 @@ function Brand() {
 
 function Header({
   onBack,
-  onCart,
-  count,
+  onNotification,
 }: {
   onBack?: () => void;
+  onNotification?: () => void;
   onCart?: () => void;
-  count: number;
+  count?: number;
 }) {
+  const router = useRouter();
+  const notificationsQuery = useQuery({
+    queryKey: ['notifications'],
+    queryFn: async () => {
+      try {
+        return await api<Notification[]>('/notifications', { timeoutMs: 2000 });
+      } catch {
+        return [];
+      }
+    },
+    refetchInterval: 5000,
+  });
+
+  const unreadCount = (notificationsQuery.data || []).filter(n => !n.read_at).length;
+  const handleNotification = onNotification || (() => router.push('/notifications'));
+
   return (
     <View style={styles.header}>
       {onBack ? (
@@ -109,18 +126,19 @@ function Header({
         <View style={styles.backButtonPlaceholder} />
       )}
       <Brand />
-      {onCart ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`} onPress={onCart} style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
-          {count > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{count}</Text>
-            </View>
-          )}
-        </Pressable>
-      ) : (
-        <View style={styles.cartButtonPlaceholder} />
-      )}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Notifications, ${unreadCount} unread`}
+        onPress={handleNotification}
+        style={styles.cartButton}
+      >
+        <Ionicons name="notifications-outline" size={24} color="#FFFFFF" />
+        {unreadCount > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+          </View>
+        )}
+      </Pressable>
     </View>
   );
 }
