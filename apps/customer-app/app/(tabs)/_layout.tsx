@@ -1,0 +1,4 @@
+import { Redirect, Tabs } from 'expo-router';
+import { colors, Screen, State } from '@dineflow/shared';
+import { useAuth } from '../../stores/auth.store';
+export default function TabLayout(){const {ready,profile,error,refresh}=useAuth();if(!ready)return <Screen><State loading/></Screen>;if(error)return <Screen title="Connection problem"><State error={error} onRetry={()=>void refresh()}/></Screen>;if(profile?.role!=='CUSTOMER')return <Redirect href="/login"/>;return <Tabs screenOptions={{headerShown:false,tabBarActiveTintColor:colors.primary,tabBarInactiveTintColor:colors.textMuted,tabBarStyle:{backgroundColor:colors.background,borderTopColor:colors.border}}}><Tabs.Screen name="home" options={{title:'Home'}}/><Tabs.Screen name="reservations" options={{title:'Bookings'}}/><Tabs.Screen name="queue" options={{title:'Queue'}}/><Tabs.Screen name="menu" options={{title:'Menu'}}/><Tabs.Screen name="profile" options={{title:'Account'}}/></Tabs>}

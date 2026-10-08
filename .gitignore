@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+coverage/
+.artifacts/
+expo-env.d.ts
+supabase/.branches/
+supabase/.temp/
+.env
+.env.*
+!.env.example
+*.apk
+*.aab
+*.log
