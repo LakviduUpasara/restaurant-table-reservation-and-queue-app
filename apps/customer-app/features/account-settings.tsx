@@ -57,6 +57,68 @@ function SettingsHeader({ welcomeName }: { welcomeName: string }) {
   );
 }
 
+function PasswordSettingsHeader({ welcomeName }: { welcomeName: string }) {
+  const router = useRouter();
+
+  return (
+    <View style={styles.passwordHeader}>
+      <View style={styles.passwordHeaderRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/profile')}
+          style={({ pressed }) => [styles.passwordHeaderBack, pressed && styles.pressed]}
+        >
+          <Ionicons name="chevron-back" size={22} color={palette.dark} />
+        </Pressable>
+        <Text style={styles.brand}>Dine<Text style={styles.brandAccent}>Flow</Text></Text>
+      </View>
+      <Text numberOfLines={1} style={styles.passwordWelcome}>Welcome {welcomeName || 'there'}</Text>
+    </View>
+  );
+}
+
+function PasswordSettingsField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <View style={styles.passwordField}>
+      <Text style={styles.passwordFieldLabel}>{label}</Text>
+      <View style={styles.passwordInputWrap}>
+        <TextInput
+          accessibilityLabel={label}
+          autoCapitalize="none"
+          autoCorrect={false}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#929292"
+          secureTextEntry={!visible}
+          style={styles.passwordInput}
+          value={value}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+          onPress={() => setVisible(current => !current)}
+          style={({ pressed }) => [styles.passwordVisibility, pressed && styles.pressed]}
+        >
+          <Ionicons name={visible ? 'eye-outline' : 'eye-off-outline'} size={23} color="#252525" />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function ProfileAvatar({ name }: { name: string }) {
   const initials = name.trim().split(/\s+/).slice(0, 2).map(part => part[0]?.toUpperCase()).join('');
   return (
@@ -168,7 +230,7 @@ export function AccountSettings() {
               icon="lock-closed-outline"
               title="Reset / Update Password"
               subtitle="Choose a new password for your account"
-              onPress={() => router.push('/reset-password')}
+              onPress={() => router.push('/update-password')}
             />
           </View>
 
@@ -430,9 +492,198 @@ export function UpdateUserProfile() {
   );
 }
 
+export function UpdatePasswordSettings() {
+  const router = useRouter();
+  const { profile } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const checks = [
+    newPassword.length >= 8,
+    /[A-Z]/.test(newPassword) && /\d/.test(newPassword),
+    newPassword.length > 0 && newPassword === confirmPassword,
+  ];
+  const strengthBars = [
+    newPassword.length >= 8,
+    /[A-Z]/.test(newPassword),
+    /\d/.test(newPassword),
+    newPassword.length > 0 && newPassword === confirmPassword,
+  ];
+  const passwordIsStrong = checks.every(Boolean);
+
+  const savePassword = async () => {
+    if (!currentPassword) {
+      Alert.alert('Current password required', 'Enter your current password to continue.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      Alert.alert('Password too short', 'Your new password must be at least 8 characters.');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      Alert.alert('Password too weak', 'Include at least one uppercase letter and one number.');
+      return;
+    }
+    if (newPassword === currentPassword) {
+      Alert.alert('Choose a new password', 'Your new password must be different from your current password.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Passwords do not match', 'Enter the same new password in both fields.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      const user = userData.user;
+      if (!user?.email) throw new Error('Could not find the email address for this account.');
+
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (signInError) throw new Error('Your current password is incorrect.');
+      if (signInData.user.id !== user.id) throw new Error('Could not verify the current account.');
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) throw updateError;
+
+      Alert.alert('Password updated', 'Your password has been updated successfully.');
+      router.replace('/profile');
+    } catch (error) {
+      Alert.alert('Could not update password', String((error as Error).message));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.screen} edges={['top', 'left', 'right']}>
+      <PasswordSettingsHeader welcomeName={profile?.full_name?.trim() ?? ''} />
+      <ScrollView
+        contentContainerStyle={styles.passwordScrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.passwordPanel}>
+          <Text style={styles.passwordPageTitle}>Update Password</Text>
+          <Text style={styles.passwordDescription}>
+            Create a strong password you have not used before.
+          </Text>
+
+          <View style={styles.passwordForm}>
+            <PasswordSettingsField
+              label="Current Password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              placeholder="Enter current password"
+            />
+            <PasswordSettingsField
+              label="New Password"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="Enter new password"
+            />
+            <PasswordSettingsField
+              label="Confirm New Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Re-enter new password"
+            />
+          </View>
+
+          <View accessibilityLabel="Password strength" style={styles.passwordStrengthBars}>
+            {strengthBars.map((met, index) => (
+              <View
+                key={index}
+                style={[styles.passwordStrengthBar, met && styles.passwordStrengthBarMet]}
+              />
+            ))}
+          </View>
+          <Text style={styles.passwordStrengthTitle}>
+            {passwordIsStrong ? 'Strong password' : 'Password strength'}
+          </Text>
+
+          <View style={styles.passwordRequirements}>
+            {[
+              { label: 'At least 8 characters', met: checks[0] },
+              { label: 'One uppercase letter and one number', met: checks[1] },
+              { label: 'New and confirm passwords match', met: checks[2] },
+            ].map(requirement => (
+              <View key={requirement.label} style={styles.passwordRequirement}>
+                <View
+                  style={[
+                    styles.passwordRequirementIcon,
+                    requirement.met && styles.passwordRequirementIconMet,
+                  ]}
+                >
+                  {requirement.met && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
+                </View>
+                <Text style={styles.passwordRequirementText}>{requirement.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={busy}
+            onPress={() => void savePassword()}
+            style={({ pressed }) => [
+              styles.passwordSubmit,
+              busy && styles.signOutBusy,
+              pressed && !busy && styles.pressed,
+            ]}
+          >
+            {busy ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.passwordSubmitText}>Update Password</Text>
+            )}
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.canGoBack() ? router.back() : router.replace('/profile')}
+            style={({ pressed }) => [styles.passwordCancel, pressed && styles.pressed]}
+          >
+            <Text style={styles.passwordCancelText}>Cancel</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.dark },
   darkHeader: { height: 112, backgroundColor: palette.dark, paddingHorizontal: 22, paddingTop: 5 },
+  passwordHeader: {
+    height: 112,
+    backgroundColor: palette.dark,
+    paddingHorizontal: 22,
+    paddingTop: 5,
+  },
+  passwordHeaderRow: { height: 46, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passwordHeaderBack: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F1F1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passwordWelcome: {
+    marginLeft: 42,
+    marginTop: 5,
+    maxWidth: '78%',
+    fontFamily: 'Inter_400Regular',
+    color: '#FFFFFF',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   headerRow: { height: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   headerBack: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F1F1', alignItems: 'center', justifyContent: 'center' },
   brand: { fontFamily: 'Inter_800ExtraBold', color: '#FFFFFF', fontSize: 23, fontWeight: '800', fontStyle: 'italic' },
@@ -450,6 +701,118 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     paddingBottom: 34,
     alignItems: 'center',
+  },
+  passwordScrollContent: { flexGrow: 1 },
+  passwordPanel: {
+    flexGrow: 1,
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 48,
+    borderTopRightRadius: 48,
+    paddingHorizontal: 25,
+    paddingTop: 24,
+    paddingBottom: 28,
+  },
+  passwordPageTitle: {
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#000000',
+    fontSize: 28,
+    lineHeight: 36,
+    fontWeight: '800',
+  },
+  passwordDescription: {
+    fontFamily: 'Inter_400Regular',
+    color: '#777777',
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  passwordForm: { gap: 13 },
+  passwordField: { width: '100%' },
+  passwordFieldLabel: {
+    fontFamily: 'Inter_700Bold',
+    color: '#111111',
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  passwordInputWrap: { justifyContent: 'center' },
+  passwordInput: {
+    height: 58,
+    borderRadius: 16,
+    backgroundColor: '#F3F3F3',
+    paddingLeft: 18,
+    paddingRight: 58,
+    fontFamily: 'Inter_500Medium',
+    color: '#171717',
+    fontSize: 17,
+  },
+  passwordVisibility: {
+    position: 'absolute',
+    right: 10,
+    width: 44,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passwordStrengthBars: { flexDirection: 'row', gap: 8, marginTop: 25 },
+  passwordStrengthBar: { flex: 1, height: 7, borderRadius: 4, backgroundColor: '#E1E1E1' },
+  passwordStrengthBarMet: { backgroundColor: palette.yellow },
+  passwordStrengthTitle: {
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#C69600',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  passwordRequirements: { gap: 12, marginBottom: 20 },
+  passwordRequirement: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 24 },
+  passwordRequirementIcon: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: '#BDBDBD',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passwordRequirementIconMet: { backgroundColor: palette.yellow },
+  passwordRequirementText: {
+    flex: 1,
+    fontFamily: 'Inter_400Regular',
+    color: '#353535',
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  passwordSubmit: {
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: palette.yellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  passwordSubmitText: {
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  passwordCancel: {
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1.5,
+    borderColor: '#252525',
+    backgroundColor: '#F5F5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  passwordCancelText: {
+    fontFamily: 'Inter_800ExtraBold',
+    color: '#111111',
+    fontSize: 17,
+    fontWeight: '800',
   },
   pageTitle: { fontFamily: 'Inter_800ExtraBold', color: '#000000', fontSize: 28, lineHeight: 36, fontWeight: '800', marginBottom: 23 },
   avatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: '#B4A18A', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
