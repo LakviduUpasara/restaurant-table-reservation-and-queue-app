@@ -34,12 +34,12 @@ import { useCart } from '../stores/cart.store';
 import { getMenuItemImage, preOrderBannerImage } from '../lib/menu-image-assets';
 
 const colors = {
-  ink: '#262626',
+  ink: '#1E1F20',
   paper: '#FFFFFF',
   muted: '#8A8A8A',
   line: '#EAEAEA',
   soft: '#F4F4F6',
-  accent: '#EDB813',
+  accent: '#E8B800',
 };
 
 const textSizes = {
@@ -49,9 +49,20 @@ const textSizes = {
   title: 20,
 } as const;
 
-function MenuPhoto({ product, style }: { product: Product; style: StyleProp<ViewStyle> }) {
-  const localImage = getMenuItemImage(product.name);
-  const source = localImage ?? (product.image_url ? { uri: product.image_url } : null);
+type ProductWithRating = Product & { rating?: string };
+
+const DEFAULT_PRODUCTS: ProductWithRating[] = [
+  { id: 'prod-1', restaurant_id: 'default', name: 'Cappucino', description: 'with Chocolate', price_cents: 453, image_url: null, available: true, rating: '4.8' },
+  { id: 'prod-2', restaurant_id: 'default', name: 'Cappucino', description: 'with Oat Milk', price_cents: 390, image_url: null, available: true, rating: '4.9' },
+  { id: 'prod-3', restaurant_id: 'default', name: 'Gourmet Pasta', description: 'with Creamy Alfredo', price_cents: 1450, image_url: null, available: true, rating: '4.8' },
+  { id: 'prod-4', restaurant_id: 'default', name: 'Crispy Chicken', description: 'with Honey Chili Glaze', price_cents: 1200, image_url: null, available: true, rating: '4.7' },
+  { id: 'prod-5', restaurant_id: 'default', name: 'Seared Steak', description: 'with Grilled Asparagus', price_cents: 2400, image_url: null, available: true, rating: '4.9' },
+  { id: 'prod-6', restaurant_id: 'default', name: 'Artisan Pizza', description: 'with Mozzarella & Basil', price_cents: 1800, image_url: null, available: true, rating: '4.6' },
+];
+
+function MenuPhoto({ product, index = 0, style }: { product: Product; index?: number; style?: StyleProp<ViewStyle> }) {
+  const localImage = getMenuItemImage(product.name, index);
+  const source = product.image_url ? { uri: product.image_url } : localImage;
 
   return (
     <View style={[styles.photoPlaceholder, style]}>
@@ -64,11 +75,13 @@ function MenuPhoto({ product, style }: { product: Product; style: StyleProp<View
   );
 }
 
-function Brand({ dark = false }: { dark?: boolean }) {
+function Brand() {
   return (
-    <Text style={[styles.brand, dark && styles.brandDark]}>
-      Dine<Text style={styles.brandAccent}>Flow</Text>
-    </Text>
+    <View style={styles.brandContainer}>
+      <Text style={styles.brandTitle}>
+        Dine<Text style={styles.brandHighlight}>Flow</Text>
+      </Text>
+    </View>
   );
 }
 
@@ -76,73 +89,79 @@ function Header({
   onBack,
   onCart,
   count,
-  dark = false,
 }: {
   onBack?: () => void;
   onCart?: () => void;
   count: number;
-  dark?: boolean;
 }) {
   return (
-    <View style={[styles.header, dark && styles.darkHeader]}>
+    <View style={styles.header}>
       {onBack ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
           onPress={onBack}
-          style={[styles.headerIcon, dark && styles.darkBackIcon]}
+          style={styles.backButton}
         >
-          <Ionicons name="chevron-back" size={23} color={dark ? colors.ink : colors.ink} />
+          <Ionicons name="chevron-back" size={20} color="#262626" />
         </Pressable>
       ) : (
-        <View style={styles.headerIcon}>
-          <Ionicons name="cart-outline" size={25} color={dark ? colors.paper : colors.ink} />
-        </View>
+        <View style={styles.backButtonPlaceholder} />
       )}
-      <Brand dark={!dark} />
+      <Brand />
       {onCart ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`} onPress={onCart} style={styles.headerIcon}>
-          <Ionicons name="cart-outline" size={25} color={dark ? colors.paper : colors.ink} />
+        <Pressable accessibilityRole="button" accessibilityLabel={`Cart, ${count} items`} onPress={onCart} style={styles.cartButton}>
+          <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
           {count > 0 && (
             <View style={styles.cartBadge}>
               <Text style={styles.cartBadgeText}>{count}</Text>
             </View>
           )}
         </Pressable>
-      ) : <View style={styles.headerIcon} />}
+      ) : (
+        <View style={styles.cartButtonPlaceholder} />
+      )}
     </View>
-  );
-}
-
-function HeaderIconButton({ icon, onPress, accessibilityLabel }: { icon: 'options-outline' | 'add'; onPress: () => void; accessibilityLabel: string }) {
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={accessibilityLabel} onPress={onPress} style={styles.addButton}>
-      <Ionicons name={icon} size={icon === 'add' ? 18 : 19} color={colors.paper} />
-    </Pressable>
   );
 }
 
 function ProductCard({
   product,
+  index = 0,
   onOpen,
   onAdd,
 }: {
-  product: Product;
+  product: ProductWithRating;
+  index?: number;
   onOpen: () => void;
   onAdd: () => void;
 }) {
+  const rating = product.rating || (4.5 + (index % 5) * 0.1).toFixed(1);
+
   return (
     <View style={styles.productCard}>
       <Pressable accessibilityRole="button" onPress={onOpen}>
         <View style={styles.productPhotoWrap}>
-          <MenuPhoto product={product} style={styles.productPhoto} />
+          <MenuPhoto product={product} index={index} style={styles.productPhoto} />
+          {/* Rating Badge on Top-Left */}
+          <View style={styles.ratingBadge}>
+            <Ionicons name="star" size={10} color="#E8B800" style={{ marginRight: 3 }} />
+            <Text style={styles.ratingText}>{rating}</Text>
+          </View>
         </View>
         <Text numberOfLines={1} style={styles.productName}>{product.name}</Text>
         <Text numberOfLines={1} style={styles.productSubtitle}>{product.description || 'Freshly prepared'}</Text>
       </Pressable>
       <View style={styles.productBottom}>
         <Text style={styles.productPrice}>{money(product.price_cents)}</Text>
-        <HeaderIconButton icon="add" onPress={onAdd} accessibilityLabel={`Add ${product.name} to cart`} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Add ${product.name} to cart`}
+          onPress={onAdd}
+          style={styles.addButton}
+        >
+          <Ionicons name="add" size={18} color="#FFFFFF" />
+        </Pressable>
       </View>
     </View>
   );
@@ -177,15 +196,6 @@ function ProductListState({
   );
 }
 
-const DEFAULT_PRODUCTS: Product[] = [
-  { id: 'prod-1', restaurant_id: 'default', name: 'Gourmet Pasta', description: 'Fresh Italian penne with creamy Alfredo and herbs', price_cents: 1450, image_url: null, available: true },
-  { id: 'prod-2', restaurant_id: 'default', name: 'Crispy Chicken', description: 'Golden fried chicken with special honey chili glaze', price_cents: 1200, image_url: null, available: true },
-  { id: 'prod-3', restaurant_id: 'default', name: 'Seared Steak', description: 'Prime beef steak grilled to perfection with asparagus', price_cents: 2400, image_url: null, available: true },
-  { id: 'prod-4', restaurant_id: 'default', name: 'Grilled Salmon', description: 'Fresh Atlantic salmon with lemon butter sauce', price_cents: 2150, image_url: null, available: true },
-  { id: 'prod-5', restaurant_id: 'default', name: 'Caesar Salad', description: 'Crisp romaine lettuce with Parmesan and garlic croutons', price_cents: 950, image_url: null, available: true },
-  { id: 'prod-6', restaurant_id: 'default', name: 'Artisan Pizza', description: 'Wood-fired sourdough pizza with mozzarella and basil', price_cents: 1800, image_url: null, available: true },
-];
-
 function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
   const router = useRouter();
   const booking = useBooking();
@@ -203,13 +213,15 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
   const add = useCart(state => state.add);
   const items = useCart(state => state.items);
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
-  
-  const productList = (products.data && products.data.length > 0) ? products.data : DEFAULT_PRODUCTS;
+
+  const productList: ProductWithRating[] =
+    products.data && products.data.length > 0 ? products.data : DEFAULT_PRODUCTS;
 
   const filteredProducts = useMemo(
-    () => productList.filter(product =>
-      `${product.name} ${product.description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()),
-    ),
+    () =>
+      productList.filter(product =>
+        `${product.name} ${product.description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()),
+      ),
     [productList, search],
   );
 
@@ -217,15 +229,15 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
     booking.set({ restaurantId: product.restaurant_id });
     router.push(`/menu/${product.id}`);
   };
+
   const addProduct = (product: Product) => {
     booking.set({ restaurantId: product.restaurant_id });
     add(product);
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <Header
-        dark
         onBack={() => {
           if (router.canGoBack()) router.back();
           else router.replace('/home');
@@ -233,42 +245,45 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
         onCart={() => router.push('/cart')}
         count={itemCount}
       />
+
+      {/* Hero Banner with Search Bar & Filter Button */}
       <View style={styles.banner}>
-        {preOrderBannerImage ? (
-          <Image source={preOrderBannerImage} resizeMode="cover" style={styles.photo} />
-        ) : (
-          <View style={styles.bannerPlaceholder}>
-            <Ionicons name="image-outline" size={30} color="#FFFFFFB0" />
-            <Text style={styles.bannerHint}>Add a menu banner image here</Text>
-          </View>
-        )}
+        <Image
+          source={preOrderBannerImage || require('../assets/images/restaurant_hero.jpg')}
+          resizeMode="cover"
+          style={styles.bannerImage}
+        />
+        <View style={styles.bannerOverlay} />
+
         <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={18} color={colors.ink} />
+          <Ionicons name="search-outline" size={19} color="#666666" style={styles.searchIcon} />
           <TextInput
             accessibilityLabel="Search menu"
             value={search}
             onChangeText={setSearch}
             placeholder="Search Menu"
-            placeholderTextColor="#999999"
+            placeholderTextColor="#888888"
             style={styles.searchInput}
             returnKeyType="search"
           />
-          <View accessibilityLabel="Menu filters" style={styles.filterButton}>
-            <Ionicons name="options-outline" size={19} color={colors.ink} />
-          </View>
+          <Pressable accessibilityLabel="Menu filters" style={styles.filterButton}>
+            <Ionicons name="options-outline" size={18} color="#FFFFFF" />
+          </Pressable>
         </View>
       </View>
+
+      {/* Menu Dishes Grid */}
       <ScrollView contentContainerStyle={styles.menuScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.menuContent}>
-          <Text style={styles.sectionTitle}>Pre-order your favorites</Text>
-          {products.error ? (
+          {products.error && !filteredProducts.length ? (
             <ProductListState error={products.error.message} onRetry={() => void products.refetch()} />
           ) : filteredProducts.length ? (
             <View style={styles.productGrid}>
-              {filteredProducts.map(product => (
+              {filteredProducts.map((product, index) => (
                 <ProductCard
                   key={product.id}
                   product={product}
+                  index={index}
                   onOpen={() => openProduct(product)}
                   onAdd={() => addProduct(product)}
                 />
@@ -280,25 +295,28 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
               empty={
                 search
                   ? 'No menu items match your search.'
-                  : restaurantId
-                    ? 'No menu items available.'
-                    : 'No restaurant is available yet.'
+                  : 'No menu items available.'
               }
             />
           )}
         </View>
       </ScrollView>
 
+      {/* Sticky Bottom Actions: View Cart & Skip for now */}
       <View style={styles.menuFooter}>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/cart')}
-          disabled={!itemCount}
-          style={[styles.footerButton, styles.cartFooterButton, !itemCount && styles.footerDisabled]}
+          style={styles.cartFooterButton}
         >
           <Text style={styles.cartFooterText}>View Cart{itemCount ? ` (${itemCount})` : ''}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/home')} style={[styles.footerButton, styles.skipFooterButton]}>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.replace('/home')}
+          style={styles.skipFooterButton}
+        >
           <Text style={styles.skipFooterText}>Skip for now</Text>
         </Pressable>
       </View>
@@ -328,7 +346,7 @@ export function ProductDetail() {
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <Header
         onBack={() => {
           if (router.canGoBack()) router.back();
@@ -338,9 +356,9 @@ export function ProductDetail() {
         count={itemCount}
       />
       <ScrollView contentContainerStyle={styles.detailScroll} showsVerticalScrollIndicator={false}>
-        {products.error ? (
+        {products.error && !product ? (
           <ProductListState error={products.error.message} onRetry={() => void products.refetch()} />
-        ) : products.isLoading ? (
+        ) : products.isLoading && !product ? (
           <ProductListState loading />
         ) : product ? (
           <>
@@ -389,19 +407,18 @@ export function Cart() {
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
 
   return (
-    <SafeAreaView style={styles.screen}>
+    <SafeAreaView edges={['top']} style={styles.screen}>
       <Header
-        dark
-        onBack={() => router.canGoBack() ? router.back() : router.replace('/menu')}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/menu'))}
         count={itemCount}
       />
       <ScrollView contentContainerStyle={styles.cartPage} showsVerticalScrollIndicator={false}>
         {items.length ? (
           <>
             <View style={styles.cartItems}>
-              {items.map(item => (
+              {items.map((item, index) => (
                 <View key={item.product.id} style={styles.cartLine}>
-                  <MenuPhoto product={item.product} style={styles.cartLinePhoto} />
+                  <MenuPhoto product={item.product} index={index} style={styles.cartLinePhoto} />
                   <View style={styles.cartLineInfo}>
                     <Text numberOfLines={1} style={styles.cartLineName}>{item.product.name}</Text>
                     <Text style={styles.cartLinePrice}>Unit Price : {money(item.product.price_cents)}</Text>
@@ -489,8 +506,9 @@ export function Checkout() {
     queryFn: () => api<Product[]>(`/products?restaurant_id=${booking.restaurantId ?? items[0].product.restaurant_id}`),
   });
   const activeReservation = reservations.data?.find(
-    reservation => reservation.restaurant_id === booking.restaurantId
-      && ['PENDING', 'CONFIRMED', 'ARRIVED'].includes(reservation.status),
+    reservation =>
+      reservation.restaurant_id === booking.restaurantId &&
+      ['PENDING', 'CONFIRMED', 'ARRIVED'].includes(reservation.status),
   );
 
   const placeOrder = async () => {
@@ -503,7 +521,9 @@ export function Checkout() {
         return !current || current.price_cents !== item.product.price_cents;
       });
       if (changed) {
-        throw new Error(`${changed.product.name} is no longer available or its price changed. Please return to the menu and add it again.`);
+        throw new Error(
+          `${changed.product.name} is no longer available or its price changed. Please return to the menu and add it again.`,
+        );
       }
       await api('/orders', {
         method: 'POST',
@@ -525,170 +545,312 @@ export function Checkout() {
     }
   };
 
-  return <Screen title="Place pre-order" subtitle="Your items will be linked to your reservation when one is available."><Card><Label>{items.length} menu items</Label><Heading>{money(items.reduce((n,i)=>n+i.product.price_cents*i.quantity,0))}</Heading>{activeReservation&&<Label muted>Linked to booking {new Date(activeReservation.starts_at).toLocaleString()}</Label>}</Card><Button title="Place order" busy={busy} disabled={!items.length} onPress={()=>void placeOrder()}/></Screen>;
+  return (
+    <Screen title="Place pre-order" subtitle="Your items will be linked to your reservation when one is available.">
+      <Card>
+        <Label>{items.length} menu items</Label>
+        <Heading>{money(items.reduce((n, i) => n + i.product.price_cents * i.quantity, 0))}</Heading>
+        {activeReservation && (
+          <Label muted>Linked to booking {new Date(activeReservation.starts_at).toLocaleString()}</Label>
+        )}
+      </Card>
+      <Button title="Place order" busy={busy} disabled={!items.length} onPress={() => void placeOrder()} />
+    </Screen>
+  );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.paper },
+  screen: { flex: 1, backgroundColor: '#FFFFFF' },
+
+  // Header Bar
   header: {
-    height: 58,
-    paddingHorizontal: 18,
+    height: 56,
+    backgroundColor: '#1E1F20',
+    paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  darkHeader: { backgroundColor: colors.ink },
-  darkBackIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F4F4F6',
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerIcon: { width: 34, height: 38, alignItems: 'center', justifyContent: 'center' },
-  brand: { color: '#FFFFFF', fontSize: textSizes.title, fontWeight: '800', fontStyle: 'italic' },
-  brandDark: { color: colors.ink },
-  brandAccent: { color: colors.accent },
+  backButtonPlaceholder: { width: 36, height: 36 },
+  brandContainer: { flexDirection: 'row', alignItems: 'center' },
+  brandTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  brandHighlight: { color: '#E8B800' },
+  cartButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  cartButtonPlaceholder: { width: 36, height: 36 },
   cartBadge: {
     position: 'absolute',
-    right: -1,
-    top: 0,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: colors.accent,
+    top: -2,
+    right: -2,
+    backgroundColor: '#E8B800',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
-  cartBadgeText: { color: colors.ink, fontSize: textSizes.caption, fontWeight: '800' },
-  menuScroll: { paddingBottom: 14 },
+  cartBadgeText: { color: '#171717', fontSize: 10, fontWeight: '800' },
+
+  // Hero Banner & Search
   banner: {
-    height: 132,
-    backgroundColor: '#454545',
-    overflow: 'hidden',
+    height: 140,
+    backgroundColor: '#333333',
+    position: 'relative',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  bannerPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: '#56514B' },
-  bannerHint: { color: '#FFFFFFB0', fontSize: textSizes.caption, lineHeight: 17 },
-  photoPlaceholder: { backgroundColor: colors.soft, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  photo: { width: '100%', height: '100%' },
+  bannerImage: {
+    ...StyleSheet.absoluteFill,
+    width: '100%',
+    height: '100%',
+  },
+  bannerOverlay: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
   searchBar: {
-    position: 'absolute',
-    left: 22,
-    right: 22,
+    width: '90%',
     height: 48,
-    borderRadius: 15,
-    backgroundColor: colors.paper,
-    paddingLeft: 13,
-    paddingRight: 5,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    elevation: 3,
-    shadowColor: '#000000',
+    paddingLeft: 14,
+    paddingRight: 6,
+    shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 4,
   },
-  searchInput: { flex: 1, height: '100%', color: colors.ink, fontSize: textSizes.control },
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '500',
+  },
   filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.line,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1E1F20',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuContent: { paddingHorizontal: 20, paddingTop: 18 },
-  sectionTitle: { color: colors.ink, fontSize: textSizes.title, lineHeight: 28, fontWeight: '700', marginBottom: 15 },
-  productGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 20 },
-  productCard: { width: '47%', minWidth: 0 },
-  productPhotoWrap: { height: 142, position: 'relative' },
-  productPhoto: { width: '100%', height: '100%', borderRadius: 12 },
-  productName: { color: '#373737', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginTop: 9 },
-  productSubtitle: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, marginTop: 3 },
-  productBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 5 },
-  productPrice: { color: '#31525A', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700' },
-  addButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
-  listState: { minHeight: 115, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  listStateText: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, textAlign: 'center' },
-  retryButton: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
-  retryText: { color: colors.ink, fontWeight: '700', fontSize: textSizes.control },
-  menuFooter: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 8, gap: 9, backgroundColor: colors.paper },
-  footerButton: { height: 46, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  cartFooterButton: { backgroundColor: colors.ink },
-  cartFooterText: { color: colors.paper, fontWeight: '700', fontSize: textSizes.control },
-  skipFooterButton: { backgroundColor: '#F5F5F8', borderWidth: 1, borderColor: colors.ink },
-  skipFooterText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
-  footerDisabled: { opacity: 0.45 },
-  detailScroll: { paddingHorizontal: 18, paddingTop: 2, paddingBottom: 25 },
-  detailPhoto: { width: '100%', height: 210, borderRadius: 8 },
-  detailTitle: { color: '#111111', fontSize: textSizes.title, lineHeight: 28, fontWeight: '700', marginTop: 20 },
-  detailSubtitle: { color: '#414141', fontSize: textSizes.body, lineHeight: 20, marginTop: 5 },
-  descriptionSection: { marginTop: 40 },
-  descriptionTitle: { color: '#111111', fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginBottom: 16 },
-  detailDescription: { color: '#363636', fontSize: textSizes.body, lineHeight: 21 },
+
+  // Food Grid
+  menuScroll: { paddingBottom: 16 },
+  menuContent: { paddingHorizontal: 16, paddingTop: 18 },
+  productGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 18,
+  },
+  productCard: {
+    width: '47.5%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  productPhotoWrap: {
+    height: 125,
+    width: '100%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#F3F4F6',
+  },
+  productPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  photoPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+  photo: { width: '100%', height: '100%' },
+  ratingBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  ratingText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  productName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E1F20',
+    marginTop: 8,
+    lineHeight: 18,
+  },
+  productSubtitle: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  productBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  productPrice: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#31525A',
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#1E1F20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Sticky Bottom Buttons
+  menuFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 16,
+    gap: 10,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  cartFooterButton: {
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#1E1F20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  cartFooterText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  skipFooterButton: {
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F5F5F8',
+    borderWidth: 1,
+    borderColor: '#1E1F20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipFooterText: {
+    color: '#1E1F20',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  footerDisabled: { opacity: 0.5 },
+
+  // List States
+  listState: { minHeight: 120, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  listStateText: { color: '#888888', fontSize: 14, textAlign: 'center' },
+  retryButton: { minHeight: 40, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#1E1F20', fontWeight: '700', fontSize: 14 },
+
+  // Detail Screen
+  detailScroll: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 30 },
+  detailPhoto: { width: '100%', height: 220, borderRadius: 16 },
+  detailTitle: { color: '#111111', fontSize: 22, fontWeight: '800', marginTop: 16 },
+  detailSubtitle: { color: '#666666', fontSize: 14, marginTop: 4 },
+  descriptionSection: { marginTop: 24 },
+  descriptionTitle: { color: '#111111', fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  detailDescription: { color: '#4B5563', fontSize: 14, lineHeight: 22 },
   detailFooter: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 44,
+    paddingBottom: 28,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderTopWidth: 1,
     borderTopColor: '#F1F1F1',
   },
-  priceLabel: { color: colors.muted, fontSize: textSizes.body, lineHeight: 20, marginBottom: 4 },
-  detailPrice: { color: colors.ink, fontSize: textSizes.control, lineHeight: 22, fontWeight: '700' },
+  priceLabel: { color: '#888888', fontSize: 12 },
+  detailPrice: { color: '#1E1F20', fontSize: 18, fontWeight: '800' },
   addToCartButton: {
-    minWidth: 160,
+    minWidth: 150,
     height: 48,
     paddingHorizontal: 22,
-    borderRadius: 25,
-    backgroundColor: colors.ink,
+    borderRadius: 24,
+    backgroundColor: '#1E1F20',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addToCartText: { color: colors.paper, fontSize: textSizes.control, fontWeight: '700' },
-  cartTitle: { color: colors.ink, fontSize: textSizes.title, lineHeight: 28, fontWeight: '700' },
-  cartContent: { padding: 20, gap: 14 },
-  cartItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderColor: colors.line },
-  cartPhoto: { width: 64, height: 64, borderRadius: 10 },
-  cartItemText: { flex: 1 },
-  cartPage: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 26, gap: 30 },
+  addToCartText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+
+  // Cart Screen
+  cartPage: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 30, gap: 20 },
   cartItems: { gap: 12 },
   cartLine: {
-    minHeight: 112,
+    minHeight: 105,
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 10,
-    borderRadius: 26,
-    backgroundColor: colors.ink,
+    borderRadius: 20,
+    backgroundColor: '#1E1F20',
     overflow: 'hidden',
   },
-  cartLinePhoto: { width: '34%', height: 112, borderRadius: 24 },
-  cartLineInfo: { flex: 1, minWidth: 0, paddingLeft: 13, paddingVertical: 7 },
-  cartLineName: { color: colors.paper, fontSize: textSizes.control, lineHeight: 22, fontWeight: '700', marginBottom: 2 },
-  cartLinePrice: { color: colors.paper, fontSize: textSizes.body, fontWeight: '600', lineHeight: 20 },
-  cartLineQty: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20, fontWeight: '600' },
-  cartQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6 },
-  quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  quantityButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.paper, alignItems: 'center', justifyContent: 'center' },
-  summaryCard: { padding: 15, borderRadius: 22, backgroundColor: colors.ink, gap: 12 },
-  promoRow: { minHeight: 44, paddingHorizontal: 10, borderWidth: 1, borderColor: '#484848', borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 1 },
-  promoInput: { flex: 1, minWidth: 35, color: colors.paper, fontSize: textSizes.control, paddingVertical: 5 },
-  promoStatus: { color: colors.accent, fontSize: textSizes.body, lineHeight: 20, fontWeight: '600' },
-  summaryNote: { color: '#D0D0D0', fontSize: textSizes.caption, lineHeight: 18 },
+  cartLinePhoto: { width: '32%', height: 105, borderRadius: 16 },
+  cartLineInfo: { flex: 1, minWidth: 0, paddingLeft: 12, paddingVertical: 8 },
+  cartLineName: { color: '#FFFFFF', fontSize: 15, fontWeight: '700', marginBottom: 2 },
+  cartLinePrice: { color: '#E8B800', fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  cartLineQty: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  cartQuantityRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 4 },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  quantityButton: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  summaryCard: { padding: 16, borderRadius: 18, backgroundColor: '#1E1F20', gap: 10 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryLabel: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
-  summaryValue: { color: colors.paper, fontSize: textSizes.body, lineHeight: 20 },
-  checkoutButton: { height: 52, marginTop: 1, borderRadius: 26, backgroundColor: colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9 },
-  checkoutButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '700' },
-  returnButton: { height: 46, borderRadius: 24, borderWidth: 1, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F5F5F8' },
-  returnButtonText: { color: colors.ink, fontSize: textSizes.control, fontWeight: '600' },
-  emptyCart: { paddingTop: 60, gap: 25 },
-  cartFooter: { padding: 20, gap: 14, borderTopWidth: 1, borderColor: colors.line },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLabel: { color: colors.ink, fontSize: textSizes.body, lineHeight: 20 },
-  checkoutContent: { padding: 24, gap: 10 },
+  summaryLabel: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  summaryValue: { color: '#E8B800', fontSize: 17, fontWeight: '800' },
+  summaryNote: { color: '#9CA3AF', fontSize: 12, lineHeight: 16 },
+  checkoutButton: {
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E8B800',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  checkoutButtonText: { color: '#171717', fontSize: 16, fontWeight: '800' },
+  returnButton: {
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1E1F20',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F5F5F8',
+  },
+  returnButtonText: { color: '#1E1F20', fontSize: 14, fontWeight: '700' },
+  emptyCart: { paddingTop: 60, gap: 20, alignItems: 'center' },
 });
