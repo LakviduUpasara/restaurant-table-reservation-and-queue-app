@@ -770,9 +770,17 @@ export function Checkout() {
 
         {/* Pre-ordered Meals Section Header with Add More button */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.checkoutSectionTitle}>
-            Pre-Ordered Meals {itemCount > 0 ? `(${itemCount})` : ''}
-          </Text>
+          <View>
+            <Text style={styles.checkoutSectionTitle}>
+              Pre-Ordered Meals {itemCount > 0 ? `(${itemCount})` : ''}
+            </Text>
+            {confirmedOrder && (
+              <View style={styles.orderConfirmedBadge}>
+                <Ionicons name="checkmark-circle" size={12} color="#059669" style={{ marginRight: 4 }} />
+                <Text style={styles.orderConfirmedBadgeText}>Order Confirmed & Placed</Text>
+              </View>
+            )}
+          </View>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Add more menu items"
@@ -867,7 +875,7 @@ export function Checkout() {
         {/* Action Buttons */}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Confirm and place pre-order"
+          accessibilityLabel={confirmedOrder ? "Save and update pre-order" : "Confirm and place pre-order"}
           disabled={busy}
           onPress={() => void placeOrder()}
           style={styles.checkoutButton}
@@ -877,9 +885,17 @@ export function Checkout() {
           ) : (
             <>
               <Text style={styles.checkoutButtonText}>
-                {items.length > 0 ? 'Confirm & Place Pre-Order' : 'Done & Return Home'}
+                {confirmedOrder
+                  ? 'Save & Update Pre-Order'
+                  : items.length > 0
+                  ? 'Confirm & Place Pre-Order'
+                  : 'Done & Return Home'}
               </Text>
-              <Ionicons name="checkmark-circle" size={20} color="#171717" />
+              <Ionicons
+                name={confirmedOrder ? "save-outline" : "checkmark-circle"}
+                size={20}
+                color="#171717"
+              />
             </>
           )}
         </Pressable>
@@ -1308,6 +1324,23 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
     color: '#111827',
+  },
+  orderConfirmedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 3,
+    alignSelf: 'flex-start',
+  },
+  orderConfirmedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
   },
   addMoreButton: {
     flexDirection: 'row',
