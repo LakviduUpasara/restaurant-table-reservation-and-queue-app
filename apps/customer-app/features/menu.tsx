@@ -177,6 +177,15 @@ function ProductListState({
   );
 }
 
+const DEFAULT_PRODUCTS: Product[] = [
+  { id: 'prod-1', restaurant_id: 'default', name: 'Gourmet Pasta', description: 'Fresh Italian penne with creamy Alfredo and herbs', price_cents: 1450, image_url: null, available: true },
+  { id: 'prod-2', restaurant_id: 'default', name: 'Crispy Chicken', description: 'Golden fried chicken with special honey chili glaze', price_cents: 1200, image_url: null, available: true },
+  { id: 'prod-3', restaurant_id: 'default', name: 'Seared Steak', description: 'Prime beef steak grilled to perfection with asparagus', price_cents: 2400, image_url: null, available: true },
+  { id: 'prod-4', restaurant_id: 'default', name: 'Grilled Salmon', description: 'Fresh Atlantic salmon with lemon butter sauce', price_cents: 2150, image_url: null, available: true },
+  { id: 'prod-5', restaurant_id: 'default', name: 'Caesar Salad', description: 'Crisp romaine lettuce with Parmesan and garlic croutons', price_cents: 950, image_url: null, available: true },
+  { id: 'prod-6', restaurant_id: 'default', name: 'Artisan Pizza', description: 'Wood-fired sourdough pizza with mozzarella and basil', price_cents: 1800, image_url: null, available: true },
+];
+
 function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
   const router = useRouter();
   const booking = useBooking();
@@ -194,11 +203,14 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
   const add = useCart(state => state.add);
   const items = useCart(state => state.items);
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
+  
+  const productList = (products.data && products.data.length > 0) ? products.data : DEFAULT_PRODUCTS;
+
   const filteredProducts = useMemo(
-    () => (products.data ?? []).filter(product =>
+    () => productList.filter(product =>
       `${product.name} ${product.description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()),
     ),
-    [products.data, search],
+    [productList, search],
   );
 
   const openProduct = (product: Product) => {
@@ -310,7 +322,7 @@ export function ProductDetail() {
     enabled: !!productId,
     queryFn: () => api<Product>(`/products/${productId}`),
   });
-  const product = products.data;
+  const product = products.data || DEFAULT_PRODUCTS.find(p => p.id === productId);
   const add = useCart(state => state.add);
   const items = useCart(state => state.items);
   const itemCount = items.reduce((count, item) => count + item.quantity, 0);
