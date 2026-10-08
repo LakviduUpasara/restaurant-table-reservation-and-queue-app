@@ -214,7 +214,10 @@ function MenuScreen({ preOrder = false }: { preOrder?: boolean }) {
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <Header
         dark
-        onBack={() => router.replace(preOrder ? '/booking/confirmation' : '/home')}
+        onBack={() => {
+          if (router.canGoBack()) router.back();
+          else router.replace('/home');
+        }}
         onCart={() => router.push('/cart')}
         count={itemCount}
       />

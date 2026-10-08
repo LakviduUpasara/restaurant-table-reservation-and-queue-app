@@ -621,16 +621,25 @@ export function TableReservationComplete() {
           {/* Action Buttons */}
           <View style={styles.completeActionBox}>
             <Pressable
-              onPress={() => router.push('/(tabs)/menu')}
-              style={styles.preOrderButton}
+              accessibilityRole="button"
+              accessibilityLabel="Pre-order meals"
+              onPress={() => {
+                if (latestRes?.restaurant_id && !b.restaurantId) {
+                  b.set({ restaurantId: latestRes.restaurant_id });
+                }
+                router.push('/pre-order');
+              }}
+              style={({ pressed }) => [styles.preOrderButton, { opacity: pressed ? 0.85 : 1 }]}
             >
               <Ionicons name="restaurant-outline" size={18} color="#E8B800" style={{ marginRight: 8 }} />
               <Text style={styles.preOrderButtonText}>Pre-order meals</Text>
             </Pressable>
 
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Skip for now"
               onPress={() => router.replace('/(tabs)/home')}
-              style={styles.skipButton}
+              style={({ pressed }) => [styles.skipButton, { opacity: pressed ? 0.85 : 1 }]}
             >
               <Text style={styles.skipButtonText}>Skip for now</Text>
             </Pressable>
