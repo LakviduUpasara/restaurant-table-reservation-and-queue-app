@@ -1,30 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { OwnerLayout } from '../../../components/common/OwnerLayout';
-import { ActionButton } from '../../../components/common/ActionButton';
 import { Card, SearchBar, StatusPill } from '../../../components/common/OwnerUI';
 import { COLORS, RADIUS } from '../../../constants/theme';
-import { staffUsers } from '../../../utils/mockData';
+import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
+import { useAuth } from '../../../stores/auth.store';
+import { getStaff, StaffProfile } from '../../../services/staff.service';
 
 export default function UserManagement() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [items, setItems] = useState([...staffUsers]);
-  const filtered = useMemo(() => items.filter(u => `${u.name} ${u.id} ${u.phone} ${u.role}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
+  const restaurantId = useAuth(state => state.profile?.restaurant_id);
+  const list = useQuery({ queryKey: ['owner-staff', restaurantId], enabled: !!restaurantId, queryFn: () => getStaff(restaurantId!) });
+  const items: StaffProfile[] = list.data ?? [];
+  useFocusEffect(useCallback(() => { if (restaurantId) void list.refetch(); }, [restaurantId, list.refetch]));
+  const filtered = useMemo(() => items.filter(u => `${u.full_name} ${u.staff_id ?? u.id} ${u.phone} ${u.job_role}`.toLowerCase().includes(query.toLowerCase())), [items, query]);
 
-  const remove = (id: string) => {
-    const user = items.find(item => item.id === id);
-    Alert.alert('Remove staff user', `Remove ${user?.name ?? 'this staff member'} from the restaurant?`, [
-      { text: 'Cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setItems(prev => prev.filter(item => item.id !== id)) },
-    ]);
-  };
 
   return (
     <OwnerLayout active="more" title="User Management">
       <FlatList
+        refreshing={list.isFetching}
+        onRefresh={() => void list.refetch()}
         data={filtered}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
@@ -42,23 +42,22 @@ export default function UserManagement() {
               </Pressable>
             </View>
             <SearchBar value={query} onChangeText={setQuery} placeholder="Search name, phone or Staff ID" />
+            {list.error ? <Text style={{ color: COLORS.red }} onPress={() => void list.refetch()}>{list.error.message} - Tap to retry</Text> : null}
             <Text style={styles.resultCount}>{filtered.length} {filtered.length === 1 ? 'staff member' : 'staff members'}</Text>
           </View>
         }
         renderItem={({ item }) => (
           <Card style={styles.userCard}>
             <Pressable onPress={() => router.push(`/(owner)/staff/${item.id}`)} style={styles.userMain}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{item.name.split(' ').map(n => n[0]).slice(0, 2).join('')}</Text></View>
+              <View style={styles.avatar}>{item.photo_url ? <Image key={item.photo_url} source={{ uri: item.photo_url }} style={{ width: 42, height: 42, borderRadius: 14 }} /> : <Text style={styles.avatarText}>{item.full_name.split(' ').map(n => n[0]).slice(0, 2).join('')}</Text>}</View>
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>{item.name}</Text>
-                <Text style={styles.userMeta}>ID {item.id} · {item.phone}</Text>
-                <StatusPill label={item.role} tone="yellow" />
+                <Text style={styles.userName}>{item.full_name}</Text>
+                <Text style={styles.userMeta}>ID {item.staff_id ?? item.id} · {item.phone}</Text>
+                <StatusPill label={item.job_role ?? item.role} tone="yellow" />
               </View>
               <Ionicons name="chevron-forward" size={18} color="#8B8B86" />
             </Pressable>
-            <Pressable onPress={() => remove(item.id)} hitSlop={8} style={styles.deleteButton}>
-              <Ionicons name="trash-outline" size={17} color={COLORS.red} />
-            </Pressable>
+
           </Card>
         )}
         ListEmptyComponent={<Text style={styles.empty}>No staff members match your search.</Text>}
@@ -78,7 +77,7 @@ const styles = StyleSheet.create({
   addText: { fontSize: 10.5, fontWeight: '900', color: COLORS.text },
   resultCount: { fontSize: 9.5, color: COLORS.muted, marginBottom: 9, marginLeft: 2 },
   userCard: { padding: 11, position: 'relative' },
-  userMain: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 28 },
+  userMain: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 0 },
   avatar: { width: 42, height: 42, borderRadius: 14, backgroundColor: COLORS.primarySoft, alignItems: 'center', justifyContent: 'center', marginRight: 11 },
   avatarText: { fontSize: 13, fontWeight: '900', color: COLORS.text },
   userInfo: { flex: 1 },

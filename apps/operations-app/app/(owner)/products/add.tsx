@@ -2,16 +2,23 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { OwnerLayout } from '../../../components/common/OwnerLayout';
 import { ActionButton } from '../../../components/common/ActionButton';
 import { FigmaInput } from '../../../components/common/FigmaInput';
 import { SelectField } from '../../../components/common/SelectField';
 import { COLORS, RADIUS } from '../../../constants/theme';
-import { productCategories, products } from '../../../utils/mockData';
+import { productCategories, createProduct, uploadProductImage } from '../../../services/product.service';
+import { useAuth } from '../../../stores/auth.store';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function AddProduct() {
   const router = useRouter();
+  const client = useQueryClient();
+  const restaurantId = useAuth(state => state.profile?.restaurant_id);
+  const [busy, setBusy] = useState(false);
+  const [available, setAvailable] = useState(true);
+  const [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [name, setName] = useState(''); const [description, setDescription] = useState(''); const [category, setCategory] = useState('Main Course'); const [price, setPrice] = useState('');
   const [image, setImage] = useState<any>(null);
 
@@ -19,14 +26,23 @@ export default function AddProduct() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return Alert.alert('Photo permission needed', 'Allow photo access to choose a product image.');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.85 });
-    if (!result.canceled) setImage({ uri: result.assets[0].uri });
+    if (!result.canceled) { setAsset(result.assets[0]); setImage({ uri: result.assets[0].uri }); }
   };
 
-  const save = () => {
+  const save = async () => {
+    if (!restaurantId) return Alert.alert('Restaurant unavailable', 'Your account is not assigned to a restaurant.');
     const numericPrice = Number(price);
     if (!name.trim() || !description.trim() || !Number.isFinite(numericPrice) || numericPrice <= 0) return Alert.alert('Complete the form', 'Add a product name, description and valid price.');
-    products.unshift({ id: `P-${Date.now()}`, name: name.trim(), description: description.trim(), category, price: numericPrice, image: image ?? require('../../../assets/images/product-chicken.png') });
-    Alert.alert('Product added', `${name.trim()} is now in the menu.`, [{ text: 'Done', onPress: () => router.replace('/(owner)/products') }]);
+    setBusy(true);
+    try {
+      const image_url = asset ? await uploadProductImage(restaurantId, asset) : null;
+      const body = { name: name.trim(), description: description.trim(), category, price_cents: Math.round(numericPrice * 100), image_url, available };
+      await createProduct({ ...body, restaurant_id: restaurantId });
+      await client.invalidateQueries({ queryKey: ['owner-products'] });
+
+      Alert.alert('Product added', 'Your menu item has been saved.', [{ text: 'Done', onPress: () => router.replace('/(owner)/products') }]);
+    } catch (error) { Alert.alert('Save failed', error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -39,12 +55,13 @@ export default function AddProduct() {
           <FigmaInput label="Description" value={description} onChangeText={setDescription} placeholder="Describe the dish" multiline style={styles.textArea} />
           <FigmaInput label="Price" value={price} onChangeText={setPrice} placeholder="0.00" keyboardType="decimal-pad" />
 
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}><Text style={styles.label}>Available on menu</Text><Switch value={available} onValueChange={setAvailable} trackColor={{ false: '#D9D9D5', true: COLORS.primary }} /></View>
           <Text style={styles.label}>Product image</Text>
           <Pressable onPress={pickImage} style={({ pressed }) => [styles.imageBox, pressed && { opacity: 0.92 }]}>
             {image ? <Image source={image} style={styles.preview} resizeMode="cover" /> : <><View style={styles.placeholderIcon}><Ionicons name="image-outline" size={27} color={COLORS.primaryDark} /></View><Text style={styles.imageTitle}>Add a food image</Text><Text style={styles.imageSub}>Use a clear 4:3 photo for the best result</Text></>}
             <View style={styles.uploadBadge}><Ionicons name="cloud-upload-outline" size={18} color={COLORS.text} /></View>
           </Pressable>
-          <ActionButton title="Save Product" onPress={save} style={{ marginTop: 14 }} />
+          <ActionButton title="Save Product" busy={busy} onPress={save} style={{ marginTop: 14 }} />
           <ActionButton title="Cancel" variant="outline" onPress={() => router.back()} style={{ marginTop: 10 }} />
         </ScrollView>
       </KeyboardAvoidingView>

@@ -15,6 +15,14 @@
           "style": "dark",
           "hidden": false
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow DineFlow to take a user photo.",
+          "photosPermission": "Allow DineFlow to choose user and product photos.",
+          "microphonePermission": false
+        }
       ]
     ],
     "android": {
