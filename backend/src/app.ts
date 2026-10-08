@@ -908,6 +908,379 @@ app.delete('/api/staff/:id', async (req, res) => {
 });
 
 
+app.get(
+  '/api/owner/analytics/:restaurantId',
+  async (req, res) => {
+    const restaurantId = uuid.parse(
+      req.params.restaurantId
+    );
+
+    // Owner-only analytics.
+    staffFor(req, restaurantId, true);
+
+    // Sri Lanka date (Asia/Colombo).
+    const requestedDate =
+      typeof req.query.date === 'string'
+        ? req.query.date
+        : new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Colombo',
+          }).format(new Date());
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(requestedDate)) {
+      return fail(
+        400,
+        'INVALID_DATE',
+        'Date must use YYYY-MM-DD format'
+      );
+    }
+
+    const dayStart = new Date(
+      `${requestedDate}T00:00:00+05:30`
+    );
+
+    const nextDay = new Date(dayStart);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+
+    const previousDay = new Date(dayStart);
+    previousDay.setUTCDate(
+      previousDay.getUTCDate() - 1
+    );
+
+    const [
+      reservationsResult,
+      queueResult,
+      tablesResult,
+      previousReservationsResult,
+    ] = await Promise.all([
+      admin
+        .from('reservations')
+        .select(
+          'id,status,starts_at,party_size'
+        )
+        .eq('restaurant_id', restaurantId)
+        .gte(
+          'starts_at',
+          dayStart.toISOString()
+        )
+        .lt(
+          'starts_at',
+          nextDay.toISOString()
+        ),
+
+      admin
+        .from('queue_entries')
+        .select(
+          'id,status,created_at,party_size,estimated_wait_minutes'
+        )
+        .eq('restaurant_id', restaurantId)
+        .gte(
+          'created_at',
+          dayStart.toISOString()
+        )
+        .lt(
+          'created_at',
+          nextDay.toISOString()
+        ),
+
+      admin
+        .from('tables')
+        .select(
+          'id,label,status,capacity'
+        )
+        .eq('restaurant_id', restaurantId),
+
+      admin
+        .from('reservations')
+        .select(
+          'id,status,starts_at,party_size'
+        )
+        .eq('restaurant_id', restaurantId)
+        .gte(
+          'starts_at',
+          previousDay.toISOString()
+        )
+        .lt(
+          'starts_at',
+          dayStart.toISOString()
+        ),
+    ]);
+
+    const reservations =
+      checked(reservationsResult);
+
+    const queue = checked(queueResult);
+
+    const tables = checked(tablesResult);
+
+    const previousReservations =
+      checked(previousReservationsResult);
+
+    // ------------------------------------------------------------
+    // RESERVATIONS
+    // ------------------------------------------------------------
+
+    const confirmedReservations =
+      reservations.filter(
+        (r: any) => r.status === 'CONFIRMED'
+      );
+
+    const completedReservations =
+      reservations.filter(
+        (r: any) => r.status === 'COMPLETED'
+      );
+
+    const cancelledReservations =
+      reservations.filter(
+        (r: any) => r.status === 'CANCELLED'
+      );
+
+    const noShowReservations =
+      reservations.filter(
+        (r: any) =>
+          r.status === 'NO_SHOW'
+      );
+
+    const activeReservations =
+      reservations.filter(
+        (r: any) =>
+          [
+            'PENDING',
+            'CONFIRMED',
+            'ARRIVED',
+            'SEATED',
+          ].includes(r.status)
+      );
+
+    const totalReservationGuests =
+      reservations.reduce(
+        (total: number, r: any) =>
+          total + Number(r.party_size ?? 0),
+        0
+      );
+
+    // ------------------------------------------------------------
+    // QUEUE
+    // ------------------------------------------------------------
+
+    const waitingQueue =
+      queue.filter(
+        (q: any) =>
+          [
+            'WAITING',
+            'NOTIFIED',
+            'TABLE_READY',
+          ].includes(q.status)
+      );
+
+    const servedQueue =
+      queue.filter(
+        (q: any) =>
+          q.status === 'SERVED'
+      );
+
+    const noShowQueue =
+      queue.filter(
+        (q: any) =>
+          q.status === 'NO_SHOW'
+      );
+
+    const totalQueueGuests =
+      queue.reduce(
+        (total: number, q: any) =>
+          total + Number(q.party_size ?? 0),
+        0
+      );
+
+    const queueWaitValues =
+      queue
+        .map((q: any) =>
+          Number(q.estimated_wait_minutes)
+        )
+        .filter(
+          (value: number) =>
+            Number.isFinite(value) &&
+            value >= 0
+        );
+
+    const averageQueueWait =
+      queueWaitValues.length > 0
+        ? Math.round(
+            queueWaitValues.reduce(
+              (a: number, b: number) =>
+                a + b,
+              0
+            ) /
+              queueWaitValues.length
+          )
+        : 0;
+
+    const longestQueueWait =
+      queueWaitValues.length > 0
+        ? Math.max(...queueWaitValues)
+        : 0;
+
+    // ------------------------------------------------------------
+    // TABLES
+    // ------------------------------------------------------------
+
+    const availableTables =
+      tables.filter(
+        (t: any) =>
+          t.status === 'AVAILABLE'
+      );
+
+    const occupiedTables =
+      tables.filter(
+        (t: any) =>
+          t.status === 'OCCUPIED'
+      );
+
+    const cleaningTables =
+      tables.filter(
+        (t: any) =>
+          t.status === 'CLEANING'
+      );
+
+    const reservedTables =
+      tables.filter(
+        (t: any) =>
+          t.status === 'RESERVED'
+      );
+
+    const unavailableTables =
+      tables.filter(
+        (t: any) =>
+          t.status === 'UNAVAILABLE'
+      );
+
+    const tableUtilization =
+      tables.length > 0
+        ? Math.round(
+            (occupiedTables.length /
+              tables.length) *
+              100
+          )
+        : 0;
+
+    // ------------------------------------------------------------
+    // HOURLY RESERVATION DEMAND
+    // ------------------------------------------------------------
+
+    const hourlyDemand = Array.from(
+      { length: 24 },
+      (_, hour) => ({
+        hour,
+        reservations: 0,
+        guests: 0,
+      })
+    );
+
+    for (const reservation of reservations) {
+      const localHour = Number(
+        new Intl.DateTimeFormat('en-US', {
+          hour: 'numeric',
+          hour12: false,
+          timeZone: 'Asia/Colombo',
+        }).format(
+          new Date(reservation.starts_at)
+        )
+      );
+
+      const bucket =
+        hourlyDemand[localHour === 24
+          ? 0
+          : localHour];
+
+      if (bucket) {
+        bucket.reservations += 1;
+        bucket.guests += Number(
+          reservation.party_size ?? 0
+        );
+      }
+    }
+
+    // ------------------------------------------------------------
+    // PREVIOUS DAY COMPARISON
+    // ------------------------------------------------------------
+
+    const previousReservationCount =
+      previousReservations.length;
+
+    const currentReservationCount =
+      reservations.length;
+
+    let reservationChangePercent = 0;
+
+    if (previousReservationCount > 0) {
+      reservationChangePercent = Math.round(
+        ((currentReservationCount -
+          previousReservationCount) /
+          previousReservationCount) *
+          100
+      );
+    } else if (
+      currentReservationCount > 0
+    ) {
+      reservationChangePercent = 100;
+    }
+
+    // ------------------------------------------------------------
+    // RESPONSE
+    // ------------------------------------------------------------
+
+    ok(res, {
+      date: requestedDate,
+
+      reservations: {
+        total: reservations.length,
+        active: activeReservations.length,
+        confirmed: confirmedReservations.length,
+        completed: completedReservations.length,
+        cancelled: cancelledReservations.length,
+        no_show: noShowReservations.length,
+        total_guests: totalReservationGuests,
+      },
+
+      queue: {
+        total: queue.length,
+        total_guests: totalQueueGuests,
+        waiting: waitingQueue.length,
+        served: servedQueue.length,
+        no_show: noShowQueue.length,
+        average_wait_minutes:
+          averageQueueWait,
+        longest_wait_minutes:
+          longestQueueWait,
+      },
+
+      tables: {
+        total: tables.length,
+        available: availableTables.length,
+        occupied: occupiedTables.length,
+        cleaning: cleaningTables.length,
+        reserved: reservedTables.length,
+        unavailable:
+          unavailableTables.length,
+        utilization_percent:
+          tableUtilization,
+      },
+
+      hourly_demand: hourlyDemand,
+
+      comparison: {
+        previous_day_reservations:
+          previousReservationCount,
+        reservation_change_percent:
+          reservationChangePercent,
+      },
+
+      updated_at:
+        new Date().toISOString(),
+    });
+  }
+);
+
+
 app.get('/api/dashboard/:restaurantId', async (req, res) => {
   const restaurantId = uuid.parse(req.params.restaurantId);
 
