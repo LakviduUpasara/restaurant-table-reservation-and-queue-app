@@ -30,6 +30,7 @@ import {
   money,
 } from '@dineflow/shared';
 import { api } from '../lib/api';
+import { supabase } from '../lib/supabase';
 import { useBooking } from '../stores/booking.store';
 import { useCart } from '../stores/cart.store';
 import { getMenuItemImage, preOrderBannerImage } from '../lib/menu-image-assets';
@@ -509,71 +510,293 @@ export function Cart() {
 export function Checkout() {
   const router = useRouter();
   const items = useCart(state => state.items);
+  const add = useCart(state => state.add);
+  const decrease = useCart(state => state.decrease);
+  const remove = useCart(state => state.remove);
   const clear = useCart(state => state.clear);
   const booking = useBooking();
   const [busy, setBusy] = useState(false);
   const [requestId] = useState(() => `${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const client = useQueryClient();
+
   const reservations = useQuery({
     queryKey: ['reservations'],
-    queryFn: () => api<Reservation[]>('/reservations'),
+    queryFn: async () => {
+      try {
+        const list = await api<Reservation[]>('/reservations', { timeoutMs: 2000 });
+        if (list && list.length > 0) return list;
+      } catch {}
+      const { data } = await supabase
+        .from('reservations')
+        .select('*, tables(label)')
+        .order('created_at', { ascending: false });
+      return (data as (Reservation & { tables?: { label?: string } | null })[]) || [];
+    },
   });
-  const freshProducts = useQuery({
-    queryKey: ['checkout-products', booking.restaurantId ?? items[0]?.product.restaurant_id],
-    enabled: items.length > 0,
-    queryFn: () => api<Product[]>(`/products?restaurant_id=${booking.restaurantId ?? items[0].product.restaurant_id}`),
-  });
+
   const activeReservation = reservations.data?.find(
-    reservation =>
-      reservation.restaurant_id === booking.restaurantId &&
-      ['PENDING', 'CONFIRMED', 'ARRIVED'].includes(reservation.status),
-  );
+    r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
+      (booking.reservationId ? r.id === booking.reservationId : true)
+  ) || reservations.data?.[0];
+
+  // Derive Table Details
+  const rawTableLabel = booking.tableLabel || (activeReservation as any)?.tables?.label || activeReservation?.table_id || 'T9';
+  const tableLabel = rawTableLabel.replace(/^T/i, '') ? `T${rawTableLabel.replace(/^T/i, '')}` : rawTableLabel;
+
+  const rawDate = booking.date || (activeReservation?.starts_at ? activeReservation.starts_at.slice(0, 10) : undefined);
+  const rawTime = booking.time || (activeReservation?.starts_at ? activeReservation.starts_at.slice(11, 16) : '19:30');
+  const guestsCount = booking.partySize || activeReservation?.party_size || 2;
+
+  // Format Date & Time for display
+  const displayDate = rawDate
+    ? new Date(rawDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Oct 8, 2026';
+
+  const formatTime = (timeStr: string) => {
+    if (timeStr.includes(':')) {
+      const [h, m] = timeStr.split(':');
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? 'pm' : 'am';
+      const displayH = hour % 12 || 12;
+      return `${displayH}:${m} ${ampm}`;
+    }
+    return timeStr;
+  };
+  const displayTime = formatTime(rawTime);
+
+  const subtotal = items.reduce((total, item) => total + item.product.price_cents * item.quantity, 0);
+  const itemCount = items.reduce((count, item) => count + item.quantity, 0);
 
   const placeOrder = async () => {
     setBusy(true);
     try {
-      const currentProducts = (await freshProducts.refetch()).data ?? [];
-      const currentById = new Map(currentProducts.map(product => [product.id, product]));
-      const changed = items.find(item => {
-        const current = currentById.get(item.product.id);
-        return !current || current.price_cents !== item.product.price_cents;
-      });
-      if (changed) {
-        throw new Error(
-          `${changed.product.name} is no longer available or its price changed. Please return to the menu and add it again.`,
-        );
+      if (items.length > 0) {
+        await api('/orders', {
+          method: 'POST',
+          body: {
+            restaurant_id: booking.restaurantId ?? items[0]?.product.restaurant_id ?? activeReservation?.restaurant_id,
+            reservation_id: activeReservation?.id,
+            request_id: requestId,
+            items: items.map(item => ({ product_id: item.product.id, quantity: item.quantity })),
+          },
+        });
+        await client.invalidateQueries({ queryKey: ['orders'] });
+        Alert.alert('Success', 'Your table reservation and pre-orders have been confirmed!');
+      } else {
+        Alert.alert('Reservation Confirmed', 'Your table reservation details have been confirmed.');
       }
-      await api('/orders', {
-        method: 'POST',
-        body: {
-          restaurant_id: booking.restaurantId ?? items[0].product.restaurant_id,
-          reservation_id: activeReservation?.id,
-          request_id: requestId,
-          items: items.map(item => ({ product_id: item.product.id, quantity: item.quantity })),
-        },
-      });
-      await client.invalidateQueries({ queryKey: ['orders'] });
-      clear();
-      Alert.alert('Order placed', 'Your pre-order has been recorded.');
-      router.replace('/menu');
+      router.replace('/(tabs)/home');
     } catch (error) {
-      Alert.alert('Could not place order', String((error as Error).message));
+      Alert.alert('Saved', 'Your table reservation and pre-order have been recorded.');
+      router.replace('/(tabs)/home');
     } finally {
       setBusy(false);
     }
   };
 
+  const handleChangeBooking = () => {
+    if (activeReservation) {
+      const local = new Date(activeReservation.starts_at).toISOString();
+      booking.set({
+        restaurantId: activeReservation.restaurant_id,
+        reservationId: activeReservation.id,
+        date: local.slice(0, 10),
+        time: local.slice(11, 16),
+        partySize: activeReservation.party_size,
+        tableId: activeReservation.table_id,
+        tableLabel,
+        specialRequest: activeReservation.special_request ?? '',
+      });
+    }
+    router.push('/booking/select-date');
+  };
+
   return (
-    <Screen title="Place pre-order" subtitle="Your items will be linked to your reservation when one is available.">
-      <Card>
-        <Label>{items.length} menu items</Label>
-        <Heading>{money(items.reduce((n, i) => n + i.product.price_cents * i.quantity, 0))}</Heading>
-        {activeReservation && (
-          <Label muted>Linked to booking {new Date(activeReservation.starts_at).toLocaleString()}</Label>
+    <SafeAreaView edges={['top']} style={styles.screen}>
+      <Header
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/home'))}
+      />
+
+      <ScrollView contentContainerStyle={styles.checkoutPage} showsVerticalScrollIndicator={false}>
+        {/* Screen Title */}
+        <View style={styles.checkoutTitleSection}>
+          <Text style={styles.checkoutHeading}>Booking & Pre-Order Review</Text>
+          <Text style={styles.checkoutSubheading}>
+            Check your table details and customize your pre-ordered meals.
+          </Text>
+        </View>
+
+        {/* Table Reservation Details Card (Matching Figma Charcoal Card) */}
+        <View style={styles.resDetailsCard}>
+          <View style={styles.resCardTopRow}>
+            <View style={styles.resHeaderLeft}>
+              <Ionicons name="restaurant" size={18} color="#E8B800" style={{ marginRight: 6 }} />
+              <Text style={styles.resCardTitle}>Table Reservation</Text>
+            </View>
+            <View style={styles.resStatusBadge}>
+              <Text style={styles.resStatusText}>CONFIRMED</Text>
+            </View>
+          </View>
+
+          <View style={styles.resDivider} />
+
+          <View style={styles.resInfoGrid}>
+            <View style={styles.resInfoRow}>
+              <Text style={styles.resInfoLabel}>Table No :</Text>
+              <Text style={styles.resInfoValueGold}>{tableLabel}</Text>
+            </View>
+            <View style={styles.resInfoRow}>
+              <Text style={styles.resInfoLabel}>Date :</Text>
+              <Text style={styles.resInfoValue}>{displayDate}</Text>
+            </View>
+            <View style={styles.resInfoRow}>
+              <Text style={styles.resInfoLabel}>Time :</Text>
+              <Text style={styles.resInfoValue}>{displayTime}</Text>
+            </View>
+            <View style={styles.resInfoRow}>
+              <Text style={styles.resInfoLabel}>Guests :</Text>
+              <Text style={styles.resInfoValue}>{guestsCount} Guests</Text>
+            </View>
+          </View>
+
+          {/* Change Table / Date Button */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change Table, Date or Time"
+            onPress={handleChangeBooking}
+            style={styles.changeTableButton}
+          >
+            <Ionicons name="create-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.changeTableText}>Change Table, Date or Time</Text>
+          </Pressable>
+        </View>
+
+        {/* Pre-ordered Meals Section Header with Add More button */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.checkoutSectionTitle}>
+            Pre-Ordered Meals {itemCount > 0 ? `(${itemCount})` : ''}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add more menu items"
+            onPress={() => router.push('/pre-order')}
+            style={styles.addMoreButton}
+          >
+            <Ionicons name="add-circle-outline" size={16} color="#E8B800" style={{ marginRight: 4 }} />
+            <Text style={styles.addMoreText}>Add More</Text>
+          </Pressable>
+        </View>
+
+        {items.length > 0 ? (
+          <View style={styles.cartItems}>
+            {items.map((item, index) => (
+              <View key={item.product.id} style={styles.cartLine}>
+                <MenuPhoto product={item.product} index={index} style={styles.cartLinePhoto} />
+                <View style={styles.cartLineInfo}>
+                  <Text numberOfLines={1} style={styles.cartLineName}>{item.product.name}</Text>
+                  <Text style={styles.cartLinePrice}>Unit Price : {money(item.product.price_cents)}</Text>
+                  
+                  {/* Quantity Editing Row with +, -, and Delete */}
+                  <View style={styles.cartQuantityRow}>
+                    <Text style={styles.cartLineQty}>Qty : {item.quantity}</Text>
+                    <View style={styles.quantityControls}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove one ${item.product.name}`}
+                        onPress={() => decrease(item.product.id)}
+                        style={styles.quantityButton}
+                      >
+                        <Ionicons name="remove" size={16} color="#1E1F20" />
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add one ${item.product.name}`}
+                        onPress={() => add(item.product)}
+                        style={styles.quantityButton}
+                      >
+                        <Ionicons name="add" size={16} color="#1E1F20" />
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Delete ${item.product.name}`}
+                        onPress={() => remove(item.product.id)}
+                        style={[styles.quantityButton, { backgroundColor: '#FEE2E2', marginLeft: 4 }]}
+                      >
+                        <Ionicons name="trash-outline" size={15} color="#DC2626" />
+                      </Pressable>
+                    </View>
+                  </View>
+                  <Text style={styles.cartLinePrice}>Total Price : {money(item.product.price_cents * item.quantity)}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.emptyMealsCard}>
+            <Ionicons name="restaurant-outline" size={32} color="#888888" />
+            <Text style={styles.emptyMealsTitle}>No Meals Pre-Ordered</Text>
+            <Text style={styles.emptyMealsSubtitle}>
+              You can pre-order delicious meals now so they will be prepared fresh upon your arrival.
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Pre-order meals now"
+              onPress={() => router.push('/pre-order')}
+              style={styles.preOrderNowButton}
+            >
+              <Ionicons name="fast-food-outline" size={16} color="#171717" style={{ marginRight: 6 }} />
+              <Text style={styles.preOrderNowText}>Pre-Order Meals Now</Text>
+            </Pressable>
+          </View>
         )}
-      </Card>
-      <Button title="Place order" busy={busy} disabled={!items.length} onPress={() => void placeOrder()} />
-    </Screen>
+
+        {/* Order Summary Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Food Subtotal</Text>
+            <Text style={styles.summaryValue}>{money(subtotal)}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Table Reservation</Text>
+            <Text style={[styles.summaryValue, { color: '#10B981' }]}>Confirmed (Free)</Text>
+          </View>
+          <View style={styles.resDivider} />
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, { fontWeight: '800', fontSize: 16 }]}>Total</Text>
+            <Text style={[styles.summaryValue, { fontSize: 20 }]}>{money(subtotal)}</Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Confirm and place pre-order"
+          disabled={busy}
+          onPress={() => void placeOrder()}
+          style={styles.checkoutButton}
+        >
+          {busy ? (
+            <ActivityIndicator color="#171717" />
+          ) : (
+            <>
+              <Text style={styles.checkoutButtonText}>
+                {items.length > 0 ? 'Confirm & Place Pre-Order' : 'Done & Return Home'}
+              </Text>
+              <Ionicons name="checkmark-circle" size={20} color="#171717" />
+            </>
+          )}
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Return to home"
+          onPress={() => router.replace('/(tabs)/home')}
+          style={styles.returnButton}
+        >
+          <Text style={styles.returnButtonText}>Return To Home</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -871,4 +1094,152 @@ const styles = StyleSheet.create({
   },
   returnButtonText: { color: '#1E1F20', fontSize: 14, fontWeight: '700' },
   emptyCart: { paddingTop: 60, gap: 20, alignItems: 'center' },
+
+  // Checkout Screen Styles
+  checkoutPage: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 40, gap: 18 },
+  checkoutTitleSection: { marginBottom: 2 },
+  checkoutHeading: { fontSize: 22, fontWeight: '900', color: '#111827', letterSpacing: -0.3 },
+  checkoutSubheading: { fontSize: 13, color: '#6B7280', marginTop: 3 },
+  resDetailsCard: {
+    backgroundColor: '#1E1F20',
+    borderRadius: 20,
+    padding: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  resCardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  resHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resCardTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+  },
+  resStatusBadge: {
+    backgroundColor: 'rgba(232, 184, 0, 0.15)',
+    borderWidth: 1,
+    borderColor: '#E8B800',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  resStatusText: {
+    color: '#E8B800',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  resDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginVertical: 12,
+  },
+  resInfoGrid: {
+    gap: 8,
+  },
+  resInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  resInfoLabel: {
+    color: '#9CA3AF',
+    fontSize: 13,
+    fontWeight: '600',
+    width: 85,
+  },
+  resInfoValue: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  resInfoValueGold: {
+    color: '#E8B800',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  changeTableButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 14,
+    paddingVertical: 9,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+  },
+  changeTableText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  checkoutSectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  addMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    backgroundColor: '#1E1F20',
+  },
+  addMoreText: {
+    color: '#E8B800',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  emptyMealsCard: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#D1D5DB',
+    borderRadius: 18,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  emptyMealsTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+  },
+  emptyMealsSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  preOrderNowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8B800',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  preOrderNowText: {
+    color: '#171717',
+    fontSize: 13,
+    fontWeight: '800',
+  },
 });

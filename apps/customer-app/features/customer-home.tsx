@@ -557,7 +557,25 @@ export function CustomerHome() {
           <Text style={styles.sectionTitle}>Reserve Your Table</Text>
         </View>
         {upcoming ? (
-          <View style={styles.reservationCard}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View table details and pre-ordered meals"
+            onPress={() => {
+              const local = new Date(upcoming.starts_at).toISOString();
+              booking.set({
+                restaurantId: upcoming.restaurant_id,
+                reservationId: upcoming.id,
+                date: local.slice(0, 10),
+                time: local.slice(11, 16),
+                partySize: upcoming.party_size,
+                tableId: upcoming.table_id,
+                tableLabel: upcoming.tables?.label || prettyTable(upcoming.table_id || 'T1'),
+                specialRequest: upcoming.special_request ?? '',
+              });
+              router.push('/cart/checkout');
+            }}
+            style={styles.reservationCard}
+          >
             <Image source={INTERIOR_IMAGE} style={styles.reservationThumb} resizeMode="cover" />
             <View style={styles.reservationInfo}>
               <Text style={styles.reservationRow}>
@@ -576,10 +594,11 @@ export function CustomerHome() {
             <View style={styles.cardActionIcons}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Edit reservation"
+                accessibilityLabel="Edit reservation details"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4 }]}
-                onPress={() => {
+                onPress={(e) => {
+                  e?.stopPropagation?.();
                   const local = new Date(upcoming.starts_at).toISOString();
                   booking.set({
                     restaurantId: upcoming.restaurant_id,
@@ -588,9 +607,10 @@ export function CustomerHome() {
                     time: local.slice(11, 16),
                     partySize: upcoming.party_size,
                     tableId: upcoming.table_id,
+                    tableLabel: upcoming.tables?.label || prettyTable(upcoming.table_id || 'T1'),
                     specialRequest: upcoming.special_request ?? '',
                   });
-                  router.push('/booking/select-date');
+                  router.push('/cart/checkout');
                 }}
               >
                 <Ionicons name="create-outline" size={22} color="#FFFFFF" />
@@ -600,12 +620,15 @@ export function CustomerHome() {
                 accessibilityLabel="Cancel reservation"
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, padding: 4, marginTop: 4 }]}
-                onPress={() => cancelReservation(upcoming)}
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  cancelReservation(upcoming);
+                }}
               >
                 <Ionicons name="close-circle-outline" size={22} color="#FFFFFF" />
               </Pressable>
             </View>
-          </View>
+          </Pressable>
         ) : (
           <Pressable onPress={startBooking} style={styles.noReservationCard}>
             <View style={styles.noResIconBox}>
