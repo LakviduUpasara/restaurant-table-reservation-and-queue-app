@@ -30,7 +30,10 @@ const localDay=(when=new Date())=>new Date(when.getTime()+330*60000).toISOString
 const dayRange=(day:string)=>{const date=z.iso.date().parse(day);const start=new Date(`${date}T00:00:00+05:30`);if(Number.isNaN(start.getTime()))fail(400,'INVALID_DATE','Choose a valid date');return {start:start.toISOString(),end:new Date(start.getTime()+24*60*60*1000).toISOString()}};
 const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
 const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
-const productBody = z.object({ restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).optional(), price_cents: z.number().int().min(0), image_url: z.url().optional().nullable(), available: z.boolean().optional() });
+
+
+const productCategory = z.enum(['Starter','Main Course','Dessert','Soft Drink','Hot Drink','Side Dish',]);
+const productBody = z.object({restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).nullable().optional(), category: productCategory, price_cents: z.number().int().min(0), image_url: z.url().nullable().optional(),available: z.boolean().optional(),});
 
 const settingsBody = z.object({
   opening_time: z.string().regex(/^\d\d:\d\d$/).optional(),
@@ -313,11 +316,79 @@ app.get('/api/products', async (req,res) => {
   if (actor(req).role==='CUSTOMER') q=q.eq('available',true); else staffFor(req,id);
   ok(res,checked(await q));
 });
-app.post('/api/products', async (req,res) => { const b=productBody.parse(req.body); staffFor(req,b.restaurant_id,true); ok(res,checked(await admin.from('products').insert(b).select().single()),201); });
-app.patch('/api/products/:id', async (req,res) => {
-  const id=uuid.parse(req.params.id); const p=checked(await admin.from('products').select('*').eq('id',id).single()); staffFor(req,p.restaurant_id,true);
-  const b=productBody.omit({restaurant_id:true}).partial().parse(req.body); ok(res,checked(await admin.from('products').update(b).eq('id',id).select().single()));
+
+app.get('/api/products/:id', async (req, res) => {
+  const id = uuid.parse(req.params.id);
+
+  const product = checked(
+    await admin
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single()
+  );
+
+  staffFor(req, product.restaurant_id, true);
+
+  ok(res, product);
 });
+
+app.post('/api/products', async (req, res) => {
+  const body = productBody.parse(req.body);
+
+  staffFor(req, body.restaurant_id, true);
+
+  const created = checked(
+    await admin
+      .from('products')
+      .insert({
+        restaurant_id: body.restaurant_id,
+        name: body.name,
+        description: body.description ?? null,
+        category: body.category,
+        price_cents: body.price_cents,
+        image_url: body.image_url ?? null,
+        available: body.available ?? true,
+      })
+      .select()
+      .single()
+  );
+
+  ok(res, created, 201);
+});
+
+
+app.patch('/api/products/:id', async (req, res) => {
+  const id = uuid.parse(req.params.id);
+
+  const existing = checked(
+    await admin
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .single()
+  );
+
+  staffFor(req, existing.restaurant_id, true);
+
+  const body = productBody
+    .omit({ restaurant_id: true })
+    .partial()
+    .parse(req.body);
+
+  const updated = checked(
+    await admin
+      .from('products')
+      .update(body)
+      .eq('id', id)
+      .select()
+      .single()
+  );
+
+  ok(res, updated);
+});
+
+
 app.delete('/api/products/:id', async (req,res) => {
   const id=uuid.parse(req.params.id); const p=checked(await admin.from('products').select('*').eq('id',id).single()); staffFor(req,p.restaurant_id,true);
   ok(res,checked(await admin.from('products').update({ available:false }).eq('id',id).select().single()));
