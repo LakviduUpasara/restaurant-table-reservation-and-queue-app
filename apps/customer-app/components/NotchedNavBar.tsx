@@ -37,13 +37,13 @@ function buildPath(width: number, height: number, center: number) {
 export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB813' }: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const safeIndex = Math.min(Math.max(activeIndex, 0), items.length - 1);
-  const active = items[safeIndex];
+  const safeActiveIndex = Math.min(Math.max(activeIndex, 0), Math.max(items.length - 1, 0));
+  const active = items[safeActiveIndex];
   const totalHeight = BAR_HEIGHT + insets.bottom;
-  const columnWidth = items.length ? (width - SIDE_PADDING * 2) / items.length : 0;
-  const center = SIDE_PADDING + columnWidth * safeIndex + columnWidth / 2;
+  const columnWidth = items.length > 0 ? (width - SIDE_PADDING * 2) / items.length : 0;
+  const center = SIDE_PADDING + columnWidth * safeActiveIndex + columnWidth / 2;
 
-  if (!active) return null;
+  if (!active || items.length === 0) return null;
 
   return (
     <View style={[styles.container, { height: totalHeight }]}>
@@ -51,22 +51,23 @@ export function NotchedNavBar({ items, activeIndex, onPress, bubbleColor = '#EDB
         <Path d={buildPath(width, totalHeight, center)} fill={BAR_COLOR} />
       </Svg>
       <View
-        style={[styles.bubble, { left: center - BUBBLE / 2, backgroundColor: bubbleColor }]}
         pointerEvents="none"
+        style={[styles.bubble, { left: center - BUBBLE / 2, backgroundColor: bubbleColor }]}
       >
         <Ionicons name={active.icon} size={26} color="#111111" />
       </View>
+
       <View style={[styles.row, { paddingHorizontal: SIDE_PADDING }]}>
         {items.map((item, index) => (
           <Pressable
             key={item.key}
             accessibilityRole="tab"
             accessibilityLabel={item.label}
-            accessibilityState={index === safeIndex ? { selected: true } : {}}
+            accessibilityState={index === safeActiveIndex ? { selected: true } : {}}
             onPress={() => onPress(index)}
             style={styles.item}
           >
-            {index !== safeIndex && <Ionicons name={item.icon} size={26} color="#F5F5F5" />}
+            {index !== safeActiveIndex && <Ionicons name={item.icon} size={26} color="#F5F5F5" />}
           </Pressable>
         ))}
       </View>

@@ -12,11 +12,20 @@ const tabIcons: Record<string, NavItem['icon']> = {
 };
 
 function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const routes = state.routes.filter(route => route.name !== 'reservations' && tabIcons[route.name]);
-  const activeIndex = Math.max(0, routes.findIndex(route => route.key === state.routes[state.index]?.key));
-  const items: NavItem[] = routes.map(route => ({
+  const visibleRoutes = state.routes.filter(
+    route => route.name !== 'reservations' && tabIcons[route.name],
+  );
+  const activeIndex = Math.max(
+    0,
+    visibleRoutes.findIndex(route => route.key === state.routes[state.index]?.key),
+  );
+  const items: NavItem[] = visibleRoutes.map(route => ({
     key: route.key,
-    label: String(descriptors[route.key].options.tabBarAccessibilityLabel ?? descriptors[route.key].options.title ?? route.name),
+    label: String(
+      descriptors[route.key].options.tabBarAccessibilityLabel
+        ?? descriptors[route.key].options.title
+        ?? route.name,
+    ),
     icon: tabIcons[route.name],
   }));
 
@@ -27,9 +36,11 @@ function CustomerTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       items={items}
       activeIndex={activeIndex}
       onPress={index => {
-        const route = routes[index];
+        const route = visibleRoutes[index];
         const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-        if (index !== activeIndex && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+        if (index !== activeIndex && !event.defaultPrevented) {
+          navigation.navigate(route.name, route.params);
+        }
       }}
       bubbleColor={colors.primary}
     />
