@@ -246,15 +246,60 @@ export function CustomerHome() {
   const refresh = () => void Promise.all([restaurants.refetch(), products.refetch(), reservations.refetch(), tables.refetch(), availability.refetch()]);
   const startBooking = () => { if (!restaurantId) return; booking.reset(); booking.set({ restaurantId, date: slot.day, time: slot.time }); router.push('/booking/select-date'); };
   
-  const chooseTable = (table: Table) => {
+  const defaultTablesList = useMemo(() => {
+    const list: { id: string; restaurant_id: string; label: string; capacity: number; status: string; updated_at: string }[] = [];
+    for (let i = 1; i <= 12; i++) {
+      const existing = tables.data?.find(t => prettyTableNumber(t.label) === i);
+      if (existing) {
+        list.push({
+          ...existing,
+          capacity: existing.capacity || (i <= 2 ? 2 : i <= 8 ? 4 : 6),
+        });
+      } else {
+        list.push({
+          id: `default-table-${i}`,
+          restaurant_id: restaurantId,
+          label: `T${i}`,
+          capacity: i <= 2 ? 2 : i <= 8 ? 4 : 6,
+          status: 'AVAILABLE',
+          updated_at: '',
+        });
+      }
+    }
+    return list;
+  }, [tables.data, restaurantId]);
+
+  const chooseTable = (table: { id: string; label: string; capacity?: number; status?: string }) => {
     if (!restaurantId) return;
-    const isAvailable = availableIds.has(table.id) || table.status === 'AVAILABLE';
-    if (!isAvailable) {
-      Alert.alert('Table Reserved', `Table ${prettyTable(table.label)} is currently booked/occupied. Please select an available white table.`);
+    const labelNum = prettyTableNumber(table.label);
+    const labelClean = prettyTable(table.label);
+    const isMySelected = upcoming && (
+      upcoming.table_id === table.id ||
+      (upcoming.tables?.label ? upcoming.tables.label.includes(labelClean) : false) ||
+      (upcoming.table_id ? upcoming.table_id.includes(labelClean) : false)
+    );
+    if (isMySelected) {
+      Alert.alert('Your Reserved Table', `Table T${labelClean} is your currently reserved table.`);
       return;
     }
+
+    const isBooked = bookedTableIds.has(table.id) || bookedTableLabels.has(table.label) || bookedTableLabels.has(labelClean) || table.status === 'OCCUPIED' || table.status === 'RESERVED';
+    const isAvailable = !isBooked && (availableIds.has(table.id) || table.status === 'AVAILABLE');
+    if (!isAvailable) {
+      Alert.alert('Table Booked', `Table T${labelClean} is currently occupied/booked. Please choose an available green table.`);
+      return;
+    }
+
+    const capacity = table.capacity || (labelNum <= 2 ? 2 : labelNum <= 8 ? 4 : 6);
     booking.reset();
-    booking.set({ restaurantId, date: slot.day, time: slot.time, partySize: 2, tableId: table.id });
+    booking.set({
+      restaurantId,
+      date: slot.day,
+      time: slot.time,
+      partySize: capacity,
+      tableId: table.id,
+      tableLabel: `T${labelClean}`,
+    });
     router.push('/booking/special-request');
   };
 
@@ -546,58 +591,95 @@ export function CustomerHome() {
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Available Tables</Text>
         </View>
+
         <View style={styles.tablePanel}>
+          {/* 3-Color Status Legend Bar */}
+          <View style={styles.legendContainer}>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
+              <Text style={styles.legendLabel}>Available</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#E8B800' }]} />
+              <Text style={styles.legendLabel}>Selected</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.legendLabel}>Booked</Text>
+            </View>
+          </View>
+
           {tables.isLoading || availability.isLoading ? (
             <ActivityIndicator color="#E8B800" style={styles.loader} />
           ) : tables.error || availability.error ? (
             <Text style={styles.errorText}>{tables.error?.message || availability.error?.message}</Text>
-          ) : tables.data?.length ? (
-            <View style={styles.tableGrid}>
-              {tables.data.slice(0, 12).map(table => {
-                // Determine if table is available (white) or occupied/booked (black)
-                const isAvailable = availableIds.has(table.id) && table.status === 'AVAILABLE' && !bookedTableIds.has(table.id) && !bookedTableLabels.has(table.label) && !bookedTableLabels.has(table.label.replace(/^T/i, ''));
+          ) : (
+            <View style={styles.floorGrid}>
+              {defaultTablesList.map(table => {
+                const labelClean = prettyTable(table.label);
+                const isMySelected = !!upcoming && (
+                  upcoming.table_id === table.id ||
+                  (upcoming.tables?.label ? upcoming.tables.label.includes(labelClean) : false) ||
+                  (upcoming.table_id ? upcoming.table_id.includes(labelClean) : false)
+                );
+                const isBooked = !isMySelected && (
+                  bookedTableIds.has(table.id) ||
+                  bookedTableLabels.has(table.label) ||
+                  bookedTableLabels.has(labelClean) ||
+                  table.status === 'OCCUPIED' ||
+                  table.status === 'RESERVED'
+                );
+                const isAvailable = !isMySelected && !isBooked && (
+                  availableIds.has(table.id) ||
+                  table.status === 'AVAILABLE'
+                );
+
+                const chairColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
+                const tableColor = isMySelected ? '#E8B800' : isAvailable ? '#10B981' : '#EF4444';
+                const textColor = isMySelected ? '#171717' : '#FFFFFF';
+                const capacity = table.capacity || (prettyTableNumber(table.label) <= 2 ? 2 : prettyTableNumber(table.label) <= 8 ? 4 : 6);
+
                 return (
                   <Pressable
                     key={table.id}
                     onPress={() => chooseTable(table)}
-                    style={[
-                      styles.tableButton,
-                      isAvailable ? styles.tableButtonAvailable : styles.tableButtonOccupied,
-                    ]}
+                    style={styles.tableGraphicWrapper}
                   >
-                    <Text
-                      style={[
-                        styles.tableButtonText,
-                        isAvailable ? styles.tableTextAvailable : styles.tableTextOccupied,
-                      ]}
-                    >
-                      {prettyTable(table.label)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.tableGrid}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => {
-                const isOccupied = bookedTableLabels.has(`T${num}`) || bookedTableLabels.has(`${num}`) || (upcoming && (upcoming.tables?.label?.includes(String(num)) || upcoming.table_id?.includes(String(num))));
-                return (
-                  <Pressable
-                    key={num}
-                    onPress={startBooking}
-                    style={[
-                      styles.tableButton,
-                      isOccupied ? styles.tableButtonOccupied : styles.tableButtonAvailable,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.tableButtonText,
-                        isOccupied ? styles.tableTextOccupied : styles.tableTextAvailable,
-                      ]}
-                    >
-                      {num}
-                    </Text>
+                    {/* Table with 4 Diagonal Surrounding Chairs */}
+                    <View style={styles.tableGraphicBox}>
+                      <View style={[styles.diagonalChair, styles.chairTopLeft, { backgroundColor: chairColor }]} />
+                      <View style={[styles.diagonalChair, styles.chairTopRight, { backgroundColor: chairColor }]} />
+                      <View style={[styles.diagonalChair, styles.chairBottomLeft, { backgroundColor: chairColor }]} />
+                      <View style={[styles.diagonalChair, styles.chairBottomRight, { backgroundColor: chairColor }]} />
+
+                      {/* Outer Beveled Circle */}
+                      <View style={[styles.tableOuterDisc, isMySelected && styles.tableOuterDiscSelected]}>
+                        {/* Inner Core Disc */}
+                        <View style={[styles.tableInnerDisc, { backgroundColor: tableColor }]}>
+                          <Text style={[styles.tableDiscNumber, { color: textColor }]}>T{labelClean}</Text>
+                        </View>
+                      </View>
+
+                      {/* Selected Active Checkmark Pill */}
+                      {isMySelected && (
+                        <View style={styles.tableActiveBadge}>
+                          <Ionicons name="checkmark" size={11} color="#171717" />
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Guest Count Badge */}
+                    <View style={[styles.tableGuestBadge, isMySelected && styles.tableGuestBadgeSelected]}>
+                      <Ionicons
+                        name="people"
+                        size={11}
+                        color={isMySelected ? '#171717' : isAvailable ? '#059669' : '#DC2626'}
+                        style={{ marginRight: 3 }}
+                      />
+                      <Text style={[styles.tableGuestCountText, isMySelected && styles.tableGuestCountTextSelected]}>
+                        {capacity} Guests
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
@@ -853,45 +935,165 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Table grid panel
+  // Table visual floor plan panel
   tablePanel: {
     marginHorizontal: 14,
-    padding: 12,
-    borderRadius: 18,
-    backgroundColor: '#EAEAEF',
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    marginBottom: 24,
   },
-  tableGrid: {
+  legendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    paddingVertical: 8,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  legendLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  floorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
     justifyContent: 'space-between',
+    paddingVertical: 6,
   },
-  tableButton: {
-    width: '31%',
-    height: 38,
-    borderRadius: 12,
+  tableGraphicWrapper: {
+    width: '32%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  tableGraphicBox: {
+    width: 76,
+    height: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  diagonalChair: {
+    position: 'absolute',
+    width: 20,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
+  },
+  chairTopLeft: {
+    top: 6,
+    left: 6,
+    transform: [{ rotate: '-45deg' }],
+  },
+  chairTopRight: {
+    top: 6,
+    right: 6,
+    transform: [{ rotate: '45deg' }],
+  },
+  chairBottomLeft: {
+    bottom: 6,
+    left: 6,
+    transform: [{ rotate: '45deg' }],
+  },
+  chairBottomRight: {
+    bottom: 6,
+    right: 6,
+    transform: [{ rotate: '-45deg' }],
+  },
+  tableOuterDisc: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E5E7EB',
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 1,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  tableButtonAvailable: {
-    backgroundColor: '#FFFFFF',
+  tableOuterDiscSelected: {
+    borderColor: '#E8B800',
+    backgroundColor: '#FEF08A',
+    shadowColor: '#E8B800',
+    shadowOpacity: 0.45,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  tableButtonOccupied: {
-    backgroundColor: '#111111',
+  tableInnerDisc: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
-  tableButtonText: {
-    fontSize: 14,
+  tableDiscNumber: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: -0.2,
+  },
+  tableActiveBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E8B800',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    elevation: 4,
+  },
+  tableGuestBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  tableGuestBadgeSelected: {
+    backgroundColor: '#E8B800',
+    borderColor: '#E8B800',
+  },
+  tableGuestCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  tableGuestCountTextSelected: {
+    color: '#171717',
     fontWeight: '800',
-  },
-  tableTextAvailable: {
-    color: '#111111',
-  },
-  tableTextOccupied: {
-    color: '#FFFFFF',
   },
 
   loader: { paddingVertical: 20 },
