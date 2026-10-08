@@ -147,7 +147,29 @@ app.patch('/api/settings/:restaurantId', async (req,res) => {
 app.get('/api/tables', async (req,res) => {
   const restaurantId = uuid.parse(req.query.restaurant_id);
   if (actor(req).role !== 'CUSTOMER') staffFor(req,restaurantId);
-  ok(res,checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label')));
+  const existing = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
+  
+  // Ensure all T1..T12 tables exist in database
+  if (existing.length < 12) {
+    const existingLabels = new Set(existing.map((t: any) => t.label.toUpperCase()));
+    const missing: { restaurant_id: string; label: string; capacity: number }[] = [];
+    for (let i = 1; i <= 12; i++) {
+      if (!existingLabels.has(`T${i}`) && !existingLabels.has(`${i}`)) {
+        missing.push({
+          restaurant_id: restaurantId,
+          label: `T${i}`,
+          capacity: i <= 2 ? 2 : i <= 8 ? 4 : 6,
+        });
+      }
+    }
+    if (missing.length > 0) {
+      await admin.from('tables').insert(missing);
+      const all = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
+      ok(res, all);
+      return;
+    }
+  }
+  ok(res, existing);
 });
 app.patch('/api/tables/:id', async (req,res) => {
   const id = uuid.parse(req.params.id); const table = checked(await admin.from('tables').select('*').eq('id',id).single()); staffFor(req,table.restaurant_id);
@@ -173,6 +195,9 @@ app.post('/api/reservations', async (req,res) => {
   if (actor(req).role!=='CUSTOMER') fail(403,'FORBIDDEN','Customer account required');
   const b=bookingBody.parse(req.body);
   const booked=checked(await admin.rpc('book_table',{ p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:b.table_id??null }));
+  if (booked?.table_id) {
+    await admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).eq('id', booked.table_id);
+  }
   const notice=await admin.from('notifications').insert({user_id:actor(req).id,title:'Booking confirmed',body:'Your table reservation is confirmed.',kind:'CONFIRMATION',source_id:booked.id});
   if (notice.error) console.error('Confirmation notification failed',notice.error);
   await sendPush(actor(req).id,'Booking confirmed','Your table reservation is confirmed.').catch(console.error);

@@ -156,7 +156,7 @@ export function CustomerHome() {
       const { data } = await q;
       return (data as DashboardReservation[]) || [];
     },
-    refetchInterval: 4000,
+    refetchInterval: 3000,
   });
 
   // Fetch Tables with numerical ordering (T1..T12)
@@ -173,7 +173,7 @@ export function CustomerHome() {
         return list.sort((a, b) => prettyTableNumber(a.label) - prettyTableNumber(b.label));
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   // Table availability
@@ -189,7 +189,7 @@ export function CustomerHome() {
         return { tables: avail, updated_at: new Date().toISOString() };
       }
     },
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
 
   // Active confirmed, pending, or seated booking
