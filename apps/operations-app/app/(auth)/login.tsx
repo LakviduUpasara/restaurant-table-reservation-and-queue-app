@@ -6,17 +6,31 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionButton } from '../../components/common/ActionButton';
 import { FigmaInput } from '../../components/common/FigmaInput';
 import { COLORS, RADIUS } from '../../constants/theme';
+import { useAuth } from '../../stores/auth.store';
 
 export default function LoginScreen() {
   const router = useRouter();
   const [staffId, setStaffId] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = () => {
-    if (!staffId.trim() || !password.trim()) return Alert.alert('Missing details', 'Please enter your Staff ID and password.');
-    // Temporary frontend-only access while the backend/authentication is being integrated.
-    router.replace('/(owner)/dashboard');
+  const handleLogin = async () => {
+    if (!staffId.trim() || !password) return Alert.alert('Missing details', 'Please enter your account email and password.');
+    setBusy(true);
+    try {
+      await useAuth.getState().signIn(staffId.trim(), password);
+      const profile = useAuth.getState().profile;
+      if (!profile || !['OWNER', 'STAFF'].includes(profile.role)) {
+        await useAuth.getState().signOut();
+        throw new Error('An Owner or Staff account is required.');
+      }
+      router.replace(profile.role === 'OWNER' ? '/(owner)/dashboard' : '/(staff)/dashboard');
+    } catch (error) {
+      Alert.alert('Login failed', error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -35,7 +49,7 @@ export default function LoginScreen() {
               <Text style={styles.formTitle}>Welcome back</Text>
               <Text style={styles.formSub}>Sign in to continue to your Owner dashboard.</Text>
               <View style={{ marginTop: 18 }}>
-                <FigmaInput label="Staff ID" value={staffId} onChangeText={setStaffId} placeholder="Enter Staff ID" icon="person-outline" autoCapitalize="characters" />
+                <FigmaInput label="Account email" value={staffId} onChangeText={setStaffId} placeholder="Enter account email" icon="person-outline" autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
                 <FigmaInput label="Password" value={password} onChangeText={setPassword} placeholder="Enter password" icon="lock-closed-outline" password />
               </View>
 
@@ -47,7 +61,7 @@ export default function LoginScreen() {
                 <Pressable onPress={() => router.push('/(auth)/forgot-password')} hitSlop={5}><Text style={styles.forgot}>Forgot password?</Text></Pressable>
               </View>
 
-              <ActionButton title="Login" variant="dark" onPress={handleLogin} icon={<Ionicons name="arrow-forward" size={17} color={COLORS.white} />} />
+              <ActionButton title="Login" variant="dark" busy={busy} onPress={handleLogin} icon={<Ionicons name="arrow-forward" size={17} color={COLORS.white} />} />
             </View>
 
             <View style={styles.footer}><Ionicons name="shield-checkmark-outline" size={14} color="#85857F" /><Text style={styles.footerText}>Owner access · DineFlow Operations</Text></View>

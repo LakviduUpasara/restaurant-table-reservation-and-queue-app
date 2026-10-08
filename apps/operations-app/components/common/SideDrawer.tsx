@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
-import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { COLORS, RADIUS } from '../../constants/theme';
-import { owner } from '../../utils/mockData';
+import { useAuth } from '../../stores/auth.store';
 
 type Props = { visible: boolean; onClose: () => void };
 
@@ -24,6 +24,7 @@ const menuItems: Item[] = [
 
 export function SideDrawer({ visible, onClose }: Props) {
   const router = useRouter();
+  const profile = useAuth(state => state.profile);
   const pathname = usePathname();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -41,8 +42,8 @@ export function SideDrawer({ visible, onClose }: Props) {
           <View style={styles.userCard}>
             <Image source={require('../../assets/images/owner-avatar.png')} style={styles.avatar} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{owner.dashboardName}</Text>
-              <Text style={styles.role}>{owner.role}</Text>
+              <Text style={styles.name}>{profile?.full_name}</Text>
+              <Text style={styles.role}>{profile?.role}</Text>
             </View>
           </View>
 
@@ -64,9 +65,9 @@ export function SideDrawer({ visible, onClose }: Props) {
 
           <Pressable
             style={styles.logout}
-            onPress={() => {
-              onClose();
-              router.replace('/(auth)/login');
+            onPress={async () => {
+              try { await useAuth.getState().signOut(); onClose(); router.replace('/(auth)/login'); }
+              catch (error) { Alert.alert('Sign out failed', error instanceof Error ? error.message : String(error)); }
             }}
           >
             <Ionicons name="log-out-outline" size={19} color="#DF5858" />

@@ -99,6 +99,6 @@ export function getOwnerAnalytics(
     : '';
 
   return api<OwnerAnalyticsResponse>(
-    `/analytics/${restaurantId}${query}`
+    `/owner/analytics/${restaurantId}${query}`
   );
 }

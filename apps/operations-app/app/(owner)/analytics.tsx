@@ -125,6 +125,7 @@ export default function Analytics() {
   // ------------------------------------------------------------
 
   const rawGrowth =
+    data?.comparison?.reservation_change_percent ??
     data?.previous_day?.reservations_change_percent ??
     data?.previous_day?.reservations_change_pct ??
     data?.comparison?.reservations_change_percent ??

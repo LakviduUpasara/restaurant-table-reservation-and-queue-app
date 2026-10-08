@@ -21,11 +21,11 @@ import {
   StatCard,
 } from '../../components/common/OwnerUI';
 import { COLORS, RADIUS } from '../../constants/theme';
-import { owner } from '../../utils/mockData';
 import { getOwnerDashboard } from '../../services/owner.service';
 
 export default function OwnerDashboard() {
   const router = useRouter();
+  const ownerName = useAuth(state => state.profile?.full_name);
   const restaurantId = useAuth(
   (state) => state.profile?.restaurant_id
   );
@@ -154,7 +154,7 @@ export default function OwnerDashboard() {
             </Text>
 
             <Text style={styles.ownerName}>
-              {owner.dashboardName}
+              {ownerName}
             </Text>
 
             <View style={styles.rolePill}>

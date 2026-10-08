@@ -1,30 +1,31 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { OwnerLayout } from '../../../components/common/OwnerLayout';
 import { SearchBar, StatusPill } from '../../../components/common/OwnerUI';
 import { COLORS, RADIUS } from '../../../constants/theme';
-import { productCategories, products } from '../../../utils/mockData';
+import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
+import { useAuth } from '../../../stores/auth.store';
+import { getProducts, productCategories, OwnerProduct } from '../../../services/product.service';
 
 export default function ProductManagement() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
-  const [items, setItems] = useState([...products]);
+  const restaurantId = useAuth(state => state.profile?.restaurant_id);
+  const list = useQuery({ queryKey: ['owner-products', restaurantId], enabled: !!restaurantId, queryFn: () => getProducts(restaurantId!) });
+  const items: OwnerProduct[] = list.data ?? [];
+  useFocusEffect(useCallback(() => { if (restaurantId) void list.refetch(); }, [restaurantId, list.refetch]));
   const filtered = useMemo(() => items.filter(p => `${p.name} ${p.category}`.toLowerCase().includes(query.toLowerCase()) && (category === 'All' || p.category === category)), [items, query, category]);
 
-  const remove = (id: string) => {
-    const product = items.find(i => i.id === id);
-    Alert.alert('Delete product', `Remove ${product?.name ?? 'this product'} from the menu?`, [
-      { text: 'Cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => setItems(prev => prev.filter(i => i.id !== id)) },
-    ]);
-  };
 
   return (
     <OwnerLayout active="more" title="Product Management">
       <FlatList
+        refreshing={list.isFetching}
+        onRefresh={() => void list.refetch()}
         data={filtered}
         keyExtractor={item => item.id}
         showsVerticalScrollIndicator={false}
@@ -39,17 +40,18 @@ export default function ProductManagement() {
             <FlatList data={['All', ...productCategories]} horizontal keyExtractor={x => x} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} renderItem={({ item }) => (
               <Pressable onPress={() => setCategory(item)} style={[styles.chip, item === category && styles.chipActive]}><Text style={[styles.chipText, item === category && styles.chipTextActive]}>{item}</Text></Pressable>
             )} />
+            {list.error ? <Text style={{ color: COLORS.red }} onPress={() => void list.refetch()}>{list.error.message} - Tap to retry</Text> : null}
             <Text style={styles.resultCount}>{filtered.length} {filtered.length === 1 ? 'item' : 'items'}</Text>
           </View>
         }
         renderItem={({ item }) => (
           <Pressable onPress={() => router.push(`/(owner)/products/${item.id}`)} style={({ pressed }) => [styles.productCard, pressed && { transform: [{ scale: 0.99 }] }]}>
-            <Image source={item.image} style={styles.image} />
+            <View style={[styles.image, { alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }]}>{item.image_url ? <Image key={`${item.id}:${item.image_url}`} source={{ uri: item.image_url }} style={styles.image} resizeMode="cover" accessibilityLabel={`${item.name} photo`} /> : <Ionicons name="image-outline" size={24} color={COLORS.muted} />}</View>
             <View style={styles.info}>
-              <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-              <View style={styles.meta}><StatusPill label={item.category} tone="yellow" /><Text style={styles.price}>$ {item.price.toFixed(2)}</Text></View>
+              <Text style={styles.name} numberOfLines={1}>{item.name}{item.available ? '' : ' (Unavailable)'}</Text>
+              <View style={styles.meta}><StatusPill label={item.category} tone="yellow" /><Text style={styles.price}>$ {(item.price_cents / 100).toFixed(2)}</Text></View>
             </View>
-            <Pressable onPress={(event) => { event.stopPropagation(); remove(item.id); }} hitSlop={8} style={styles.delete}><Ionicons name="trash-outline" size={16} color={COLORS.red} /></Pressable>
+
             <Ionicons name="chevron-forward" size={18} color="#90908B" />
           </Pressable>
         )}

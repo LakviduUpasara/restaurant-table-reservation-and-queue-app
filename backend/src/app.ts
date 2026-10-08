@@ -1,9 +1,11 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
+import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import { z } from 'zod';
 import { admin, publicClient } from './config/supabase.js';
 import { env } from './config/env.js';
 import { sendPush, checkPushReceipts } from './modules/notifications/push.js';
+import { nextStaffId, nextTableLabel } from './modules/owner/identifiers.js';
 
 type Actor = {
   id: string;
@@ -11,8 +13,6 @@ type Actor = {
   phone: string | null;
   role: 'CUSTOMER' | 'STAFF' | 'OWNER';
   restaurant_id: string | null;
-  staff_id: string | null;
-  job_role: string | null;
 };
 declare global { namespace Express { interface Request { actor?: Actor } } }
 class HttpError extends Error { constructor(public status: number, public code: string, message: string) { super(message); } }
@@ -37,13 +37,13 @@ const productBody = z.object({restaurant_id: uuid, name: z.string().trim().min(1
 
 const timeString = z
   .string()
-  .regex(/^\d\d:\d\d$/);
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const weeklyDaySchema = z.object({
   enabled: z.boolean(),
   open: timeString,
   close: timeString,
-});
+}).refine(day => day.open < day.close, 'Opening time must be before closing time');
 
 const weeklyHoursSchema = z.object({
   monday: weeklyDaySchema,
@@ -114,6 +114,8 @@ const settingsBody = z.object({
   weekly_hours: weeklyHoursSchema.optional(),
 });
 
+const staffPhotoPath = z.string().regex(/^[0-9a-f-]{36}\/[0-9a-f-]{36}\.(jpg|png|webp)$/);
+
 const staffCreateBody = z.object({
   restaurant_id: uuid,
 
@@ -125,7 +127,8 @@ const staffCreateBody = z.object({
     .regex(
       /^[A-Za-z0-9_-]+$/,
       'Staff ID may contain only letters, numbers, hyphens and underscores'
-    ),
+    )
+    .optional(),
 
   full_name: z
     .string()
@@ -153,6 +156,7 @@ const staffCreateBody = z.object({
   email: z
     .email()
     .optional(),
+  photo_path: staffPhotoPath.optional(),
 });
 
 const staffUpdateBody = z.object({
@@ -228,7 +232,7 @@ const profile = checked(
   await admin
     .from('profiles')
     .select(
-      'id,full_name,phone,role,restaurant_id,staff_id,job_role'
+      'id,full_name,phone,role,restaurant_id'
     )
     .eq('id', userId)
     .single()
@@ -295,8 +299,8 @@ app.get('/api/settings/slot-overrides', async (req, res) => {
 
 const bookingSlotOverrideBody = z.object({
   restaurant_id: uuid,
-  service_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  slot_time: z.string().regex(/^\d\d:\d\d$/),
+  service_date: z.iso.date(),
+  slot_time: timeString,
   is_available: z.boolean(),
 });
 
@@ -369,7 +373,14 @@ app.get('/api/restaurants/:id/availability', async (req,res) => {
   const localStart=new Date(new Date(start).getTime()+330*60000);const localEnd=new Date(new Date(end).getTime()+330*60000);
   const minutes=(value:string)=>Number(value.slice(0,2))*60+Number(value.slice(3,5));
   const startMinutes=localStart.getUTCHours()*60+localStart.getUTCMinutes();
-  if (localStart.toISOString().slice(0,10)!==localEnd.toISOString().slice(0,10)||startMinutes<minutes(settings.opening_time)||localEnd.getUTCHours()*60+localEnd.getUTCMinutes()>minutes(settings.closing_time)||(startMinutes-minutes(settings.opening_time))%settings.slot_minutes!==0) fail(400,'OUTSIDE_OPENING_HOURS','Choose an available booking slot');
+  const dayKey = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][localStart.getUTCDay()];
+  const dayHours = settings.weekly_hours?.[dayKey];
+  if (dayHours?.enabled === false) fail(400,'RESTAURANT_CLOSED','Restaurant is closed on this day');
+  const openingTime = dayHours?.open ?? settings.opening_time;
+  const closingTime = dayHours?.close ?? settings.closing_time;
+  if (localStart.toISOString().slice(0,10)!==localEnd.toISOString().slice(0,10)||startMinutes<minutes(openingTime)||localEnd.getUTCHours()*60+localEnd.getUTCMinutes()>minutes(closingTime)||(startMinutes-minutes(openingTime))%settings.slot_minutes!==0) fail(400,'OUTSIDE_OPENING_HOURS','Choose an available booking slot');
+  const override = checked(await admin.from('booking_slot_overrides').select('is_available').eq('restaurant_id',restaurantId).eq('service_date',localStart.toISOString().slice(0,10)).eq('slot_time',`${localStart.toISOString().slice(11,16)}:00`).maybeSingle());
+  if (override?.is_available === false) fail(400,'SLOT_UNAVAILABLE','This booking slot is unavailable');
   const tables = checked(await admin.from('tables').select('id,label,capacity,status').eq('restaurant_id',restaurantId).gte('capacity',party).in('status',['AVAILABLE','RESERVED']).order('capacity'));
   let excludeId: string | null = null;
   if (req.query.reservation_id) {
@@ -377,9 +388,12 @@ app.get('/api/restaurants/:id/availability', async (req,res) => {
     if (existing.customer_id!==actor(req).id || existing.restaurant_id!==restaurantId) fail(403,'FORBIDDEN','Not your reservation');
     excludeId=existing.id;
   }
-  let conflictsQuery=admin.from('reservations').select('table_id').eq('restaurant_id',restaurantId).lt('starts_at',end).gt('ends_at',start).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']);
+  let conflictsQuery=admin.from('reservations').select('table_id,starts_at,party_size').eq('restaurant_id',restaurantId).lt('starts_at',end).gt('ends_at',start).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']);
   if (excludeId) conflictsQuery=conflictsQuery.neq('id',excludeId);
   const conflicts = checked(await conflictsQuery);
+  const activeGuests = conflicts.reduce((sum:number,r:any)=>sum+Number(r.party_size),0);
+  const slotBookings = conflicts.filter((r:any)=>new Date(r.starts_at).getTime()===new Date(start).getTime()).length;
+  if (activeGuests+party>settings.max_guests || slotBookings>=settings.max_bookings_per_slot) return ok(res,{ tables: [], updated_at: new Date().toISOString() });
   const busy = new Set(conflicts.map((r:any)=>r.table_id));
   ok(res,{ tables: tables.filter((t:any)=>!busy.has(t.id)), updated_at: new Date().toISOString() });
 });
@@ -388,6 +402,8 @@ app.patch('/api/settings/:restaurantId', async (req,res) => {
   const restaurantId = uuid.parse(req.params.restaurantId); staffFor(req,restaurantId,true);
   const body = settingsBody.parse(req.body);
   if (!Object.keys(body).length) fail(400,'EMPTY_UPDATE','Choose a setting to change');
+  const current = checked(await admin.from('restaurant_settings').select('opening_time,closing_time').eq('restaurant_id',restaurantId).single());
+  if ((body.opening_time ?? current.opening_time).slice(0,5) >= (body.closing_time ?? current.closing_time).slice(0,5)) fail(400,'INVALID_HOURS','Opening time must be before closing time');
   ok(res,checked(await admin.from('restaurant_settings').update({ ...body,updated_at:new Date().toISOString() }).eq('restaurant_id',restaurantId).select().single()));
 });
 app.get('/api/tables', async (req,res) => {
@@ -400,8 +416,15 @@ app.patch('/api/tables/:id', async (req,res) => {
   ok(res,checked(await admin.rpc('transition_table',{p_id:id,p_status:body.status})));
 });
 app.post('/api/tables', async (req,res) => {
-  const body = z.object({ restaurant_id:uuid,label:z.string().min(1).max(30),capacity:z.number().int().min(1).max(30) }).parse(req.body); staffFor(req,body.restaurant_id,true);
-  ok(res,checked(await admin.from('tables').insert(body).select().single()),201);
+  const body = z.object({ restaurant_id:uuid,label:z.string().trim().min(1).max(30).optional(),capacity:z.number().int().min(1).max(30) }).parse(req.body); staffFor(req,body.restaurant_id,true);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const existing = body.label ? [] : checked(await admin.from('tables').select('label').eq('restaurant_id',body.restaurant_id));
+    const label = body.label ?? nextTableLabel(existing.map((table:any)=>table.label));
+    const result = await admin.from('tables').insert({ ...body, label }).select().single();
+    if (!body.label && result.error?.code === '23505') continue;
+    return ok(res,checked(result),201);
+  }
+  fail(409,'TABLE_ID_CONFLICT','Could not allocate a table ID. Please try again.');
 });
 app.delete('/api/tables/:id', async (req,res) => {
   const table = checked(await admin.from('tables').select('*').eq('id',uuid.parse(req.params.id)).single()); staffFor(req,table.restaurant_id,true);
@@ -488,6 +511,16 @@ app.get('/api/products', async (req,res) => {
   const id=uuid.parse(req.query.restaurant_id); let q=admin.from('products').select('*').eq('restaurant_id',id).order('name');
   if (actor(req).role==='CUSTOMER') q=q.eq('available',true); else staffFor(req,id);
   ok(res,checked(await q));
+});
+
+app.post('/api/products/image-upload', async (req, res) => {
+  const body = z.object({ restaurant_id: uuid, content_type: z.enum(['image/jpeg', 'image/png', 'image/webp']) }).parse(req.body);
+  staffFor(req, body.restaurant_id, true);
+  const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[body.content_type];
+  const path = `${body.restaurant_id}/${randomUUID()}.${extension}`;
+  const result = await admin.storage.from('product-images').createSignedUploadUrl(path);
+  if (result.error) fail(400, 'IMAGE_UPLOAD_FAILED', result.error.message);
+  ok(res, { path, token: result.data!.token });
 });
 
 app.get('/api/products/:id', async (req, res) => {
@@ -610,113 +643,73 @@ app.get('/api/staff', async (req, res) => {
       .order('full_name')
   );
 
-  ok(res, staff);
+  const withPhotos = await Promise.all(staff.map(async (person: any) => {
+    const account = await admin.auth.admin.getUserById(person.id);
+    const path = account.data.user?.user_metadata?.staff_photo_path;
+    if (account.error || !staffPhotoPath.safeParse(path).success || !path.startsWith(`${id}/`)) return { ...person, photo_url: null };
+    const signed = await admin.storage.from('staff-photos').createSignedUrl(path, 3600);
+    return { ...person, photo_url: signed.error ? null : signed.data?.signedUrl ?? null };
+  }));
+  ok(res, withPhotos);
 });
 
+
+app.post('/api/staff/image-upload', async (req, res) => {
+  const body = z.object({ restaurant_id: uuid, content_type: z.enum(['image/jpeg', 'image/png', 'image/webp']) }).parse(req.body);
+  staffFor(req, body.restaurant_id, true);
+  const extension = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[body.content_type];
+  const path = `${body.restaurant_id}/${randomUUID()}.${extension}`;
+  const result = await admin.storage.from('staff-photos').createSignedUploadUrl(path);
+  if (result.error) fail(400, 'PHOTO_UPLOAD_FAILED', result.error.message);
+  ok(res, { path, token: result.data!.token });
+});
 
 app.post('/api/staff', async (req, res) => {
   const body = staffCreateBody.parse(req.body);
-
   staffFor(req, body.restaurant_id, true);
-
-  const normalizedStaffId =
-    body.staff_id.trim().toUpperCase();
-
-  // Check Staff ID before creating an Auth account.
-  const existing = checked(
-    await admin
-      .from('profiles')
-      .select('id')
-      .eq('restaurant_id', body.restaurant_id)
-      .ilike('staff_id', normalizedStaffId)
-      .maybeSingle()
-  );
-
-  if (existing) {
-    fail(
-      409,
-      'STAFF_ID_EXISTS',
-      'This Staff ID is already used in this restaurant'
-    );
+  if (body.photo_path && !body.photo_path.startsWith(`${body.restaurant_id}/`)) fail(403, 'FORBIDDEN', 'Photo must belong to this restaurant');
+  if (body.photo_path) {
+    const filename = body.photo_path.slice(body.restaurant_id.length + 1);
+    const objects = await admin.storage.from('staff-photos').list(body.restaurant_id, { search: filename, limit: 1 });
+    if (objects.error || !objects.data?.some(object => object.name === filename)) fail(400, 'PHOTO_UNAVAILABLE', 'Upload the selected photo before creating the user');
   }
 
-  
-  const safeRestaurantId =
-    body.restaurant_id.slice(0, 8).toLowerCase();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let normalizedStaffId = body.staff_id?.trim().toUpperCase();
+    if (!normalizedStaffId) {
+      const staffIds = checked(await admin.from('profiles').select('staff_id').eq('restaurant_id', body.restaurant_id));
+      try { normalizedStaffId = nextStaffId(staffIds.map((person: any) => person.staff_id)); }
+      catch { return fail(409, 'STAFF_IDS_EXHAUSTED', 'All three-digit Staff IDs have been allocated in this restaurant.'); }
+    }
+    const existing = checked(await admin.from('profiles').select('id').eq('restaurant_id', body.restaurant_id).ilike('staff_id', normalizedStaffId).maybeSingle());
+    if (existing) {
+      if (!body.staff_id) continue;
+      return fail(409, 'STAFF_ID_EXISTS', 'This Staff ID is already used in this restaurant');
+    }
+    const safeRestaurantId = body.restaurant_id.slice(0, 8).toLowerCase();
+    const safeStaffId = normalizedStaffId.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const authEmail = body.email ?? `staff-${safeRestaurantId}-${safeStaffId}@dineflow.local`;
+    const created = await admin.auth.admin.createUser({
+      email: authEmail, password: body.password, email_confirm: true,
+      user_metadata: { full_name: body.full_name, phone: body.phone, ...(body.photo_path ? { staff_photo_path: body.photo_path } : {}) },
+    });
+    if (created.error) return fail(400, 'STAFF_CREATE_FAILED', created.error.message);
+    const createdUser = created.data.user;
+    if (!createdUser) return fail(400, 'STAFF_CREATE_FAILED', 'Could not create staff account');
 
-  const safeStaffId =
-    normalizedStaffId
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-');
-
-  const authEmail =
-    body.email ??
-    `staff-${safeRestaurantId}-${safeStaffId}@dineflow.local`;
-
-  const created = await admin.auth.admin.createUser({
-  email: body.email,
-  password: body.password,
-  email_confirm: true,
-  user_metadata: {
-    full_name: body.full_name,
-    phone: body.phone,
-  },
-});
-
-if (created.error) {
-  return fail(
-    400,
-    'STAFF_CREATE_FAILED',
-    created.error.message
-  );
-}
-
-const createdUser = created.data.user;
-
-if (!createdUser) {
-  return fail(
-    400,
-    'STAFF_CREATE_FAILED',
-    'Could not create staff account'
-  );
-}
-
-const userId = createdUser.id;
-
-  try {
-    const profile = checked(
-      await admin
-        .from('profiles')
-        .update({
-          full_name: body.full_name.trim(),
-          phone: body.phone?.trim() || null,
-          role: 'STAFF',
-          restaurant_id: body.restaurant_id,
-          staff_id: normalizedStaffId,
-          job_role: body.job_role.trim(),
-        })
-        .eq('id', userId)
-        .select(
-          'id,full_name,phone,role,restaurant_id,staff_id,job_role'
-        )
-        .single()
-    );
-
-    ok(
-      res,
-      {
-        profile,
-        login_id: normalizedStaffId,
-        login_email: authEmail,
-      },
-      201
-    );
-  } catch (error) {
-    // Prevent an orphaned Auth account if the profile update fails.
-    await admin.auth.admin.deleteUser(userId);
-
-    throw error;
+    const result = await admin.from('profiles').update({
+      full_name: body.full_name.trim(), phone: body.phone?.trim() || null,
+      role: 'STAFF', restaurant_id: body.restaurant_id, staff_id: normalizedStaffId, job_role: body.job_role.trim(),
+    }).eq('id', createdUser.id).select('id,full_name,phone,role,restaurant_id,staff_id,job_role').single();
+    if (result.error) {
+      const cleanup = await admin.auth.admin.deleteUser(createdUser.id);
+      if (cleanup.error) return fail(500, 'STAFF_CREATE_FAILED', 'Account creation failed and requires administrator cleanup.');
+      if (!body.staff_id && result.error.code === '23505') continue;
+      checked(result);
+    }
+    return ok(res, { profile: result.data, login_id: normalizedStaffId, login_email: authEmail }, 201);
   }
+  fail(409, 'STAFF_ID_CONFLICT', 'Could not allocate a Staff ID. Please try again.');
 });
 
 
@@ -917,11 +910,7 @@ app.get(
     // Owner-only.
     staffFor(req, restaurantId, true);
 
-    const today = new Date(
-      new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Colombo',
-      }).format(new Date()) + 'T00:00:00+05:30'
-    );
+    const today = new Date(`${localDay()}T00:00:00+05:30`);
 
     let fromDate = new Date(today);
     let toDate = new Date(today);
@@ -930,6 +919,8 @@ app.get(
       typeof req.query.period === 'string'
         ? req.query.period
         : 'today';
+
+    if (!['today','7d','30d','custom'].includes(period)) fail(400,'INVALID_PERIOD','Choose today, 7d, 30d or custom');
 
     if (period === 'today') {
       toDate = new Date(today);
@@ -975,10 +966,7 @@ app.get(
           ? req.query.to
           : '';
 
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(from) ||
-        !/^\d{4}-\d{2}-\d{2}$/.test(to)
-      ) {
+      if (!z.iso.date().safeParse(from).success || !z.iso.date().safeParse(to).success) {
         return fail(
           400,
           'INVALID_DATE_RANGE',
@@ -1131,7 +1119,7 @@ app.get(
     const walkInServed =
       queueEntries.filter(
         (q: any) =>
-          q.status === 'SERVED'
+          q.status === 'SEATED'
       ).length;
 
     const walkInWaiting =
@@ -1178,7 +1166,7 @@ app.get(
     const queueServed =
       queueEntries.filter(
         (q: any) =>
-          q.status === 'SERVED'
+          q.status === 'SEATED'
       ).length;
 
     const queueWaiting =
@@ -1340,32 +1328,7 @@ app.get(
           )
         : 0;
 
-    let latestOccupied = 0;
-
-    for (const tableId of tableIds) {
-      const latest =
-        tableHistory
-          .filter(
-            (row: any) =>
-              row.table_id === tableId
-          )
-          .sort(
-            (a: any, b: any) =>
-              new Date(
-                b.changed_at
-              ).getTime() -
-              new Date(
-                a.changed_at
-              ).getTime()
-          )[0];
-
-      if (
-        latest?.status ===
-        'OCCUPIED'
-      ) {
-        latestOccupied += 1;
-      }
-    }
+    const averageOccupied = Number((occupiedRatioTotal / (toDate.getTime() - fromDate.getTime())).toFixed(1));
 
     // ============================================================
     // RESPONSE
@@ -1374,16 +1337,9 @@ app.get(
     ok(res, {
       period,
       from:
-        fromDate
-          .toISOString()
-          .slice(0, 10),
+        localDay(fromDate),
       to:
-        new Date(
-          toDate.getTime() -
-            24 * 60 * 60 * 1000
-        )
-          .toISOString()
-          .slice(0, 10),
+        localDay(new Date(toDate.getTime() - 24 * 60 * 60 * 1000)),
 
       reservations: {
         total: reservationTotal,
@@ -1419,7 +1375,7 @@ app.get(
 
       tables: {
         average_occupied:
-          latestOccupied,
+          averageOccupied,
         average_utilization:
           averageUtilization,
       },
@@ -1598,7 +1554,7 @@ app.get(
     const servedQueue =
       queue.filter(
         (q: any) =>
-          q.status === 'SERVED'
+          q.status === 'SEATED'
       );
 
     const noShowQueue =
