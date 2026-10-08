@@ -907,6 +907,529 @@ app.delete('/api/staff/:id', async (req, res) => {
   });
 });
 
+app.get(
+  '/api/owner/reports/:restaurantId',
+  async (req, res) => {
+    const restaurantId = uuid.parse(
+      req.params.restaurantId
+    );
+
+    // Owner-only.
+    staffFor(req, restaurantId, true);
+
+    const today = new Date(
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Colombo',
+      }).format(new Date()) + 'T00:00:00+05:30'
+    );
+
+    let fromDate = new Date(today);
+    let toDate = new Date(today);
+
+    const period =
+      typeof req.query.period === 'string'
+        ? req.query.period
+        : 'today';
+
+    if (period === 'today') {
+      toDate = new Date(today);
+      toDate.setUTCDate(
+        toDate.getUTCDate() + 1
+      );
+    }
+
+    if (period === '7d') {
+      fromDate = new Date(today);
+
+      fromDate.setUTCDate(
+        fromDate.getUTCDate() - 6
+      );
+
+      toDate = new Date(today);
+      toDate.setUTCDate(
+        toDate.getUTCDate() + 1
+      );
+    }
+
+    if (period === '30d') {
+      fromDate = new Date(today);
+
+      fromDate.setUTCDate(
+        fromDate.getUTCDate() - 29
+      );
+
+      toDate = new Date(today);
+      toDate.setUTCDate(
+        toDate.getUTCDate() + 1
+      );
+    }
+
+    if (period === 'custom') {
+      const from =
+        typeof req.query.from === 'string'
+          ? req.query.from
+          : '';
+
+      const to =
+        typeof req.query.to === 'string'
+          ? req.query.to
+          : '';
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(from) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(to)
+      ) {
+        return fail(
+          400,
+          'INVALID_DATE_RANGE',
+          'Custom reports require from and to dates in YYYY-MM-DD format'
+        );
+      }
+
+      fromDate = new Date(
+        `${from}T00:00:00+05:30`
+      );
+
+      toDate = new Date(
+        `${to}T00:00:00+05:30`
+      );
+
+      toDate.setUTCDate(
+        toDate.getUTCDate() + 1
+      );
+
+      if (
+        Number.isNaN(fromDate.getTime()) ||
+        Number.isNaN(toDate.getTime()) ||
+        fromDate >= toDate
+      ) {
+        return fail(
+          400,
+          'INVALID_DATE_RANGE',
+          'Invalid report date range'
+        );
+      }
+    }
+
+    const fromIso = fromDate.toISOString();
+    const toIso = toDate.toISOString();
+
+    const [
+      reservationsResult,
+      queueResult,
+      tableHistoryResult,
+    ] = await Promise.all([
+      admin
+        .from('reservations')
+        .select(
+          'id,status,starts_at,party_size'
+        )
+        .eq(
+          'restaurant_id',
+          restaurantId
+        )
+        .gte('starts_at', fromIso)
+        .lt('starts_at', toIso),
+
+      admin
+        .from('queue_entries')
+        .select(
+          'id,status,created_at,party_size,estimated_wait_minutes'
+        )
+        .eq(
+          'restaurant_id',
+          restaurantId
+        )
+        .gte('created_at', fromIso)
+        .lt('created_at', toIso),
+
+      admin
+        .from('table_status_history')
+        .select(
+          'table_id,status,changed_at'
+        )
+        .eq(
+          'restaurant_id',
+          restaurantId
+        )
+        .lt('changed_at', toIso)
+        .order('table_id')
+        .order('changed_at'),
+    ]);
+
+    const reservations =
+      checked(reservationsResult);
+
+    const queueEntries =
+      checked(queueResult);
+
+    const tableHistory =
+      checked(tableHistoryResult);
+
+    // ============================================================
+    // RESERVATION REPORT
+    // ============================================================
+
+    const reservationTotal =
+      reservations.length;
+
+    const reservationConfirmed =
+      reservations.filter(
+        (r: any) =>
+          r.status === 'CONFIRMED'
+      ).length;
+
+    const reservationCompleted =
+      reservations.filter(
+        (r: any) =>
+          r.status === 'COMPLETED'
+      ).length;
+
+    const reservationCancelled =
+      reservations.filter(
+        (r: any) =>
+          r.status === 'CANCELLED'
+      ).length;
+
+    const reservationNoShow =
+      reservations.filter(
+        (r: any) =>
+          r.status === 'NO_SHOW'
+      ).length;
+
+    const reservationGuests =
+      reservations.reduce(
+        (total: number, r: any) =>
+          total +
+          Number(r.party_size ?? 0),
+        0
+      );
+
+    const averageGuestsPerReservation =
+      reservationTotal > 0
+        ? Number(
+            (
+              reservationGuests /
+              reservationTotal
+            ).toFixed(1)
+          )
+        : 0;
+
+    // ============================================================
+    // WALK-IN / QUEUE REPORT
+    // ============================================================
+    //
+    // In the current Operations implementation,
+    // walk-in customers are inserted into queue_entries.
+    // Therefore queue_entries are the report source
+    // for the Owner's walk-in section.
+    // ============================================================
+
+    const walkInTotal =
+      queueEntries.length;
+
+    const walkInServed =
+      queueEntries.filter(
+        (q: any) =>
+          q.status === 'SERVED'
+      ).length;
+
+    const walkInWaiting =
+      queueEntries.filter(
+        (q: any) =>
+          [
+            'WAITING',
+            'NOTIFIED',
+            'TABLE_READY',
+          ].includes(q.status)
+      ).length;
+
+    const walkInNoShow =
+      queueEntries.filter(
+        (q: any) =>
+          q.status === 'NO_SHOW'
+      ).length;
+
+    const walkInGuests =
+      queueEntries.reduce(
+        (total: number, q: any) =>
+          total +
+          Number(q.party_size ?? 0),
+        0
+      );
+
+    const averageGuestsPerWalkIn =
+      walkInTotal > 0
+        ? Number(
+            (
+              walkInGuests /
+              walkInTotal
+            ).toFixed(1)
+          )
+        : 0;
+
+    // ============================================================
+    // VIRTUAL QUEUE REPORT
+    // ============================================================
+
+    const queueTotal =
+      queueEntries.length;
+
+    const queueServed =
+      queueEntries.filter(
+        (q: any) =>
+          q.status === 'SERVED'
+      ).length;
+
+    const queueWaiting =
+      queueEntries.filter(
+        (q: any) =>
+          [
+            'WAITING',
+            'NOTIFIED',
+            'TABLE_READY',
+          ].includes(q.status)
+      ).length;
+
+    const queueNoShow =
+      queueEntries.filter(
+        (q: any) =>
+          q.status === 'NO_SHOW'
+      ).length;
+
+    const waitValues =
+      queueEntries
+        .map((q: any) =>
+          Number(
+            q.estimated_wait_minutes
+          )
+        )
+        .filter(
+          (value: number) =>
+            Number.isFinite(value) &&
+            value >= 0
+        );
+
+    const averageWaitMinutes =
+      waitValues.length > 0
+        ? Math.round(
+            waitValues.reduce(
+              (a: number, b: number) =>
+                a + b,
+              0
+            ) /
+              waitValues.length
+          )
+        : 0;
+
+    const longestWaitMinutes =
+      waitValues.length > 0
+        ? Math.max(...waitValues)
+        : 0;
+
+    // ============================================================
+    // TABLE REPORT
+    // ============================================================
+
+    const tableIds = Array.from(
+      new Set(
+        tableHistory.map(
+          (row: any) =>
+            row.table_id
+        )
+      )
+    );
+
+    let occupiedRatioTotal = 0;
+    let occupiedSamples = 0;
+
+    for (const tableId of tableIds) {
+      const changes =
+        tableHistory.filter(
+          (row: any) =>
+            row.table_id === tableId
+        );
+
+      let lastStatus: string | null =
+        null;
+
+      for (const change of changes) {
+        const changedAt =
+          new Date(change.changed_at);
+
+        if (
+          changedAt <= fromDate
+        ) {
+          lastStatus =
+            change.status;
+        }
+      }
+
+      const intervals = [
+        {
+          start: fromDate,
+          status: lastStatus,
+        },
+        ...changes
+          .filter(
+            (change: any) =>
+              new Date(
+                change.changed_at
+              ) > fromDate &&
+              new Date(
+                change.changed_at
+              ) < toDate
+          )
+          .map((change: any) => ({
+            start: new Date(
+              change.changed_at
+            ),
+            status: change.status,
+          })),
+        {
+          start: toDate,
+          status: null,
+        },
+      ];
+
+      for (
+        let index = 0;
+        index < intervals.length - 1;
+        index += 1
+      ) {
+        const current =
+          intervals[index];
+
+        const next =
+          intervals[index + 1];
+
+        if (
+          !current.start ||
+          !next.start
+        ) {
+          continue;
+        }
+
+        const duration =
+          next.start.getTime() -
+          current.start.getTime();
+
+        if (duration <= 0) {
+          continue;
+        }
+
+        const occupied =
+          current.status ===
+          'OCCUPIED';
+
+        if (occupied) {
+          occupiedRatioTotal +=
+            duration;
+        }
+
+        occupiedSamples += duration;
+      }
+    }
+
+    const averageUtilization =
+      occupiedSamples > 0
+        ? Math.round(
+            (occupiedRatioTotal /
+              occupiedSamples) *
+              100
+          )
+        : 0;
+
+    let latestOccupied = 0;
+
+    for (const tableId of tableIds) {
+      const latest =
+        tableHistory
+          .filter(
+            (row: any) =>
+              row.table_id === tableId
+          )
+          .sort(
+            (a: any, b: any) =>
+              new Date(
+                b.changed_at
+              ).getTime() -
+              new Date(
+                a.changed_at
+              ).getTime()
+          )[0];
+
+      if (
+        latest?.status ===
+        'OCCUPIED'
+      ) {
+        latestOccupied += 1;
+      }
+    }
+
+    // ============================================================
+    // RESPONSE
+    // ============================================================
+
+    ok(res, {
+      period,
+      from:
+        fromDate
+          .toISOString()
+          .slice(0, 10),
+      to:
+        new Date(
+          toDate.getTime() -
+            24 * 60 * 60 * 1000
+        )
+          .toISOString()
+          .slice(0, 10),
+
+      reservations: {
+        total: reservationTotal,
+        confirmed: reservationConfirmed,
+        completed: reservationCompleted,
+        cancelled: reservationCancelled,
+        no_show: reservationNoShow,
+        guests: reservationGuests,
+        average_guests:
+          averageGuestsPerReservation,
+      },
+
+      walk_ins: {
+        total: walkInTotal,
+        served: walkInServed,
+        waiting: walkInWaiting,
+        no_show: walkInNoShow,
+        guests: walkInGuests,
+        average_guests:
+          averageGuestsPerWalkIn,
+      },
+
+      queue: {
+        total: queueTotal,
+        served: queueServed,
+        waiting: queueWaiting,
+        no_show: queueNoShow,
+        average_wait_minutes:
+          averageWaitMinutes,
+        longest_wait_minutes:
+          longestWaitMinutes,
+      },
+
+      tables: {
+        average_occupied:
+          latestOccupied,
+        average_utilization:
+          averageUtilization,
+      },
+
+      generated_at:
+        new Date().toISOString(),
+    });
+  }
+);
+
 
 app.get(
   '/api/owner/analytics/:restaurantId',
