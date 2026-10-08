@@ -179,14 +179,18 @@ app.patch('/api/reservations/:id', async (req,res) => {
   const id=uuid.parse(req.params.id); const existing=checked(await admin.from('reservations').select('*').eq('id',id).single()); const a=actor(req);
   if (a.role==='CUSTOMER') {
     if (existing.customer_id!==a.id) fail(403,'FORBIDDEN','This is not your reservation');
-    if (!['PENDING','CONFIRMED'].includes(existing.status) || new Date(existing.starts_at)<=new Date()) fail(409,'TOO_LATE','This reservation cannot be changed');
     if (req.body.status==='CANCELLED') {
       z.object({status:z.literal('CANCELLED')}).parse(req.body);
-      ok(res,checked(await admin.rpc('cancel_customer_reservation',{p_id:id,p_customer:a.id})));
-    } else {
-      const b=bookingBody.omit({restaurant_id:true}).parse(req.body);
-      ok(res,checked(await admin.rpc('change_reservation',{p_id:id,p_customer:a.id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:b.table_id??null})));
+      const updated = checked(await admin.from('reservations').update({ status: 'CANCELLED', updated_at: new Date().toISOString() }).eq('id', id).select('*,tables(label)').single());
+      if (existing.table_id) {
+        await admin.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).eq('id', existing.table_id);
+      }
+      ok(res, updated);
+      return;
     }
+    if (!['PENDING','CONFIRMED'].includes(existing.status) || new Date(existing.starts_at)<=new Date()) fail(409,'TOO_LATE','This reservation cannot be changed');
+    const b=bookingBody.omit({restaurant_id:true}).parse(req.body);
+    ok(res,checked(await admin.rpc('change_reservation',{p_id:id,p_customer:a.id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:b.table_id??null})));
   } else {
     staffFor(req,existing.restaurant_id);
     const b=z.object({ status:z.enum(['CONFIRMED','ARRIVED','SEATED','COMPLETED','CANCELLED','NO_SHOW']) }).parse(req.body);

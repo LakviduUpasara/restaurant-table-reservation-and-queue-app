@@ -348,14 +348,32 @@ export function CustomerHome() {
 
     const performCancellation = async () => {
       try {
-        // 1. Clear local states immediately for instant UI response
-        useQueueStore.getState().clearActiveSpot();
-        booking.reset();
-
         const { data: { session } } = await supabase.auth.getSession();
         const userId = session?.user?.id || me?.id;
 
-        // 2. Cancel in remote API & Supabase DB
+        // 1. Clear local stores immediately for instant UI response
+        useQueueStore.getState().clearActiveSpot();
+        booking.reset();
+
+        // 2. Optimistically clear query caches
+        client.setQueryData<DashboardReservation[]>(['reservations'], old => {
+          if (!old) return [];
+          return old.map(r => (r.id === res.id || (userId && r.customer_id === userId) ? { ...r, status: 'CANCELLED' as const } : r));
+        });
+
+        client.setQueryData<Table[]>(['tables', restaurantId], old => {
+          if (!old) return [];
+          const resLabel = res.tables?.label?.replace(/^T/i, '').trim();
+          return old.map(t => {
+            const tClean = t.label.replace(/^T/i, '').trim();
+            if (t.id === res.table_id || (resLabel && tClean === resLabel)) {
+              return { ...t, status: 'AVAILABLE' as const };
+            }
+            return t;
+          });
+        });
+
+        // 3. Cancel in remote API & Supabase DB
         if (res.id && res.id !== 'active-token' && res.id.length > 10) {
           try {
             await api(`/reservations/${res.id}`, { method: 'PATCH', body: { status: 'CANCELLED' } });
@@ -367,13 +385,19 @@ export function CustomerHome() {
         // Cancel any other active reservations for current user
         if (userId) {
           try {
+            const activeList = (reservations.data || []).filter(r => ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status));
+            for (const r of activeList) {
+              if (r.id && r.id !== 'active-token') {
+                await api(`/reservations/${r.id}`, { method: 'PATCH', body: { status: 'CANCELLED' } }).catch(() => {});
+              }
+            }
             await supabase.from('reservations').update({ status: 'CANCELLED' }).eq('customer_id', userId).in('status', ['PENDING', 'CONFIRMED', 'SEATED']);
           } catch {
             // ignore
           }
         }
 
-        // 3. Release table in database
+        // 4. Release table in database
         if (res.table_id && res.table_id.length > 10) {
           await supabase.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).eq('id', res.table_id);
         }
@@ -383,17 +407,18 @@ export function CustomerHome() {
           await supabase.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).or(`label.eq.${rawLabel},label.eq.T${cleanLabel},label.eq.${cleanLabel}`);
         }
 
-        // 4. Cancel any active queue entry for this user
+        // 5. Cancel any active queue entry for this user
         if (userId) {
           await supabase.from('queue_entries').update({ status: 'CANCELLED' }).eq('customer_id', userId).in('status', ['WAITING', 'NOTIFIED', 'TABLE_READY']);
         }
 
-        // 5. Invalidate and refetch all React Query caches
+        // 6. Invalidate and refetch all React Query caches
         await Promise.all([
           client.invalidateQueries({ queryKey: ['reservations'] }),
           client.invalidateQueries({ queryKey: ['tables'] }),
           client.invalidateQueries({ queryKey: ['home-availability'] }),
           client.invalidateQueries({ queryKey: ['queue'] }),
+          client.invalidateQueries({ queryKey: ['orders'] }),
           reservations.refetch(),
           tables.refetch(),
           availability.refetch(),
