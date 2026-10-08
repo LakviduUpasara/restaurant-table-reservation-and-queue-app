@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -392,36 +392,98 @@ export function ResetPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    async function initRecoverySession() {
+      try {
+        if (Platform.OS === 'web' && typeof window !== 'undefined') {
+          const hash = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : '';
+          const search = window.location.search.startsWith('?') ? window.location.search.substring(1) : '';
+          const params = new URLSearchParams(hash || search);
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+          const code = params.get('code');
+
+          if (accessToken && refreshToken) {
+            await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          } else if (code) {
+            await supabase.auth.exchangeCodeForSession(code);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not initialize recovery session:', err);
+      }
+    }
+    void initRecoverySession();
+  }, []);
+
   const savePassword = async () => {
-    if (password.length < 6) {
-      Alert.alert('Password too short', 'Use at least 6 characters for your new password.');
+    const trimmed = password.trim();
+    if (trimmed.length < 6) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Password too short. Please use at least 6 characters for your new password.');
+      } else {
+        Alert.alert('Password too short', 'Use at least 6 characters for your new password.');
+      }
       return;
     }
-    if (password !== confirmPassword) {
-      Alert.alert('Passwords do not match', 'Enter the same password in both fields.');
+    if (trimmed !== confirmPassword.trim()) {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Passwords do not match. Please enter the same password in both fields.');
+      } else {
+        Alert.alert('Passwords do not match', 'Enter the same password in both fields.');
+      }
       return;
     }
 
     setBusy(true);
     let passwordUpdated = false;
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      // 1. Ensure recovery session is active
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session && Platform.OS === 'web' && typeof window !== 'undefined') {
+        const hash = window.location.hash.startsWith('#') ? window.location.hash.substring(1) : '';
+        const search = window.location.search.startsWith('?') ? window.location.search.substring(1) : '';
+        const params = new URLSearchParams(hash || search);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const code = params.get('code');
+
+        if (accessToken && refreshToken) {
+          const res = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+          session = res.data.session;
+        } else if (code) {
+          const res = await supabase.auth.exchangeCodeForSession(code);
+          session = res.data.session;
+        }
+      }
+
+      // 2. Update user password in Supabase
+      const { data, error } = await supabase.auth.updateUser({ password: trimmed });
       if (error) throw error;
       passwordUpdated = true;
 
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
+      // 3. Sign out to force re-authentication with new password
+      await supabase.auth.signOut().catch(() => {});
 
-      Alert.alert('Password updated', 'You can now sign in with your new password.');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Password updated successfully! Please sign in with your new password.');
+      } else {
+        Alert.alert('Password updated', 'You can now sign in with your new password.');
+      }
       router.replace('/login');
     } catch (error) {
-      Alert.alert(
-        passwordUpdated ? 'Password updated' : 'Could not reset password',
-        passwordUpdated
-          ? `Your password was changed, but automatic sign-out failed. Please sign out manually. ${String((error as Error).message)}`
-          : String((error as Error).message),
-      );
-      if (passwordUpdated) router.replace('/login');
+      const msg = error instanceof Error ? error.message : String(error);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(passwordUpdated ? 'Password updated! Please log in.' : `Could not reset password: ${msg}`);
+      } else {
+        Alert.alert(
+          passwordUpdated ? 'Password updated' : 'Could not reset password',
+          passwordUpdated ? 'Your password was changed. Please sign in.' : msg,
+        );
+      }
+      if (passwordUpdated) {
+        router.replace('/login');
+      }
     } finally {
       setBusy(false);
     }
