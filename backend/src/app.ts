@@ -218,9 +218,14 @@ app.post('/api/reservations', async (req,res) => {
     if (z.string().uuid().safeParse(b.table_id).success) {
       targetTableUuid = b.table_id;
     } else {
+      const parseNum = (str: string) => { const m = str.match(/\d+/); return m ? parseInt(m[0], 10) : null; };
+      const reqNum = parseNum(b.table_id);
       const cleanLabel = b.table_id.replace(/^T/i, '').trim();
       const dbTables = checked(await admin.from('tables').select('id,label').eq('restaurant_id', b.restaurant_id));
-      const match = (dbTables || []).find((t: any) => t.label.replace(/^T/i, '').trim() === cleanLabel || t.label === b.table_id);
+      const match = (dbTables || []).find((t: any) => {
+        const dbNum = parseNum(t.label);
+        return (reqNum !== null && dbNum === reqNum) || t.label.replace(/^T/i, '').trim() === cleanLabel || t.label === b.table_id;
+      });
       if (match?.id) {
         targetTableUuid = match.id;
       }

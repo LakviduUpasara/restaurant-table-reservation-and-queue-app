@@ -670,8 +670,11 @@ export function SelectTable() {
       if (t.id) set.add(t.id);
       if (t.label) {
         const clean = prettyTable(t.label);
+        const num = prettyTableNumber(t.label);
         set.add(clean);
         set.add(`T${clean}`);
+        set.add(`default-table-${num}`);
+        set.add(`${num}`);
       }
     });
     return set;
@@ -679,11 +682,18 @@ export function SelectTable() {
 
   const checkTableBooked = (table: Table) => {
     const label = prettyTable(table.label);
+    const num = prettyTableNumber(table.label);
     if (table.status === 'RESERVED' || table.status === 'OCCUPIED' || table.status === 'UNAVAILABLE') {
       return true;
     }
     if (availabilityQuery.data?.tables) {
-      return !availableTableIds.has(table.id) && !availableTableIds.has(label) && !availableTableIds.has(`T${label}`);
+      return (
+        !availableTableIds.has(table.id) &&
+        !availableTableIds.has(label) &&
+        !availableTableIds.has(`T${label}`) &&
+        !availableTableIds.has(`default-table-${num}`) &&
+        !availableTableIds.has(`${num}`)
+      );
     }
     return false;
   };
