@@ -610,7 +610,18 @@ app.patch('/api/queue/:id', async (req,res) => {
   if (a.role==='CUSTOMER') {
     if (e.customer_id!==a.id) fail(403,'FORBIDDEN','This is not your queue entry');
     z.object({ status:z.literal('CANCELLED') }).parse(req.body);
-    ok(res,checked(await admin.rpc('transition_queue_entry',{p_id:id,p_status:'CANCELLED'}))); return;
+    if (e.status === 'CANCELLED') {
+      ok(res, e);
+      return;
+    }
+    try {
+      const updated = checked(await admin.rpc('transition_queue_entry',{p_id:id,p_status:'CANCELLED'}));
+      ok(res, updated);
+    } catch {
+      const updated = checked(await admin.from('queue_entries').update({ status: 'CANCELLED', updated_at: new Date().toISOString() }).eq('id', id).select().single());
+      ok(res, updated);
+    }
+    return;
   }
   staffFor(req,e.restaurant_id);
   const b=z.object({ status:z.enum(['WAITING','NOTIFIED','TABLE_READY','CANCELLED','NO_SHOW']), estimated_wait_minutes:z.number().int().min(0).max(360).optional() }).parse(req.body);

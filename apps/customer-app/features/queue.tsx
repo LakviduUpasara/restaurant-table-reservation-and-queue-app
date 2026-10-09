@@ -164,7 +164,7 @@ export function QueueStatus() {
     ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) && new Date(r.starts_at) > new Date(Date.now() - 3 * 3600 * 1000)
   );
 
-  const hasActiveSpot = !!activeEntry || (localSpot?.hasActiveSpot && localSpot?.status === 'WAITING');
+  const hasActiveSpot = !!activeEntry || !!localSpot?.hasActiveSpot || !!activeReservation;
 
   // Compute FIFO position:
   // If user is already in remote queue entries, use their 1-indexed position; otherwise calculate based on line count
@@ -250,20 +250,25 @@ export function QueueStatus() {
                 await api(`/queue/${activeEntry.id}`, {
                   method: 'PATCH',
                   body: { status: 'CANCELLED' },
+                }).catch(async () => {
+                  await supabase.from('queue_entries').update({ status: 'CANCELLED' }).eq('id', activeEntry.id);
                 });
               }
               if (activeReservation) {
                 await api(`/reservations/${activeReservation.id}`, {
                   method: 'PATCH',
                   body: { status: 'CANCELLED' },
+                }).catch(async () => {
+                  await supabase.from('reservations').update({ status: 'CANCELLED' }).eq('id', activeReservation.id);
                 });
               }
               await client.invalidateQueries();
-              router.replace('/(tabs)/home');
             } catch (e) {
-              Alert.alert('Error', String((e as Error).message));
+              console.error('Leave queue error:', e);
             } finally {
+              clearLocalSpot();
               setLeaving(false);
+              router.replace('/(tabs)/home');
             }
           },
         },
