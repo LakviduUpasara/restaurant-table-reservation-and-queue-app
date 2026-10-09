@@ -14,6 +14,7 @@
     "customer:tunnel": "npm run start:tunnel -w @dineflow/customer-app",
     "operations": "npm run start -w @dineflow/operations-app",
     "check:hosted-db": "node scripts/check-hosted-db.mjs",
+    "seed:staff-demo": "node scripts/seed-staff-demo.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test -w @dineflow/backend"
   },
@@ -21,6 +22,8 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "expo-font": "~57.0.4",
+    "expo-image-picker": "~57.0.20",
+    "expo-print": "~57.0.2",
     "react-native-svg": "^15.15.4"
   }
 }

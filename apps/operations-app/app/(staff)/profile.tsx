@@ -1,1 +1,1 @@
-export { Profile as default } from '../../features/operations';
+export { StaffProfile as default } from '../../features/staff-profile';

@@ -1,4 +1,13 @@
+import React from 'react';
 import { Redirect, Stack } from 'expo-router';
-import { Screen, State } from '@dineflow/shared';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { useAuth } from '../../stores/auth.store';
-export default function OwnerLayout(){const {ready,profile,error,refresh}=useAuth();if(!ready)return <Screen><State loading/></Screen>;if(error)return <Screen title="Connection problem"><State error={error} onRetry={()=>void refresh()}/></Screen>;if(profile?.role!=='OWNER')return <Redirect href="/login"/>;return <Stack screenOptions={{headerShown:false}}/>}
+
+export default function OwnerLayout() {
+  const { ready, profile, error } = useAuth();
+  if (!ready) return <ActivityIndicator />;
+  if (!profile) return <Redirect href="/(auth)/login" />;
+  if (profile.role !== 'OWNER') return <Redirect href="/(staff)/dashboard" />;
+  if (error) return <View><Text>{error}</Text></View>;
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
