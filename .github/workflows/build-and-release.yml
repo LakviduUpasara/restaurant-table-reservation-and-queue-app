@@ -1,0 +1,64 @@
+name: Build & Release APKs
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    name: Build and Release APKs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Setup Expo / EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install Workspace Dependencies
+        run: npm ci || npm install
+
+      - name: Build Customer App APK
+        run: |
+          cd apps/customer-app
+          npx eas-cli build -p android --profile preview --non-interactive --output ./DineFlow-Customer-v1.0.0.apk
+
+      - name: Build Operations App APK
+        run: |
+          cd apps/operations-app
+          npx eas-cli build -p android --profile preview --non-interactive --output ./DineFlow-Operations-v1.0.0.apk
+
+      - name: Create GitHub Release and Upload APKs
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/customer-app/DineFlow-Customer-v1.0.0.apk
+            apps/operations-app/DineFlow-Operations-v1.0.0.apk
+          name: DineFlow Mobile Apps Release (${{ github.ref_name }})
+          body: |
+            ## 🚀 DineFlow Mobile Application Release
+
+            Here are the standalone Android APK builds for testing and deployment:
+
+            - 📲 **Customer App**: `DineFlow-Customer-v1.0.0.apk`
+            - 🛠️ **Operations App**: `DineFlow-Operations-v1.0.0.apk`
+
+            ### Features Included:
+            - Brand Splash Screen & Application Icon
+            - Backend Vercel URL Integration
+            - Complete Queue & Table Reservation Workflows
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
