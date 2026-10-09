@@ -261,6 +261,7 @@ function AuthScreen({ signup: initialSignup }: { signup: boolean }) {
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView ref={scrollView} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.welcome}>
+          <Image source={require('../assets/images/logo.png')} style={{ width: 120, height: 120, resizeMode: 'contain', marginBottom: 12 }} />
           <Text accessibilityRole="header" style={styles.welcomeTitle}>Welcome to <Text style={styles.yellow}>DineFlow</Text></Text>
           <Text style={styles.welcomeSubtitle}>Your next great meal starts here.</Text>
         </View>

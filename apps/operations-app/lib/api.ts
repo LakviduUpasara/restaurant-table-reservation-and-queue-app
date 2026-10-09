@@ -4,7 +4,7 @@ import { supabase } from './supabase';
 import { withTimeout } from './promise';
 
 const API_TIMEOUT_MS = 12_000;
-const configuredRoot = process.env.EXPO_PUBLIC_API_URL;
+const configuredRoot = process.env.EXPO_PUBLIC_API_URL || 'https://restaurant-table-reservation-and-qu.vercel.app/api';
 
 function isLocalDevelopmentHost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' ||
@@ -82,8 +82,6 @@ async function request(path: string, method: string, body: string | undefined, t
 }
 
 export async function api<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
-  if (!root) throw new Error('Set EXPO_PUBLIC_API_URL in apps/operations-app/.env');
-
   const method = options.method ?? 'GET';
   const body = options.body === undefined ? undefined : JSON.stringify(options.body);
   let response = await request(path, method, body, await accessToken());

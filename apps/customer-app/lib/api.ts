@@ -1,9 +1,8 @@
 import { supabase } from './supabase';
 
-const root = process.env.EXPO_PUBLIC_API_URL;
+const root = process.env.EXPO_PUBLIC_API_URL || 'https://restaurant-table-reservation-and-qu.vercel.app/api';
 
 export async function api<T>(path: string, options: { method?: string; body?: unknown; timeoutMs?: number } = {}): Promise<T> {
-  if (!root) throw new Error('Set EXPO_PUBLIC_API_URL in apps/customer-app/.env');
   const { data } = await supabase.auth.getSession();
 
   const controller = new AbortController();
