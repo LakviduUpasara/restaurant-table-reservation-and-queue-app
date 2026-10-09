@@ -196,7 +196,7 @@ function AuthScreen({ signup: initialSignup }: { signup: boolean }) {
         return;
       }
 
-      const redirectUrl = ExpoLinking.createURL('/login');
+      const redirectUrl = ExpoLinking.createURL('/login', { scheme: 'dineflow-customer' });
       const { data, error: authError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -211,8 +211,8 @@ function AuthScreen({ signup: initialSignup }: { signup: boolean }) {
         showInRecents: true,
       });
 
-      if (authSessionResult.type === 'success' && authSessionResult.url) {
-        const returnedUrl = authSessionResult.url;
+      const returnedUrl = authSessionResult.type === 'success' ? authSessionResult.url : null;
+      if (returnedUrl) {
         const params = new URLSearchParams(returnedUrl.split('#')[1] ?? returnedUrl.split('?')[1] ?? '');
         const access_token = params.get('access_token');
         const refresh_token = params.get('refresh_token');

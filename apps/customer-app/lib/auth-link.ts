@@ -6,8 +6,10 @@ import { useAuth } from '../stores/auth.store';
 
 async function consume(url: string) {
   try {
+    if (!url) return;
     const recovery = url.includes('reset-password');
-    if (!recovery && !url.includes('login') && !url.includes('auth')) return;
+    const hasAuthParams = url.includes('access_token=') || url.includes('code=') || url.includes('refresh_token=') || url.includes('error=');
+    if (!recovery && !url.includes('login') && !url.includes('auth') && !hasAuthParams) return;
 
     const params = new URLSearchParams(url.split('#')[1] ?? url.split('?')[1] ?? '');
     const linkError = params.get('error_description');
