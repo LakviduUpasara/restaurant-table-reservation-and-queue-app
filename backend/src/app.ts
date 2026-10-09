@@ -20,7 +20,7 @@ const uuid = z.uuid();
 const iso = z.iso.datetime({ offset: true });
 const localDay=(when=new Date())=>new Date(when.getTime()+330*60000).toISOString().slice(0,10);
 const dayRange=(day:string)=>{const date=z.iso.date().parse(day);const start=new Date(`${date}T00:00:00+05:30`);if(Number.isNaN(start.getTime()))fail(400,'INVALID_DATE','Choose a valid date');return {start:start.toISOString(),end:new Date(start.getTime()+24*60*60*1000).toISOString()}};
-const bookingBody = z.object({ restaurant_id: uuid, table_id: uuid.optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
+const bookingBody = z.object({ restaurant_id: uuid, table_id: z.string().optional(), starts_at: iso, party_size: z.number().int().min(1).max(20), special_request: z.string().max(500).optional() });
 const queueBody = z.object({ restaurant_id: uuid, customer_name: z.string().trim().min(1).max(100), phone: z.string().max(30).optional(), party_size: z.number().int().min(1).max(20), estimated_wait_minutes: z.number().int().min(0).max(360).optional() });
 const productBody = z.object({ restaurant_id: uuid, name: z.string().trim().min(1).max(120), description: z.string().max(500).optional(), price_cents: z.number().int().min(0), image_url: z.url().optional().nullable(), available: z.boolean().optional() });
 const phoneValue = z.string().trim().refine(value => {
@@ -119,12 +119,12 @@ app.get('/api/restaurants/:id/availability', async (req,res) => {
   const restaurantId = uuid.parse(req.params.id); const start = iso.parse(req.query.starts_at); const party = z.coerce.number().int().min(1).max(20).parse(req.query.party_size);
   const settings = checked(await admin.from('restaurant_settings').select('*').eq('restaurant_id',restaurantId).single());
   const end = new Date(new Date(start).getTime() + settings.booking_duration_minutes*60000).toISOString();
-  if (new Date(start)<=new Date()) fail(400,'INVALID_TIME','Choose a future time');
+  if (new Date(start).getTime() < Date.now() - 15 * 60000) fail(400,'INVALID_TIME','Choose a future time');
   const localStart=new Date(new Date(start).getTime()+330*60000);const localEnd=new Date(new Date(end).getTime()+330*60000);
   const minutes=(value:string)=>Number(value.slice(0,2))*60+Number(value.slice(3,5));
   const startMinutes=localStart.getUTCHours()*60+localStart.getUTCMinutes();
   if (localStart.toISOString().slice(0,10)!==localEnd.toISOString().slice(0,10)||startMinutes<minutes(settings.opening_time)||localEnd.getUTCHours()*60+localEnd.getUTCMinutes()>minutes(settings.closing_time)||(startMinutes-minutes(settings.opening_time))%settings.slot_minutes!==0) fail(400,'OUTSIDE_OPENING_HOURS','Choose an available booking slot');
-  const tables = checked(await admin.from('tables').select('id,label,capacity,status').eq('restaurant_id',restaurantId).gte('capacity',party).in('status',['AVAILABLE','RESERVED']).order('capacity'));
+  const tables = checked(await admin.from('tables').select('id,label,capacity,status').eq('restaurant_id',restaurantId).gte('capacity',party).eq('status','AVAILABLE').order('capacity'));
   let excludeId: string | null = null;
   if (req.query.reservation_id) {
     const existing=checked(await admin.from('reservations').select('id,customer_id,restaurant_id').eq('id',uuid.parse(req.query.reservation_id)).single());
@@ -139,7 +139,7 @@ app.get('/api/restaurants/:id/availability', async (req,res) => {
 });
 app.get('/api/settings/:restaurantId', async (req,res) => ok(res,checked(await admin.from('restaurant_settings').select('*').eq('restaurant_id',uuid.parse(req.params.restaurantId)).single())));
 app.patch('/api/settings/:restaurantId', async (req,res) => {
-  const restaurantId = uuid.parse(req.params.restaurantId); staffFor(req,restaurantId,true);
+  const restaurantId = uuid.parse(req.params.restaurantId); staffFor(req,restaurantId);
   const body = settingsBody.parse(req.body);
   if (!Object.keys(body).length) fail(400,'EMPTY_UPDATE','Choose a setting to change');
   ok(res,checked(await admin.from('restaurant_settings').update({ ...body,updated_at:new Date().toISOString() }).eq('restaurant_id',restaurantId).select().single()));
@@ -147,7 +147,7 @@ app.patch('/api/settings/:restaurantId', async (req,res) => {
 app.get('/api/tables', async (req,res) => {
   const restaurantId = uuid.parse(req.query.restaurant_id);
   if (actor(req).role !== 'CUSTOMER') staffFor(req,restaurantId);
-  const existing = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
+  let existing = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
   
   // Ensure all T1..T12 tables exist in database
   if (existing.length < 12) {
@@ -164,12 +164,30 @@ app.get('/api/tables', async (req,res) => {
     }
     if (missing.length > 0) {
       await admin.from('tables').insert(missing);
-      const all = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
-      ok(res, all);
-      return;
+      existing = checked(await admin.from('tables').select('*').eq('restaurant_id',restaurantId).order('label'));
     }
   }
-  ok(res, existing);
+
+  // Fetch active reservations for this restaurant to ensure table status is synced
+  const activeRes = checked(await admin.from('reservations').select('table_id').eq('restaurant_id',restaurantId).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']));
+  const activeTableIds = new Set((activeRes || []).map((r: any) => r.table_id).filter(Boolean));
+
+  const syncedTables = existing.map((t: any) => {
+    if (activeTableIds.has(t.id) && t.status === 'AVAILABLE') {
+      return { ...t, status: 'RESERVED' };
+    }
+    return t;
+  });
+
+  // Sync DB in background if needed
+  if (activeTableIds.size > 0) {
+    const toUpdate = existing.filter((t: any) => activeTableIds.has(t.id) && t.status === 'AVAILABLE').map((t: any) => t.id);
+    if (toUpdate.length > 0) {
+      void admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).in('id', toUpdate);
+    }
+  }
+
+  ok(res, syncedTables);
 });
 app.patch('/api/tables/:id', async (req,res) => {
   const id = uuid.parse(req.params.id); const table = checked(await admin.from('tables').select('*').eq('id',id).single()); staffFor(req,table.restaurant_id);
@@ -194,9 +212,26 @@ app.get('/api/reservations', async (req,res) => {
 app.post('/api/reservations', async (req,res) => {
   if (actor(req).role!=='CUSTOMER') fail(403,'FORBIDDEN','Customer account required');
   const b=bookingBody.parse(req.body);
-  const booked=checked(await admin.rpc('book_table',{ p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:b.table_id??null }));
+
+  let targetTableUuid: string | null = null;
+  if (b.table_id) {
+    if (z.string().uuid().safeParse(b.table_id).success) {
+      targetTableUuid = b.table_id;
+    } else {
+      const cleanLabel = b.table_id.replace(/^T/i, '').trim();
+      const dbTables = checked(await admin.from('tables').select('id,label').eq('restaurant_id', b.restaurant_id));
+      const match = (dbTables || []).find((t: any) => t.label.replace(/^T/i, '').trim() === cleanLabel || t.label === b.table_id);
+      if (match?.id) {
+        targetTableUuid = match.id;
+      }
+    }
+  }
+
+  const booked=checked(await admin.rpc('book_table',{ p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:targetTableUuid }));
   if (booked?.table_id) {
     await admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).eq('id', booked.table_id);
+  } else if (targetTableUuid) {
+    await admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).eq('id', targetTableUuid);
   }
   const notice=await admin.from('notifications').insert({user_id:actor(req).id,title:'Booking confirmed',body:'Your table reservation is confirmed.',kind:'CONFIRMATION',source_id:booked.id});
   if (notice.error) console.error('Confirmation notification failed',notice.error);
@@ -211,7 +246,11 @@ app.patch('/api/reservations/:id', async (req,res) => {
       z.object({status:z.literal('CANCELLED')}).parse(req.body);
       const updated = checked(await admin.from('reservations').update({ status: 'CANCELLED', updated_at: new Date().toISOString() }).eq('id', id).select('*,tables(label)').single());
       if (existing.table_id) {
-        await admin.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).eq('id', existing.table_id);
+        // Check if table has any other active reservation
+        const otherActive = checked(await admin.from('reservations').select('id').eq('table_id', existing.table_id).neq('id', id).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']));
+        if (!otherActive || otherActive.length === 0) {
+          await admin.from('tables').update({ status: 'AVAILABLE', updated_at: new Date().toISOString() }).eq('id', existing.table_id);
+        }
       }
       ok(res, updated);
       return;
