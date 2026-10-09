@@ -45,6 +45,17 @@
     },
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "expo-status-bar": {
+        "style": "dark",
+        "hidden": false
+      },
+      "eas": {
+        "projectId": "05444c25-251b-42bc-9940-eb6aed81ae0e"
+      }
+    },
+    "owner": "lakvidu04"
   }
 }
