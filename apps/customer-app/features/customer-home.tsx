@@ -177,15 +177,29 @@ export function CustomerHome() {
   });
 
   // Table availability
+  // Selected slot date and time window
+  const selectedSlotDate = booking.date || slot.day;
+  const selectedSlotTime = booking.time || slot.time;
+
+  const slotStartMs = useMemo(() => {
+    return new Date(startIso(selectedSlotDate, selectedSlotTime)).getTime();
+  }, [selectedSlotDate, selectedSlotTime]);
+  const slotEndMs = useMemo(() => slotStartMs + 90 * 60 * 1000, [slotStartMs]);
+
+  const targetSlotIso = useMemo(() => {
+    return startIso(selectedSlotDate, selectedSlotTime);
+  }, [selectedSlotDate, selectedSlotTime]);
+
+  // Table availability for selected time slot from backend
   const availability = useQuery({
-    queryKey: ['home-availability', restaurantId, slot.iso],
+    queryKey: ['home-availability', restaurantId, targetSlotIso],
     enabled: !!restaurantId,
     queryFn: async () => {
       try {
-        return await api<Availability>(`/restaurants/${restaurantId}/availability?starts_at=${encodeURIComponent(slot.iso)}&party_size=2`, { timeoutMs: 2000 });
+        return await api<Availability>(`/restaurants/${restaurantId}/availability?starts_at=${encodeURIComponent(targetSlotIso)}&party_size=2`, { timeoutMs: 2000 });
       } catch {
         const tableList = tables.data || [];
-        const avail = tableList.filter(t => t.status === 'AVAILABLE');
+        const avail = tableList.filter(t => t.status !== 'OCCUPIED' && t.status !== 'UNAVAILABLE');
         return { tables: avail, updated_at: new Date().toISOString() };
       }
     },
@@ -227,13 +241,19 @@ export function CustomerHome() {
     return set;
   }, [upcoming]);
 
-  // Booked tables from active reservations (excluding user's own upcoming if it exists)
+  // Booked tables from active reservations THAT OVERLAP WITH THE SELECTED DATE AND TIME SLOT
   const activeReservations = useMemo(() => {
-    return (reservations.data || []).filter(r =>
-      ['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status) &&
-      (!upcoming?.id || r.id !== upcoming.id)
-    );
-  }, [reservations.data, upcoming]);
+    return (reservations.data || []).filter(r => {
+      if (!['PENDING', 'CONFIRMED', 'SEATED'].includes(r.status)) return false;
+      if (upcoming?.id && r.id === upcoming.id) return false;
+
+      // Time overlap check: reservation conflicts ONLY IF rStart < slotEnd AND rEnd > slotStart
+      const rStartMs = new Date(r.starts_at).getTime();
+      const rEndMs = r.ends_at ? new Date(r.ends_at).getTime() : rStartMs + 90 * 60 * 1000;
+
+      return rStartMs < slotEndMs && rEndMs > slotStartMs;
+    });
+  }, [reservations.data, upcoming, slotStartMs, slotEndMs]);
 
   const bookedTableIds = useMemo(() => {
     return new Set(activeReservations.map(r => r.table_id).filter(Boolean) as string[]);
@@ -314,7 +334,6 @@ export function CustomerHome() {
 
     const isBooked =
       table.status === 'OCCUPIED' ||
-      table.status === 'RESERVED' ||
       table.status === 'UNAVAILABLE' ||
       (table.id && bookedTableIds.has(table.id)) ||
       bookedTableLabels.has(table.label) ||

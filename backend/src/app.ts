@@ -542,11 +542,6 @@ app.post('/api/reservations', async (req,res) => {
   }
 
   const booked=checked(await admin.rpc('book_table',{ p_restaurant:b.restaurant_id,p_customer:actor(req).id,p_start:b.starts_at,p_party:b.party_size,p_request:b.special_request??null,p_table:targetTableUuid }));
-  if (booked?.table_id) {
-    await admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).eq('id', booked.table_id);
-  } else if (targetTableUuid) {
-    await admin.from('tables').update({ status: 'RESERVED', updated_at: new Date().toISOString() }).eq('id', targetTableUuid);
-  }
   const notice=await admin.from('notifications').insert({user_id:actor(req).id,title:'Booking confirmed',body:'Your table reservation is confirmed.',kind:'CONFIRMATION',source_id:booked.id});
   if (notice.error) console.error('Confirmation notification failed',notice.error);
   await sendPush(actor(req).id,'Booking confirmed','Your table reservation is confirmed.').catch(console.error);
