@@ -4,6 +4,20 @@ import { router } from 'expo-router';
 import { supabase } from './supabase';
 import { useAuth } from '../stores/auth.store';
 
+function parseAuthParams(url: string) {
+  const queryPart = (url.split('?')[1] || '').split('#')[0] || '';
+  const hashPart = url.split('#')[1] || '';
+  const combined = [queryPart, hashPart].filter(Boolean).join('&');
+  const params = new URLSearchParams(combined);
+
+  return {
+    accessToken: params.get('access_token'),
+    refreshToken: params.get('refresh_token'),
+    code: params.get('code'),
+    errorDescription: params.get('error_description') || params.get('error'),
+  };
+}
+
 async function consume(url: string) {
   try {
     if (!url) return;
@@ -11,13 +25,8 @@ async function consume(url: string) {
     const hasAuthParams = url.includes('access_token=') || url.includes('code=') || url.includes('refresh_token=') || url.includes('error=');
     if (!recovery && !url.includes('login') && !url.includes('auth') && !hasAuthParams) return;
 
-    const params = new URLSearchParams(url.split('#')[1] ?? url.split('?')[1] ?? '');
-    const linkError = params.get('error_description');
-    if (linkError) throw new Error(linkError);
-
-    const accessToken = params.get('access_token');
-    const refreshToken = params.get('refresh_token');
-    const code = params.get('code');
+    const { accessToken, refreshToken, code, errorDescription } = parseAuthParams(url);
+    if (errorDescription) throw new Error(errorDescription);
 
     let result = null;
     if (accessToken && refreshToken) {
