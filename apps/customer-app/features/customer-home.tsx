@@ -716,6 +716,10 @@ export function CustomerHome() {
               <View style={[styles.legendDot, { backgroundColor: '#EF4444' }]} />
               <Text style={styles.legendLabel}>Booked</Text>
             </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, { backgroundColor: '#E8B800' }]} />
+              <Text style={styles.legendLabel}>Your Table</Text>
+            </View>
           </View>
 
           {tables.isLoading || availability.isLoading ? (
@@ -730,9 +734,7 @@ export function CustomerHome() {
                   (table.id && upcomingTableId && table.id === upcomingTableId) ||
                   (upcomingTableLabels.size > 0 && upcomingTableLabels.has(labelClean))
                 );
-                const isBooked = (
-                  isMyReservation ||
-                  table.status === 'RESERVED' ||
+                const isOtherBooked = (
                   table.status === 'OCCUPIED' ||
                   table.status === 'UNAVAILABLE' ||
                   (table.id && bookedTableIds.has(table.id)) ||
@@ -740,10 +742,10 @@ export function CustomerHome() {
                   bookedTableLabels.has(labelClean) ||
                   (availability.data?.tables ? (!availableIds.has(table.id) && !availableIds.has(labelClean) && !availableIds.has(`T${labelClean}`)) : false)
                 );
-                const isAvailable = !isBooked;
+                const isAvailable = !isMyReservation && !isOtherBooked;
 
-                const chairColor = isAvailable ? '#10B981' : '#EF4444';
-                const tableColor = isAvailable ? '#10B981' : '#EF4444';
+                const chairColor = isMyReservation ? '#E8B800' : isOtherBooked ? '#EF4444' : '#10B981';
+                const tableColor = isMyReservation ? '#E8B800' : isOtherBooked ? '#EF4444' : '#10B981';
                 const textColor = '#FFFFFF';
                 const capacity = table.capacity || (prettyTableNumber(table.label) <= 2 ? 2 : prettyTableNumber(table.label) <= 8 ? 4 : 6);
 
@@ -774,11 +776,11 @@ export function CustomerHome() {
                       <Ionicons
                         name="people"
                         size={11}
-                        color={isAvailable ? '#059669' : '#DC2626'}
+                        color={isMyReservation ? '#D97706' : isAvailable ? '#059669' : '#DC2626'}
                         style={{ marginRight: 3 }}
                       />
-                      <Text style={[styles.tableGuestCountText, !isAvailable && styles.tableGuestCountTextBooked]}>
-                        {capacity} Guests
+                      <Text style={[styles.tableGuestCountText, isMyReservation ? { color: '#D97706', fontWeight: '700' } : !isAvailable && styles.tableGuestCountTextBooked]}>
+                        {isMyReservation ? 'Reserved' : `${capacity} Guests`}
                       </Text>
                     </View>
                   </Pressable>

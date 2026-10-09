@@ -415,18 +415,27 @@ app.get('/api/restaurants/:id/availability', async (req,res) => {
   if (localStart.toISOString().slice(0,10)!==localEnd.toISOString().slice(0,10)||startMinutes<minutes(openingTime)||localEnd.getUTCHours()*60+localEnd.getUTCMinutes()>minutes(closingTime)||(startMinutes-minutes(openingTime))%settings.slot_minutes!==0) fail(400,'OUTSIDE_OPENING_HOURS','Choose an available booking slot');
   const override = checked(await admin.from('booking_slot_overrides').select('is_available').eq('restaurant_id',restaurantId).eq('service_date',localStart.toISOString().slice(0,10)).eq('slot_time',`${localStart.toISOString().slice(11,16)}:00`).maybeSingle());
   if (override?.is_available === false) fail(400,'SLOT_UNAVAILABLE','This booking slot is unavailable');
-  const tables = checked(await admin.from('tables').select('id,label,capacity,status').eq('restaurant_id',restaurantId).gte('capacity',party).in('status',['AVAILABLE','RESERVED']).order('capacity'));
+  const tables = checked(await admin.from('tables').select('id,label,capacity,status').eq('restaurant_id',restaurantId).gte('capacity',party).neq('status','UNAVAILABLE').order('capacity'));
   let excludeId: string | null = null;
   if (req.query.reservation_id) {
     const existing=checked(await admin.from('reservations').select('id,customer_id,restaurant_id').eq('id',uuid.parse(req.query.reservation_id)).single());
     if (existing.customer_id!==actor(req).id || existing.restaurant_id!==restaurantId) fail(403,'FORBIDDEN','Not your reservation');
     excludeId=existing.id;
   }
-  let conflictsQuery=admin.from('reservations').select('table_id,starts_at,party_size').eq('restaurant_id',restaurantId).lt('starts_at',end).gt('ends_at',start).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']);
-  if (excludeId) conflictsQuery=conflictsQuery.neq('id',excludeId);
-  const conflicts = checked(await conflictsQuery);
+  const allRes = checked(await admin.from('reservations').select('id,table_id,starts_at,ends_at,party_size').eq('restaurant_id',restaurantId).in('status',['PENDING','CONFIRMED','ARRIVED','SEATED']));
+  const slotStart = new Date(start).getTime();
+  const slotEnd = new Date(end).getTime();
+  const durationMs = (settings.booking_duration_minutes || 90) * 60000;
+
+  const conflicts = allRes.filter((r: any) => {
+    if (excludeId && r.id === excludeId) return false;
+    const rStart = new Date(r.starts_at).getTime();
+    const rEnd = r.ends_at ? new Date(r.ends_at).getTime() : rStart + durationMs;
+    return rStart < slotEnd && rEnd > slotStart;
+  });
+
   const activeGuests = conflicts.reduce((sum:number,r:any)=>sum+Number(r.party_size),0);
-  const slotBookings = conflicts.filter((r:any)=>new Date(r.starts_at).getTime()===new Date(start).getTime()).length;
+  const slotBookings = conflicts.filter((r:any)=>new Date(r.starts_at).getTime()===slotStart).length;
   if (activeGuests+party>settings.max_guests || slotBookings>=settings.max_bookings_per_slot) return ok(res,{ tables: [], updated_at: new Date().toISOString() });
   const busy = new Set(conflicts.map((r:any)=>r.table_id));
   ok(res,{ tables: tables.filter((t:any)=>!busy.has(t.id)), updated_at: new Date().toISOString() });
