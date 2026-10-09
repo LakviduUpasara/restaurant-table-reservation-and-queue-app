@@ -245,28 +245,102 @@ export function QueueStatus() {
           onPress: async () => {
             setLeaving(true);
             try {
+              // 1. Immediately reset local Zustand stores
               clearLocalSpot();
-              if (activeEntry) {
+              useBooking.getState().reset();
+
+              const sessionRes = await supabase.auth.getSession();
+              const userId = me?.id || sessionRes.data?.session?.user?.id;
+
+              // 2. Optimistically update React Query caches
+              client.setQueryData<any[]>(['reservations'], old => {
+                if (!old) return [];
+                return old.map(r => (userId && r.customer_id === userId ? { ...r, status: 'CANCELLED' } : r));
+              });
+
+              client.setQueryData<QueueEntry[]>(['queue'], old => {
+                if (!old) return [];
+                return old.map(e => (userId && e.customer_id === userId ? { ...e, status: 'CANCELLED' } : e));
+              });
+
+              // 3. Cancel active queue entries in API & Supabase
+              if (activeEntry?.id) {
                 await api(`/queue/${activeEntry.id}`, {
                   method: 'PATCH',
                   body: { status: 'CANCELLED' },
-                }).catch(async () => {
-                  await supabase.from('queue_entries').update({ status: 'CANCELLED' }).eq('id', activeEntry.id);
-                });
+                }).catch(() => null);
               }
-              if (activeReservation) {
+
+              if (userId) {
+                await supabase
+                  .from('queue_entries')
+                  .update({ status: 'CANCELLED', updated_at: new Date().toISOString() })
+                  .eq('customer_id', userId)
+                  .in('status', ['WAITING', 'NOTIFIED', 'TABLE_READY']);
+              }
+
+              // 4. Cancel active reservations in API & Supabase and mark tables AVAILABLE
+              let targetResList = resQuery.data?.filter(r =>
+                ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED'].includes(r.status) &&
+                (!userId || r.customer_id === userId)
+              ) || [];
+
+              if (userId && targetResList.length === 0) {
+                const { data: dbResList } = await supabase
+                  .from('reservations')
+                  .select('id, table_id, status')
+                  .eq('customer_id', userId)
+                  .in('status', ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED']);
+                if (dbResList) targetResList = dbResList;
+              }
+
+              for (const rItem of targetResList) {
+                if (rItem.id && rItem.id !== 'active-token') {
+                  await api(`/reservations/${rItem.id}`, {
+                    method: 'PATCH',
+                    body: { status: 'CANCELLED' },
+                  }).catch(() => null);
+
+                  await supabase
+                    .from('reservations')
+                    .update({ status: 'CANCELLED', updated_at: new Date().toISOString() })
+                    .eq('id', rItem.id);
+
+                  if (rItem.table_id) {
+                    await supabase
+                      .from('tables')
+                      .update({ status: 'AVAILABLE', updated_at: new Date().toISOString() })
+                      .eq('id', rItem.table_id);
+                  }
+                }
+              }
+
+              // Fallback for single activeReservation if present
+              if (activeReservation?.id && activeReservation.id !== 'active-token') {
                 await api(`/reservations/${activeReservation.id}`, {
                   method: 'PATCH',
                   body: { status: 'CANCELLED' },
-                }).catch(async () => {
-                  await supabase.from('reservations').update({ status: 'CANCELLED' }).eq('id', activeReservation.id);
-                });
+                }).catch(() => null);
+
+                await supabase
+                  .from('reservations')
+                  .update({ status: 'CANCELLED', updated_at: new Date().toISOString() })
+                  .eq('id', activeReservation.id);
+
+                if (activeReservation.table_id) {
+                  await supabase
+                    .from('tables')
+                    .update({ status: 'AVAILABLE', updated_at: new Date().toISOString() })
+                    .eq('id', activeReservation.table_id);
+                }
               }
+
               await client.invalidateQueries();
             } catch (e) {
               console.error('Leave queue error:', e);
             } finally {
               clearLocalSpot();
+              useBooking.getState().reset();
               setLeaving(false);
               router.replace('/(tabs)/home');
             }
