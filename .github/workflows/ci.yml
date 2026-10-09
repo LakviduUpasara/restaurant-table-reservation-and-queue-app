@@ -2,17 +2,22 @@ name: DineFlow CI/CD Pipeline
 
 on:
   push:
-    branches: [ staging, main ]
+    branches:
+      - staging
+      - main
+      - dev
   pull_request:
-    branches: [ staging, main ]
+    branches:
+      - staging
+      - main
+      - dev
 
 jobs:
-  validate:
-    name: Build, Typecheck & Test
+  typecheck:
+    name: TypeScript Type Check
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
@@ -22,10 +27,35 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci || npm install
 
-      - name: TypeScript Verification
+      - name: Run Workspace Type Check
         run: npm run typecheck
 
-      - name: Backend Smoke Tests
+  test:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: typecheck
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci || npm install
+
+      - name: Run Backend Tests
         run: npm run test
+
+  status:
+    name: CI Pipeline Status Check
+    runs-on: ubuntu-latest
+    needs: [typecheck, test]
+    steps:
+      - name: Report CI Success
+        run: echo "DineFlow CI Pipeline passed all checks successfully!"
