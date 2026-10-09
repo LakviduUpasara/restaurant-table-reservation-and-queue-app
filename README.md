@@ -1,38 +1,109 @@
-# DineFlow
+# DineFlow - Restaurant Table Reservation & Queue System
 
-Two Expo mobile applications share one Express API and one Supabase project:
+![DineFlow Banner](apps/customer-app/assets/images/logo.png)
 
-- **Customer**: account, table availability, booking/change/cancel, live queue, table-ready alerts, menu and pre-order.
-- **Operations**: staff reservations, walk-ins, queue and tables; owner staff, products, booking settings and summary.
+DineFlow is a full-stack restaurant table reservation and queue management solution consisting of two Expo React Native mobile applications sharing a Node.js/Express backend API and a Supabase database project.
 
-The source lives on `feature/dineflow-milestone-03`, created from `dev`, which was created from `main`. See [implementation traceability](docs/04_IMPLEMENTATION_TRACEABILITY.md), [functional test cases](docs/05_TEST_CASES.md), the [Milestone 03 report draft](docs/06_MILESTONE03_REPORT_DRAFT.md), and [actual validation status](docs/07_VALIDATION_STATUS.md).
+---
 
-## Requirements
+## 🚀 Latest Releases (v1.0.0) & APK Downloads
 
-Node.js 22.13+, npm, a hosted Supabase project, Expo Go or Android emulator for UI development, and EAS credentials to create an installable APK. Push notifications require a development/preview build with an Expo project ID and Android FCM credentials; Expo Go does not support them on recent SDKs. The notification centre and Realtime queue state still work without push credentials.
+You can download the compiled standalone Android APKs directly from the [Official GitHub Release v1.0.0](https://github.com/LakviduUpasara/restaurant-table-reservation-and-queue-app/releases/tag/v1.0.0):
 
-## Set up
+| Application | Description | Direct APK Download |
+| :--- | :--- | :--- |
+| 📲 **DineFlow Customer App** | Table reservations, live queue status, menu & pre-orders | [Download Customer APK](https://expo.dev/artifacts/eas/67gTZnYk5W6iDZU9pXgoCw2jy2KagxPxqRyxFuxkFSM.apk) |
+| 🛠️ **DineFlow Operations App** | Restaurant staff management, walk-ins, queue & table management | [Download Operations APK](https://expo.dev/artifacts/eas/gIqkcyGQ5sZR67wJ5hq1a_YfgI0aon2bM_7FSQ0llYE.apk) |
 
-1. Run `npm install` at the repository root.
-2. Create a hosted Supabase project. Apply `supabase/migrations/20261002000100_core.sql` in the project's SQL Editor, then apply `supabase/seed.sql` to add the demo restaurant, tables, and menu. Run the migration only once on a fresh project; it creates types, tables, functions, policies, and Realtime publication entries. The seed can be rerun without duplicating its demo records. Obtain the project URL, publishable key, and secret key from that same project. This app does not require a local database or Docker Desktop.
-3. Create `backend/.env` with `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, and `PORT=3000`. Create a separate `.env` in **each** app with only `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `EXPO_PUBLIC_API_URL`. Use the same Supabase project URL and publishable key in all three files; never put the secret key in either app directory. On an Android emulator use `10.0.2.2` in the API URL; on a physical device use the computer's LAN address for the API URL. The API URL must end in `/api`. The Supabase URL remains the hosted HTTPS URL on every device. Keep all `.env` files out of Git.
-4. Start the API with `npm run api` and the apps with `npm run customer` and `npm run operations` in separate terminals. Customer uses port 8081 and Operations uses port 8082, so both Metro servers can run together. The Operations launcher detects the computer's active Wi-Fi/LAN address and advertises that address to Expo Go instead of `127.0.0.1`; override it with `DINEFLOW_DEV_HOST` only when automatic detection selects the wrong adapter. Open the new QR code in Expo Go; web previews are also available at `http://localhost:8081` and `http://localhost:8082`. The API health check is `GET http://localhost:3000/health`.
-5. Create a customer account in the Customer app. To make a development owner, register a separate account, then run the following once in the Supabase SQL Editor (replace the email):
+---
 
-```sql
-update public.profiles
-set role = 'OWNER', restaurant_id = '11111111-1111-4111-8111-111111111111'
-where id = (select id from auth.users where email = 'owner@example.com');
+## 📱 Features & Applications
+
+### 1. Customer Application (`apps/customer-app`)
+- **Authentication**: Customer registration, login, and password reset flows (`dineflow-customer://reset-password`).
+- **Table Reservations**: Select date, time, and party size with real-time table availability.
+- **Live Queue System**: Join virtual queue, view live position and estimated wait times.
+- **Menu & Pre-orders**: Browse restaurant menu items, customize orders, and pre-order meals for reservations.
+- **Brand Experience**: Custom DineFlow brand icon and responsive splash/loading screen (`#FFFFFF` background).
+
+### 2. Operations Application (`apps/operations-app`)
+- **Staff Access & Roles**: Owner & Staff authentication (`dineflow-operations://reset-password`).
+- **Queue & Table Management**: Live table status map, assign walk-ins, mark tables ready/occupied.
+- **Staff & Product Settings**: Manage restaurant staff invitations, menu items, and booking rules.
+- **Brand Experience**: Matching DineFlow brand icon and responsive splash/loading screen (`#FFFFFF` background).
+
+### 3. Backend API & Cloud Infrastructure (`backend`)
+- **Live Backend Deployment**: Deployed on Vercel at `https://restaurant-table-reservation-and-queue-app.vercel.app/api`.
+- **Database & Auth**: Hosted Supabase project with Realtime subscriptions, RLS security policies, and Auth services.
+
+---
+
+## 🛠️ Requirements & Setup
+
+### Prerequisites
+- **Node.js**: `v22.13+` and `npm`
+- **Supabase**: Hosted Supabase project
+- **Expo / EAS CLI**: Expo SDK 57
+
+### Local Setup Instructions
+
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Database Setup**:
+   - Apply `supabase/migrations/20261002000100_core.sql` in your Supabase SQL Editor.
+   - Run `supabase/seed.sql` to populate demo restaurant, tables, and menu data.
+
+3. **Environment Variables Configuration**:
+   - Create `backend/.env`:
+     ```env
+     SUPABASE_URL=https://<your-supabase-project>.supabase.co
+     SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
+     SUPABASE_SECRET_KEY=<your-secret-key>
+     PORT=3000
+     ```
+   - Create `.env` in `apps/customer-app` & `apps/operations-app`:
+     ```env
+     EXPO_PUBLIC_SUPABASE_URL=https://<your-supabase-project>.supabase.co
+     EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
+     EXPO_PUBLIC_API_URL=https://restaurant-table-reservation-and-queue-app.vercel.app/api
+     ```
+
+4. **Running Development Servers**:
+   - Backend API: `npm run api` (Port 3000)
+   - Customer App: `npm run customer` (Port 8081)
+   - Operations App: `npm run operations` (Port 8082)
+
+---
+
+## 🧪 Testing & Verification
+
+- **Type Check**: `npm run typecheck` (Verifies TypeScript across all workspaces)
+- **Unit & Integration Tests**: `npm run test`
+- **Hosted Database Verification**: `npm run check:hosted-db`
+
+---
+
+## 🏗️ EAS APK Build Commands
+
+To build standalone APK files for both applications using EAS Cloud Build:
+
+```bash
+# Build Customer App APK
+cd apps/customer-app
+npx eas build -p android --profile preview
+
+# Build Operations App APK
+cd apps/operations-app
+npx eas build -p android --profile preview
 ```
 
-Sign into Operations with that account. Use **Staff access** to invite staff. Never place the secret key in either app or in Git.
+---
 
-## Checks and build
+## 📄 License & Traceability
 
-Run `npm run check:hosted-db`, `npm run typecheck`, and `npm test` from the root. The hosted check confirms that the API and both apps use the same Supabase project and publishable key, all expected tables and demo rows are reachable, and Auth responds. Signed-in booking, queue, and order flows still require device testing with hosted accounts. Run each app's Android JavaScript bundle check with `npx expo export --platform android` from its directory after filling its `.env`. For APKs, link each app directory to its own EAS project (`eas init`), configure Android FCM credentials for customer push, then run `eas build --platform android --profile preview` separately in each app. The `eas.json` preview profiles request APKs.
-
-The API can be deployed as an Express project on Vercel with `backend` as the project root. Set its three Supabase environment variables and a random `CRON_SECRET` there. A trusted scheduler must call `GET /api/jobs/notifications` every five minutes with `Authorization: Bearer <CRON_SECRET>` for reminders and push receipt checks. Configure the two password-reset redirect schemes in Supabase Auth: `dineflow-customer://reset-password` and `dineflow-operations://reset-password`.
-
-## Design and limitations
-
-The high-fidelity Figma page is [here](https://www.figma.com/design/mdg7tjyyHtJFRMFMyprQwd/Untitled?node-id=0-1). The shared charcoal, white, and gold system follows the milestone palette. The Milestone 02 issues prompted clearer table-ready feedback, one email recovery path, a labelled wait field, editable product price, one owner overview, and update timestamps. Detailed Figma frame and asset inspection was limited by the account's MCP rate limit during implementation. The report draft records the remaining visual review and live testing tasks; it does not claim those checks were completed.
+- See [Implementation Traceability](docs/04_IMPLEMENTATION_TRACEABILITY.md)
+- See [Functional Test Cases](docs/05_TEST_CASES.md)
+- See [Validation Status](docs/07_VALIDATION_STATUS.md)
