@@ -25,5 +25,8 @@
     "expo-image-picker": "~57.0.20",
     "expo-print": "~57.0.2",
     "react-native-svg": "^15.15.4"
+  },
+  "devDependencies": {
+    "eas-cli": "^24.12.1"
   }
 }
