@@ -6,24 +6,28 @@ import { OwnerLayout } from '../../components/common/OwnerLayout';
 import { ActionButton } from '../../components/common/ActionButton';
 import { Card, Divider } from '../../components/common/OwnerUI';
 import { COLORS, RADIUS } from '../../constants/theme';
-import { owner } from '../../utils/mockData';
+import { useAuth } from '../../stores/auth.store';
+import { supabase } from '../../lib/supabase';
+import { useQuery } from '@tanstack/react-query';
 
 export default function OwnerProfile() {
   const router = useRouter();
+  const profile = useAuth(state => state.profile);
+  const account = useQuery({ queryKey: ['owner-account', profile?.id], queryFn: async () => { const { data, error } = await supabase.auth.getUser(); if (error) throw error; return data.user; } });
   return (
     <OwnerLayout active="more" title="Profile">
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         <View style={styles.hero}>
           <View style={styles.photoWrap}><Image source={require('../../assets/images/owner-avatar.png')} style={styles.photo} /><View style={styles.onlineDot} /></View>
-          <Text style={styles.name}>{owner.fullName}</Text>
-          <Text style={styles.role}>{owner.role}</Text>
+          <Text style={styles.name}>{profile?.full_name}</Text>
+          <Text style={styles.role}>{profile?.role}</Text>
           <View style={styles.badge}><Ionicons name="shield-checkmark-outline" size={13} color={COLORS.primaryDark} /><Text style={styles.badgeText}>Owner account</Text></View>
         </View>
 
         <Card>
-          <InfoRow icon="call-outline" label="Phone" value={owner.phone} />
+          <InfoRow icon="call-outline" label="Phone" value={profile?.phone ?? 'Not provided'} />
           <Divider />
-          <InfoRow icon="mail-outline" label="Email" value={owner.email} />
+          <InfoRow icon="mail-outline" label="Email" value={account.data?.email ?? 'Not available'} />
         </Card>
 
         <Text style={styles.sectionTitle}>Account & privacy</Text>
@@ -33,7 +37,7 @@ export default function OwnerProfile() {
           <SettingRow icon="shield-checkmark-outline" title="Security" subtitle="Keep your account protected with password and verification settings" onPress={() => Alert.alert('Security', 'Security settings will be connected to the backend later.')} />
         </Card>
 
-        <ActionButton title="Sign Out" variant="outline" icon={<Ionicons name="log-out-outline" size={18} color={COLORS.red} />} onPress={() => Alert.alert('Sign out', 'Do you want to sign out?', [{ text: 'Cancel' }, { text: 'Sign Out', style: 'destructive', onPress: () => router.replace('/(auth)/login') }])} style={styles.signOut} />
+        <ActionButton title="Sign Out" variant="outline" icon={<Ionicons name="log-out-outline" size={18} color={COLORS.red} />} onPress={() => Alert.alert('Sign out', 'Do you want to sign out?', [{ text: 'Cancel' }, { text: 'Sign Out', style: 'destructive', onPress: async () => { try { await useAuth.getState().signOut(); router.replace('/(auth)/login'); } catch (error) { Alert.alert('Sign out failed', error instanceof Error ? error.message : String(error)); } } }])} style={styles.signOut} />
         <Text style={styles.version}>DineFlow Operations · Owner</Text>
       </ScrollView>
     </OwnerLayout>

@@ -1,4 +1,17 @@
+import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { State, Screen } from '@dineflow/shared';
 import { useAuth } from '../stores/auth.store';
-export default function Index(){const {ready,profile,error,refresh}=useAuth();if(!ready)return <Screen><State loading/></Screen>;if(error)return <Screen title="Connection problem"><State error={error} onRetry={()=>void refresh()}/></Screen>;return <Redirect href={profile?.role==='CUSTOMER'?'/home':'/welcome'}/>}
+import { LoginScreen } from '../features/login';
+
+export default function Index() {
+  const { ready, profile } = useAuth();
+  if (!ready) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#171717', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#E8B800" />
+      </View>
+    );
+  }
+  if (profile?.role === 'CUSTOMER') return <Redirect href="/home" />;
+  return <LoginScreen />;
+}

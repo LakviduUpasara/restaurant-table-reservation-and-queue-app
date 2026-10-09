@@ -1,33 +1,66 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { OwnerLayout } from '../../components/common/OwnerLayout';
 import { ActionButton } from '../../components/common/ActionButton';
 import { COLORS, RADIUS } from '../../constants/theme';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
+import { useAuth } from '../../stores/auth.store';
+import { getOwnerTables, addOwnerTable } from '../../services/table.service';
+import { FigmaInput } from '../../components/common/FigmaInput';
+import { useRealtime } from '../../features/common';
 
-type TableStatus = 'Available' | 'Occupied' | 'Reserved' | 'Cleaning';
-const data: Array<{ id: string; seats: number; status: TableStatus; customer?: string }> = [
-  { id: 'T1', seats: 4, status: 'Available' }, { id: 'T2', seats: 4, status: 'Occupied', customer: 'Nimal Perera' }, { id: 'T3', seats: 6, status: 'Reserved', customer: 'Samantha Dias' },
-  { id: 'T4', seats: 2, status: 'Available' }, { id: 'T5', seats: 4, status: 'Cleaning' }, { id: 'T6', seats: 6, status: 'Reserved', customer: 'Chen Family' },
-  { id: 'T7', seats: 4, status: 'Occupied', customer: 'Priya Silva' }, { id: 'T8', seats: 2, status: 'Available' }, { id: 'T9', seats: 4, status: 'Reserved', customer: 'Nisal Perera' },
-  { id: 'T10', seats: 4, status: 'Available' }, { id: 'T11', seats: 6, status: 'Cleaning' }, { id: 'T12', seats: 2, status: 'Available' },
-];
+type TableStatus = 'Available' | 'Occupied' | 'Reserved' | 'Cleaning' | 'Unavailable';
 const tone: Record<TableStatus, { fg: string; bg: string; icon: string }> = {
+  Unavailable: { fg: COLORS.muted, bg: '#EFEFEE', icon: 'close-circle-outline' },
   Available: { fg: COLORS.green, bg: COLORS.greenSoft, icon: 'checkmark-circle-outline' }, Occupied: { fg: COLORS.red, bg: COLORS.redSoft, icon: 'people-outline' }, Reserved: { fg: COLORS.orange, bg: COLORS.orangeSoft, icon: 'calendar-outline' }, Cleaning: { fg: '#666666', bg: '#EFEFEE', icon: 'sparkles-outline' },
 };
 
 export default function OwnerTables() {
   const router = useRouter(); const [filter, setFilter] = useState<'All' | TableStatus>('All'); const [view, setView] = useState<'Floor' | 'List'>('Floor');
-  const filtered = useMemo(() => filter === 'All' ? data : data.filter(t => t.status === filter), [filter]);
+  const restaurantId = useAuth(state => state.profile?.restaurant_id);
+  const client = useQueryClient();
+  useRealtime('tables');
+  const query = useQuery({ queryKey: ['owner-tables', restaurantId], enabled: !!restaurantId, queryFn: () => getOwnerTables(restaurantId!) });
+  useFocusEffect(useCallback(() => { if (restaurantId) void query.refetch(); }, [restaurantId, query.refetch]));
+  const data = useMemo(() => (query.data ?? []).map(table => ({ id: table.id, label: table.label, seats: table.capacity, status: (table.status[0] + table.status.slice(1).toLowerCase()) as TableStatus })), [query.data]);
+  const filtered = useMemo(() => filter === 'All' ? data : data.filter(table => table.status === filter), [data, filter]);
+  const [adding, setAdding] = useState(false); const [seats, setSeats] = useState('4'); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
+  const add = async () => {
+    if (!restaurantId) return;
+    const capacity = Number(seats);
+    if (!Number.isInteger(capacity) || capacity < 1 || capacity > 30) { setError('Enter a seat count from 1 to 30.'); return; }
+    setBusy(true); setError(null);
+    try {
+      await addOwnerTable(restaurantId, capacity);
+      await Promise.all([client.invalidateQueries({ queryKey: ['owner-tables'] }), client.invalidateQueries({ queryKey: ['owner-table-count'] }), client.invalidateQueries({ queryKey: ['owner-dashboard'] })]);
+      setAdding(false); setSeats('4');
+    } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    finally { setBusy(false); }
+  };
   return <OwnerLayout active="tables" title="Table Status"><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-    <View style={styles.intro}><View style={{ flex: 1 }}><Text style={styles.kicker}>LIVE FLOOR</Text><Text style={styles.title}>Table status</Text><Text style={styles.sub}>Know what is available, occupied, reserved or ready to clean.</Text></View><View style={styles.total}><Text style={styles.totalValue}>12</Text><Text style={styles.totalLabel}>tables</Text></View></View>
+    <View style={styles.intro}><View style={{ flex: 1 }}><Text style={styles.kicker}>LIVE FLOOR</Text><Text style={styles.title}>Table status</Text><Text style={styles.sub}>Know what is available, occupied, reserved or ready to clean.</Text></View><View style={styles.total}><Text style={styles.totalValue}>{data.length}</Text><Text style={styles.totalLabel}>tables</Text></View></View>
+    <ActionButton title="Add Table" disabled={!restaurantId} onPress={() => { setError(null); setAdding(true); }} style={{ marginBottom: 12 }} icon={<Ionicons name="add" size={17} color={COLORS.text} />} />
+    {!restaurantId ? <Text>Your account is not assigned to a restaurant.</Text> : query.error ? <Text onPress={() => void query.refetch()}>{query.error.message} - Tap to retry</Text> : query.isLoading ? <Text>Loading tables...</Text> : null}
     <View style={styles.legendRow}>{Object.entries(tone).map(([key, value]) => <View key={key} style={styles.legend}><View style={[styles.legendDot, { backgroundColor: value.fg }]} /><Text style={styles.legendText}>{key}</Text></View>)}</View>
     <View style={styles.toggle}><Pressable onPress={() => setView('Floor')} style={[styles.toggleItem, view === 'Floor' && styles.toggleActive]}><Text style={[styles.toggleText, view === 'Floor' && styles.toggleTextActive]}>Floor view</Text></Pressable><Pressable onPress={() => setView('List')} style={[styles.toggleItem, view === 'List' && styles.toggleActive]}><Text style={[styles.toggleText, view === 'List' && styles.toggleTextActive]}>List view</Text></Pressable></View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{(['All','Available','Occupied','Reserved','Cleaning'] as const).map(item => <Pressable key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.filterActive]}><Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text></Pressable>)}</ScrollView>
-    {view === 'Floor' ? <View style={styles.floor}>{filtered.map(table => <Pressable key={table.id} onPress={() => router.push(`/(owner)/tables/${table.id}`)} style={[styles.tableItem, { borderColor: tone[table.status].fg + '70' }]}><View style={[styles.tableIcon, { backgroundColor: tone[table.status].bg }]}><Ionicons name={tone[table.status].icon as any} size={18} color={tone[table.status].fg} /></View><Text style={styles.tableId}>{table.id}</Text><Text style={styles.seats}>{table.seats} seats</Text><View style={[styles.statusTiny, { backgroundColor: tone[table.status].bg }]}><Text style={[styles.statusTinyText, { color: tone[table.status].fg }]}>{table.status}</Text></View></Pressable>)}</View> : filtered.map(table => <View key={table.id} style={styles.listCard}><View style={[styles.tableIcon, { backgroundColor: tone[table.status].bg }]}><Ionicons name={tone[table.status].icon as any} size={18} color={tone[table.status].fg} /></View><View style={{ flex: 1, marginLeft: 10 }}><Text style={styles.listTitle}>{table.id} · {table.seats} seats</Text><Text style={styles.listSub}>{table.customer ?? 'No current guest'}</Text></View><Text style={[styles.listStatus, { color: tone[table.status].fg }]}>{table.status}</Text><Ionicons name="chevron-forward" size={17} color="#92928E" /></View>)}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{(['All','Available','Occupied','Reserved','Cleaning','Unavailable'] as const).map(item => <Pressable key={item} onPress={() => setFilter(item)} style={[styles.filter, filter === item && styles.filterActive]}><Text style={[styles.filterText, filter === item && styles.filterTextActive]}>{item}</Text></Pressable>)}</ScrollView>
+    {view === 'Floor' ? <View style={styles.floor}>{filtered.map(table => <Pressable key={table.id} onPress={() => router.push(`/(owner)/tables/${table.id}`)} style={[styles.tableItem, { borderColor: tone[table.status].fg + '70' }]}><View style={[styles.tableIcon, { backgroundColor: tone[table.status].bg }]}><Ionicons name={tone[table.status].icon as any} size={18} color={tone[table.status].fg} /></View><Text style={styles.tableId}>{table.label}</Text><Text style={styles.seats}>{table.seats} seats</Text><View style={[styles.statusTiny, { backgroundColor: tone[table.status].bg }]}><Text style={[styles.statusTinyText, { color: tone[table.status].fg }]}>{table.status}</Text></View></Pressable>)}</View> : filtered.map(table => <Pressable key={table.id} onPress={() => router.push(`/(owner)/tables/${table.id}`)} style={styles.listCard}><View style={[styles.tableIcon, { backgroundColor: tone[table.status].bg }]}><Ionicons name={tone[table.status].icon as any} size={18} color={tone[table.status].fg} /></View><View style={{ flex: 1, marginLeft: 10 }}><Text style={styles.listTitle}>{table.label} · {table.seats} seats</Text><Text style={styles.listSub}>{table.status === 'Occupied' || table.status === 'Reserved' ? 'Open table for guest details' : 'No current guest'}</Text></View><Text style={[styles.listStatus, { color: tone[table.status].fg }]}>{table.status}</Text><Ionicons name="chevron-forward" size={17} color="#92928E" /></Pressable>)}
     <ActionButton title="Add to Queue" onPress={() => router.push('/(owner)/queue')} style={{ marginTop: 13, marginBottom: 7 }} icon={<Ionicons name="add" size={17} color={COLORS.text} />} />
-  </ScrollView></OwnerLayout>;
+  </ScrollView>
+    <Modal visible={adding} transparent animationType="fade" onRequestClose={() => { if (!busy) setAdding(false); }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 24 }}><View style={{ width: '100%', maxWidth: 390, alignSelf: 'center', backgroundColor: COLORS.surface, borderRadius: RADIUS.lg, padding: 18 }}>
+        <Text style={[styles.title, { marginBottom: 16 }]}>Add table</Text>
+        <FigmaInput label="Table ID" value="Automatically generated" editable={false} />
+        <FigmaInput label="Number of seats" value={seats} onChangeText={setSeats} keyboardType="number-pad" editable={!busy} />
+        {error ? <Text style={{ color: COLORS.red, marginBottom: 12 }}>{error}</Text> : null}
+        <ActionButton title="Add Table" busy={busy} onPress={add} />
+        <ActionButton title="Cancel" variant="outline" disabled={busy} onPress={() => setAdding(false)} style={{ marginTop: 10 }} />
+      </View></View>
+    </Modal>
+  </OwnerLayout>;
 }
 
 const styles = StyleSheet.create({

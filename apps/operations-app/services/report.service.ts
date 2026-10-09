@@ -1,18 +1,14 @@
-import {
-  queueRecords,
-  reservationRecords,
-  tableUsageRecords,
-  walkInRecords,
-} from '../utils/mockData';
+import { api } from '../lib/api';
 
 export type ReportPeriod = {
-  start: string; // YYYY-MM-DD
-  end: string;   // YYYY-MM-DD
+  start: string;
+  end: string;
   label: string;
 };
 
 export type OwnerReport = {
   period: ReportPeriod;
+
   reservations: {
     total: number;
     confirmed: number;
@@ -22,6 +18,7 @@ export type OwnerReport = {
     guests: number;
     averageGuests: number;
   };
+
   walkIns: {
     total: number;
     served: number;
@@ -30,6 +27,7 @@ export type OwnerReport = {
     guests: number;
     averageGuests: number;
   };
+
   queue: {
     total: number;
     served: number;
@@ -38,67 +36,35 @@ export type OwnerReport = {
     averageWaitMinutes: number;
     longestWaitMinutes: number;
   };
+
   tables: {
     averageOccupied: number;
     averageUtilization: number;
   };
 };
 
-const round = (value: number, digits = 1) => {
-  const factor = 10 ** digits;
-  return Math.round(value * factor) / factor;
+export type BackendReport = {
+  period: 'today' | '7d' | '30d' | 'custom'; from: string; to: string; generated_at: string;
+  reservations: { total: number; confirmed: number; completed: number; cancelled: number; no_show: number; guests: number; average_guests: number };
+  walk_ins: { total: number; served: number; waiting: number; no_show: number; guests: number; average_guests: number };
+  queue: { total: number; served: number; waiting: number; no_show: number; average_wait_minutes: number; longest_wait_minutes: number };
+  tables: { average_occupied: number; average_utilization: number };
 };
 
-const isWithinRange = (date: string, start: string, end: string) => date >= start && date <= end;
+function reportQuery(period: ReportPeriod) {
+  if (period.label === 'Today') return '?period=today';
+  if (period.label === '7 Days') return '?period=7d';
+  if (period.label === '30 Days') return '?period=30d';
+  return `?period=custom&from=${encodeURIComponent(period.start)}&to=${encodeURIComponent(period.end)}`;
+}
 
-export function generateOwnerReport(period: ReportPeriod): OwnerReport {
-  const reservations = reservationRecords.filter(r => isWithinRange(r.date, period.start, period.end));
-  const walkIns = walkInRecords.filter(r => isWithinRange(r.date, period.start, period.end));
-  const queue = queueRecords.filter(r => isWithinRange(r.date, period.start, period.end));
-  const tables = tableUsageRecords.filter(r => isWithinRange(r.date, period.start, period.end));
-
-  const reservationGuests = reservations.reduce((sum, r) => sum + r.guests, 0);
-  const walkInGuests = walkIns.reduce((sum, r) => sum + r.guests, 0);
-  const servedQueue = queue.filter(r => r.status === 'Served');
-  const averageWait = servedQueue.length
-    ? servedQueue.reduce((sum, r) => sum + r.waitMinutes, 0) / servedQueue.length
-    : 0;
-  const longestWait = queue.length ? Math.max(...queue.map(r => r.waitMinutes)) : 0;
-
+export async function getOwnerReport(restaurantId: string, period: ReportPeriod): Promise<OwnerReport> {
+  const result = await api<BackendReport>(`/owner/reports/${restaurantId}${reportQuery(period)}`);
   return {
-    period,
-    reservations: {
-      total: reservations.length,
-      confirmed: reservations.filter(r => r.status === 'Confirmed').length,
-      completed: reservations.filter(r => r.status === 'Completed').length,
-      cancelled: reservations.filter(r => r.status === 'Cancelled').length,
-      noShow: reservations.filter(r => r.status === 'No-show').length,
-      guests: reservationGuests,
-      averageGuests: reservations.length ? round(reservationGuests / reservations.length) : 0,
-    },
-    walkIns: {
-      total: walkIns.length,
-      served: walkIns.filter(r => r.status === 'Served').length,
-      waiting: walkIns.filter(r => r.status === 'Waiting').length,
-      noShow: walkIns.filter(r => r.status === 'No-show').length,
-      guests: walkInGuests,
-      averageGuests: walkIns.length ? round(walkInGuests / walkIns.length) : 0,
-    },
-    queue: {
-      total: queue.length,
-      served: servedQueue.length,
-      waiting: queue.filter(r => r.status === 'Waiting').length,
-      noShow: queue.filter(r => r.status === 'No-show').length,
-      averageWaitMinutes: round(averageWait),
-      longestWaitMinutes: longestWait,
-    },
-    tables: {
-      averageOccupied: tables.length
-        ? round(tables.reduce((sum, r) => sum + r.occupiedTables, 0) / tables.length)
-        : 0,
-      averageUtilization: tables.length
-        ? round(tables.reduce((sum, r) => sum + r.utilizationPercent, 0) / tables.length)
-        : 0,
-    },
+    period: { start: result.from, end: result.to, label: period.label },
+    reservations: { total: result.reservations.total, confirmed: result.reservations.confirmed, completed: result.reservations.completed, cancelled: result.reservations.cancelled, noShow: result.reservations.no_show, guests: result.reservations.guests, averageGuests: result.reservations.average_guests },
+    walkIns: { total: result.walk_ins.total, served: result.walk_ins.served, waiting: result.walk_ins.waiting, noShow: result.walk_ins.no_show, guests: result.walk_ins.guests, averageGuests: result.walk_ins.average_guests },
+    queue: { total: result.queue.total, served: result.queue.served, waiting: result.queue.waiting, noShow: result.queue.no_show, averageWaitMinutes: result.queue.average_wait_minutes, longestWaitMinutes: result.queue.longest_wait_minutes },
+    tables: { averageOccupied: result.tables.average_occupied, averageUtilization: result.tables.average_utilization },
   };
 }
