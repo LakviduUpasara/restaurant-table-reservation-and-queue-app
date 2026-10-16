@@ -73,7 +73,7 @@ export function StaffProfile() {
     return () => { active = false; };
   }, []);
 
-  const firstName = profile?.full_name?.trim().split(/\s+/)[0] || 'Profile name unavailable';
+  const fullName = profile?.full_name?.trim() || 'Profile name unavailable';
   const phone = profile?.phone?.trim() || 'Phone number not added';
 
   return (
@@ -97,12 +97,12 @@ export function StaffProfile() {
             showsVerticalScrollIndicator={false}
           >
             <View style={[styles.contentWidth, width < 400 && styles.compactWidth]}>
-              <View accessibilityLabel={`${profile?.full_name || firstName} profile picture`} style={styles.avatar}>
+              <View accessibilityLabel={`${fullName} profile picture`} style={styles.avatar}>
                 <Text style={styles.avatarText}>{initials(profile?.full_name)}</Text>
               </View>
 
               <View style={styles.accountFields}>
-                <AccountField label={firstName} />
+                <AccountField label={fullName} />
                 <AccountField label={phone} />
                 <AccountField label={email || 'Loading email…'} />
               </View>

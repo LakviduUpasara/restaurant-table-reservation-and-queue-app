@@ -119,22 +119,27 @@ export function StaffDashboard() {
   const restaurant = useQuery({ queryKey: ['restaurant', restaurantId], enabled: !!restaurantId, queryFn: () => api<Restaurant>(`/restaurants/${restaurantId}`) });
   const tables = useQuery({ queryKey: ['tables', restaurantId], enabled: !!restaurantId, queryFn: () => api<Table[]>(`/tables?restaurant_id=${restaurantId}`) });
   const queue = useQuery({ queryKey: ['queue', restaurantId], enabled: !!restaurantId, queryFn: () => api<QueueEntry[]>(`/queue?restaurant_id=${restaurantId}`) });
-  const reservations = useQuery({ queryKey: ['reservations', restaurantId, day], enabled: !!restaurantId, queryFn: () => api<Reservation[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`) });
+  const reservations = useQuery({ queryKey: ['reservations', restaurantId], enabled: !!restaurantId, queryFn: () => api<Reservation[]>(`/reservations?restaurant_id=${restaurantId}`) });
 
   const now = Date.now();
   const liveData = tables.data && queue.data && reservations.data ? (() => {
     const activeReservations = reservations.data.filter((item) => activeReservationStatuses.includes(item.status));
+    const todayReservations = activeReservations.filter((item) => item.starts_at.slice(0, 10) === day);
     const activeQueue = queue.data.filter((item) => activeQueueStatuses.includes(item.status));
+    const upcomingNextHour = activeReservations.filter((item) => {
+      const startsAt = new Date(item.starts_at).getTime();
+      return startsAt >= now && startsAt <= now + 60 * 60_000;
+    }).length;
     return {
       activeReservations,
+      todayReservations,
+      reservationCount: todayReservations.length > 0 ? todayReservations.length : activeReservations.length,
+      reservationLabel: todayReservations.length > 0 ? "Today’s Reservations" : "Active Reservations",
       activeQueue,
       occupiedTables: tables.data.filter((item) => item.status === 'OCCUPIED').length,
       availableTables: tables.data.filter((item) => item.status === 'AVAILABLE').length,
       cleaningTables: tables.data.filter((item) => item.status === 'CLEANING').length,
-      upcomingReservations: activeReservations.filter((item) => {
-        const startsAt = new Date(item.starts_at).getTime();
-        return startsAt >= now && startsAt <= now + 60 * 60_000;
-      }).length,
+      upcomingReservations: upcomingNextHour,
     };
   })() : null;
   const firstName = profile?.full_name?.trim().split(/\s+/)[0] || '';
@@ -167,7 +172,7 @@ export function StaffDashboard() {
             </Pressable>
           ) : <>
             <View style={styles.metricsGrid}>
-              <MetricCard accent={colors.coral} icon="calendar" label="Today’s Reservations" onPress={() => navigate('/(staff)/reservations')} tint={colors.coralSoft} value={liveData.activeReservations.length} />
+              <MetricCard accent={colors.coral} icon="calendar" label={liveData.reservationLabel} onPress={() => navigate('/(staff)/reservations')} tint={colors.coralSoft} value={liveData.reservationCount} />
               <MetricCard accent={colors.berry} icon="queue" label="Waiting in Queue" onPress={() => navigate('/(staff)/queue')} tint={colors.berrySoft} value={liveData.activeQueue.length} />
               <MetricCard accent={colors.violet} icon="occupied" label="Occupied Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.violetSoft} value={liveData.occupiedTables} />
               <MetricCard accent={colors.forest} icon="available" label="Available Tables" onPress={() => navigate('/(staff)/tables')} tint={colors.forestLight} value={liveData.availableTables} />
@@ -175,7 +180,23 @@ export function StaffDashboard() {
 
             <View style={styles.tasksHeader}><Text style={styles.tasksHeading}>Today’s Tasks</Text><Pressable accessibilityRole="button" onPress={() => navigate('/(staff)/reservations')} style={({ pressed }) => pressed && styles.pressed}><Text style={styles.viewAll}>View All</Text></Pressable></View>
             <View style={styles.tasksCard}>
-              <TaskRow accent={colors.coral} detail="Arriving within the next hour" icon="reservation" onPress={() => navigate('/(staff)/reservations')} title={`${liveData.upcomingReservations} upcoming ${liveData.upcomingReservations === 1 ? 'reservation' : 'reservations'}`} /><View style={styles.taskDivider} />
+              <TaskRow
+                accent={colors.coral}
+                detail={
+                  liveData.upcomingReservations > 0
+                    ? 'Arriving within the next hour'
+                    : liveData.activeReservations.length > 0
+                      ? `${liveData.activeReservations.length} active bookings in system`
+                      : 'No reservations pending'
+                }
+                icon="reservation"
+                onPress={() => navigate('/(staff)/reservations')}
+                title={
+                  liveData.upcomingReservations > 0
+                    ? `${liveData.upcomingReservations} upcoming ${liveData.upcomingReservations === 1 ? 'reservation' : 'reservations'}`
+                    : `${liveData.activeReservations.length} active ${liveData.activeReservations.length === 1 ? 'reservation' : 'reservations'}`
+                }
+              /><View style={styles.taskDivider} />
               <TaskRow accent={colors.berry} detail={`${liveData.activeQueue.length} ${liveData.activeQueue.length === 1 ? 'party' : 'parties'} currently waiting`} icon="queue" onPress={() => navigate('/(staff)/queue')} title="Serve waiting customers" /><View style={styles.taskDivider} />
               <TaskRow accent={colors.blue} detail={liveData.cleaningTables ? `${liveData.cleaningTables} ${liveData.cleaningTables === 1 ? 'table needs' : 'tables need'} attention` : 'All tables are up to date'} icon="cleaning" onPress={() => navigate('/(staff)/tables')} title="Check table readiness" />
             </View>

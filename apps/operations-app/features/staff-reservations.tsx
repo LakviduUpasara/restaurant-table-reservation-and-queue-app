@@ -53,18 +53,21 @@ const primaryTransition: Partial<Record<ReservationStatus, ReservationStatus>> =
 };
 
 function colomboDay(offset = 0) {
-  return new Date(Date.now() + 330 * 60_000 + offset * 86_400_000).toISOString().slice(0, 10);
-}
-
-function reservationDay(reservation: Reservation) {
-  const parts = new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Colombo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).formatToParts(new Date(reservation.starts_at));
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
-  return `${part('year')}-${part('month')}-${part('day')}`;
+  }).format(new Date(Date.now() + offset * 86_400_000));
+}
+
+function reservationDay(reservation: Reservation) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Colombo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(reservation.starts_at));
 }
 
 function reservationTime(value: string) {
@@ -131,6 +134,14 @@ function ReservationCard({
   const status = statusPresentation(reservation.status);
   const guestName = reservation.profiles?.full_name || 'Guest';
   const tableLabel = reservation.tables?.label || 'Table pending';
+  const isToday = reservationDay(reservation) === colomboDay();
+  const dateText = isToday
+    ? null
+    : new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Colombo',
+        month: 'short',
+        day: 'numeric',
+      }).format(new Date(reservation.starts_at));
 
   return (
     <Pressable
@@ -143,12 +154,20 @@ function ReservationCard({
       onPress={onPress}
       style={({ pressed }) => [styles.reservationCard, pressed && styles.pressed]}
     >
-      <Text style={styles.time}>{reservationTime(reservation.starts_at)}</Text>
+      <View style={{ alignItems: 'flex-start', minWidth: 64 }}>
+        <Text style={styles.time}>{reservationTime(reservation.starts_at)}</Text>
+        {dateText ? <Text style={{ fontSize: 10, color: colors.muted, fontWeight: '600', marginTop: 2 }}>{dateText}</Text> : null}
+      </View>
       <View style={styles.reservationCopy}>
         <Text numberOfLines={1} style={styles.guestName}>{guestName}</Text>
         <Text numberOfLines={1} style={styles.detailLine}>
           {reservation.party_size} {reservation.party_size === 1 ? 'Guest' : 'Guests'} · {tableLabel}
         </Text>
+        {reservation.special_request ? (
+          <Text numberOfLines={1} style={{ fontSize: 11, color: colors.secondary, fontStyle: 'italic', marginTop: 2 }}>
+            "{reservation.special_request}"
+          </Text>
+        ) : null}
       </View>
       <View style={[styles.statusBadge, { backgroundColor: status.backgroundColor }]}>
         <Text style={styles.statusText}>{status.label}</Text>
@@ -173,14 +192,11 @@ export function StaffReservations() {
   useRealtime('reservations');
 
   const reservations = useQuery({
-    queryKey: ['staff-reservations', restaurantId, today, tomorrow],
+    queryKey: ['staff-reservations', restaurantId],
     enabled: !!restaurantId,
     queryFn: async () => {
-      const [todayReservations, tomorrowReservations] = await Promise.all([
-        api<ReservationWithDetails[]>(`/reservations?restaurant_id=${restaurantId}&date=${today}`),
-        api<ReservationWithDetails[]>(`/reservations?restaurant_id=${restaurantId}&date=${tomorrow}`),
-      ]);
-      return [...todayReservations, ...tomorrowReservations].sort(
+      const all = await api<ReservationWithDetails[]>(`/reservations?restaurant_id=${restaurantId}`);
+      return (all ?? []).sort(
         (left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime(),
       );
     },
@@ -197,19 +213,20 @@ export function StaffReservations() {
 
   const visibleReservations = useMemo(() => {
     const term = search.trim().toLowerCase();
-    return (reservations.data ?? []).filter((item) => {
+    const filtered = (reservations.data ?? []).filter((item) => {
       const belongsToFilter = filter === 'upcoming'
         ? activeStatuses.includes(item.status)
         : filter === 'completed'
           ? item.status === 'COMPLETED'
           : ['CANCELLED', 'NO_SHOW'].includes(item.status);
-      const searchable = `${item.profiles?.full_name ?? ''} ${item.profiles?.phone ?? ''} ${item.id}`.toLowerCase();
+      const searchable = `${item.profiles?.full_name ?? ''} ${item.profiles?.phone ?? ''} ${item.id} ${item.tables?.label ?? ''} ${item.special_request ?? ''}`.toLowerCase();
       return belongsToFilter && (!term || searchable.includes(term));
     });
+    if (filter === 'completed' || filter === 'cancelled') {
+      return filtered.sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
+    }
+    return filtered.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
   }, [filter, reservations.data, search]);
-
-  const todayReservations = visibleReservations.filter((item) => reservationDay(item) === today);
-  const tomorrowReservations = visibleReservations.filter((item) => reservationDay(item) === tomorrow);
 
   async function updateStatus(reservation: ReservationWithDetails, status: ReservationStatus) {
     setUpdatingId(reservation.id);
@@ -229,7 +246,7 @@ export function StaffReservations() {
 
   function openReservationTable(reservation: ReservationWithDetails) {
     if (!reservation.table_id) {
-      Alert.alert('Table pending', 'A table has not been assigned to this reservation yet.');
+      openReservationActions(reservation);
       return;
     }
     router.push({
@@ -243,32 +260,70 @@ export function StaffReservations() {
     const guestName = reservation.profiles?.full_name || 'Guest';
     const details = [
       `${reservation.party_size} ${reservation.party_size === 1 ? 'guest' : 'guests'}`,
-      reservation.tables?.label || 'Table pending',
-      reservation.profiles?.phone,
-      `Booking ID: ${reservation.id}`,
+      reservation.tables?.label ? `Table: ${reservation.tables.label}` : 'Table pending assignment',
+      reservation.profiles?.phone ? `Phone: ${reservation.profiles.phone}` : null,
+      reservation.special_request ? `Note: "${reservation.special_request}"` : null,
+      `Time: ${reservationTime(reservation.starts_at)}`,
+      `Booking ID: ${reservation.id.slice(0, 8)}...`,
     ].filter(Boolean).join('\n');
     const buttons: Parameters<typeof Alert.alert>[2] = [{ text: 'Close', style: 'cancel' }];
 
+    if (reservation.table_id) {
+      buttons.push({
+        text: 'View table',
+        onPress: () => router.push({
+          pathname: '/(staff)/tables/[tableId]',
+          params: { tableId: reservation.table_id! },
+        }),
+      });
+    }
+
     if (cancellableStatuses.includes(reservation.status)) {
-      buttons?.push({
+      buttons.push({
         text: 'Cancel booking',
         style: 'destructive',
         onPress: () => void updateStatus(reservation, 'CANCELLED'),
       });
     }
+
     if (nextStatus) {
-      buttons?.push({
+      buttons.push({
         text: transitionLabel(nextStatus),
         onPress: () => void updateStatus(reservation, nextStatus),
       });
     }
+
     Alert.alert(guestName, details, buttons);
   }
 
-  const sections = [
-    { key: 'today', title: 'Today', data: todayReservations },
-    { key: 'tomorrow', title: `Tomorrow (${tomorrowReservations.length})`, data: tomorrowReservations },
-  ];
+  const sections = useMemo(() => {
+    const map = new Map<string, { key: string; title: string; data: ReservationWithDetails[] }>();
+    for (const item of visibleReservations) {
+      const day = reservationDay(item);
+      if (!map.has(day)) {
+        let title: string;
+        if (day === today) {
+          title = 'Today';
+        } else if (day === tomorrow) {
+          title = 'Tomorrow';
+        } else {
+          title = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Colombo',
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }).format(new Date(item.starts_at));
+        }
+        map.set(day, { key: day, title, data: [] });
+      }
+      map.get(day)!.data.push(item);
+    }
+    return Array.from(map.values()).map(sec => ({
+      ...sec,
+      title: sec.key === today ? `Today (${sec.data.length})` : sec.key === tomorrow ? `Tomorrow (${sec.data.length})` : `${sec.title} (${sec.data.length})`,
+    }));
+  }, [visibleReservations, today, tomorrow]);
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -354,7 +409,7 @@ export function StaffReservations() {
                         disabled={updatingId === reservation.id}
                         key={reservation.id}
                         onLongPress={() => openReservationActions(reservation)}
-                        onPress={() => openReservationTable(reservation)}
+                        onPress={() => openReservationActions(reservation)}
                         reservation={reservation}
                       />
                     ))}

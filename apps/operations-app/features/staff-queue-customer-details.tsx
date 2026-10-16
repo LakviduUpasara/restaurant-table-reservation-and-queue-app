@@ -41,13 +41,23 @@ function initials(name: string) {
   return name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join('') || 'G';
 }
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('en-US', {
+function formatDateTime(value: string) {
+  const date = new Date(value);
+  const colomboToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(new Date());
+  const entryDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo' }).format(date);
+  const time = new Intl.DateTimeFormat('en-US', {
     timeZone: 'Asia/Colombo',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-  }).format(new Date(value));
+  }).format(date);
+  if (entryDay === colomboToday) return `Today, ${time}`;
+  const dateStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Colombo',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+  return `${dateStr}, ${time}`;
 }
 
 function statusLabel(status: QueueStatus) {
@@ -65,13 +75,14 @@ function BackIcon() {
   return <StaffIcon color={colors.text} name="chevron-back" size={24} />;
 }
 
-function DetailRow({ icon, label, value }: { icon: 'people' | 'phone' | 'clock' | 'wait' | 'table'; label?: string; value: string }) {
+function DetailRow({ icon, label, value }: { icon: 'people' | 'phone' | 'clock' | 'wait' | 'table' | 'notes'; label?: string; value: string }) {
   const names: Record<typeof icon, StaffIconName> = {
     people: 'people-outline',
     phone: 'call-outline',
     clock: 'time-outline',
     wait: 'hourglass-outline',
     table: 'restaurant-outline',
+    notes: 'document-text-outline',
   };
   return (
     <View style={styles.detailRow}>
@@ -211,9 +222,12 @@ export function StaffQueueCustomerDetails() {
                 <View style={styles.details}>
                   <DetailRow icon="people" value={`${entry.party_size} ${entry.party_size === 1 ? 'Guest' : 'Guests'}`} />
                   <DetailRow icon="phone" value={entry.phone || 'No phone number'} />
-                  <DetailRow icon="clock" label="Joined Queue" value={formatTime(entry.created_at)} />
+                  <DetailRow icon="clock" label="Joined Queue" value={formatDateTime(entry.created_at)} />
                   <DetailRow icon="wait" label="Estimated Wait" value={`${entry.estimated_wait_minutes} minutes`} />
-                  <DetailRow icon="table" label="Table" value={assignedTable?.label || 'Not yet'} />
+                  <DetailRow icon="table" label="Table" value={assignedTable?.label || 'Not yet assigned'} />
+                  {entry.special_request ? (
+                    <DetailRow icon="notes" label="Special Request" value={entry.special_request} />
+                  ) : null}
                 </View>
               </View>
 

@@ -24,7 +24,7 @@ export default function TableDetail() {
   const tables = useQuery({ queryKey: ['owner-tables', restaurantId], enabled: !!restaurantId, queryFn: () => getOwnerTables(restaurantId!) });
   const table = tables.data?.find(item => item.id === tableId);
   const day = colomboDate();
-  const reservations = useQuery({ queryKey: ['owner-table-reservations', restaurantId, day], enabled: !!table, queryFn: () => api<TableReservation[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`) });
+  const reservations = useQuery({ queryKey: ['owner-table-reservations', restaurantId], enabled: !!table, queryFn: () => api<TableReservation[]>(`/reservations?restaurant_id=${restaurantId}`) });
   const queue = useQuery({ queryKey: ['owner-table-queue', restaurantId], enabled: !!table, queryFn: () => api<QueueEntry[]>(`/queue?restaurant_id=${restaurantId}`) });
   const [status, setStatus] = useState<TableStatus>('AVAILABLE'); const [busy, setBusy] = useState(false);
   useEffect(() => { if (table) setStatus(table.status); }, [table?.status]);
@@ -32,7 +32,7 @@ export default function TableDetail() {
   if (tables.error) return <OwnerLayout active="tables" title="Table" showBack onBack={() => router.back()}><Text onPress={() => void tables.refetch()}>{tables.error.message} - Tap to retry</Text></OwnerLayout>;
   if (!table) return <OwnerLayout active="tables" title="Table" showBack onBack={() => router.back()}><Text>Table not found.</Text></OwnerLayout>;
   const reservation = reservations.data?.find(item => item.table_id === table.id && ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED'].includes(item.status));
-  const walkIn = table.status === 'OCCUPIED' ? queue.data?.filter(item => item.table_id === table.id && item.status === 'SEATED' && colomboDate(new Date(item.created_at)) === day).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] : undefined;
+  const walkIn = table.status === 'OCCUPIED' ? queue.data?.filter(item => item.table_id === table.id && item.status === 'SEATED').sort((a, b) => b.created_at.localeCompare(a.created_at))[0] : undefined;
   const save = async () => {
     setBusy(true);
     try { await updateOwnerTableStatus(table.id, status); await Promise.all([client.invalidateQueries({ queryKey: ['owner-tables'] }), client.invalidateQueries({ queryKey: ['owner-dashboard'] })]); router.back(); }
@@ -41,7 +41,7 @@ export default function TableDetail() {
   };
   return <OwnerLayout active="tables" title={`Table ${table.label}`} showBack onBack={() => router.back()}><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
     <View style={styles.hero}><View style={styles.tableCircle}><Ionicons name="grid-outline" size={29} color={COLORS.text}/></View><View style={{flex:1,marginLeft:12}}><Text style={styles.title}>Table {table.label}</Text><Text style={styles.sub}>{table.capacity} seats</Text></View><StatusPill label={displayStatus(table.status)} tone={table.status==='AVAILABLE'?'green':table.status==='OCCUPIED'?'red':table.status==='RESERVED'?'yellow':'gray'} /></View>
-    <Card><Row label="Current customer" value={walkIn?.customer_name ?? reservation?.profiles?.full_name ?? (table.status === 'OCCUPIED' ? 'Guest details unavailable' : 'No current guest')} icon="person-outline"/><Divider/><Row label="Phone" value={walkIn?.phone ?? reservation?.profiles?.phone ?? '-'} icon="call-outline"/><Divider/><Row label="Reservation" value={reservation ? new Date(reservation.starts_at).toLocaleTimeString(undefined, { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' }) : 'No reservation'} icon="calendar-outline"/>
+    <Card><Row label="Current customer" value={walkIn?.customer_name ?? reservation?.profiles?.full_name ?? (table.status === 'OCCUPIED' ? 'Guest details unavailable' : 'No current guest')} icon="person-outline"/><Divider/><Row label="Phone" value={walkIn?.phone ?? reservation?.profiles?.phone ?? '-'} icon="call-outline"/><Divider/><Row label="Reservation" value={reservation ? new Date(reservation.starts_at).toLocaleTimeString(undefined, { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' }) : 'No reservation'} icon="calendar-outline"/>{reservation?.special_request ? <><Divider/><Row label="Note" value={reservation.special_request} icon="document-text-outline"/></> : null}
       {reservations.error || queue.error ? <Text>Guest details could not be loaded.</Text> : null}
     </Card><Text style={styles.section}>Update table status</Text><Card>{options.map(option => { const allowed = option === table.status || transitions[table.status].includes(option); return <Pressable key={option} disabled={busy || !allowed} onPress={()=>setStatus(option)} style={[styles.statusOption,status===option&&styles.selected,!allowed&&{opacity:0.4}]}><View style={styles.optionLeft}><View style={[styles.dot,{backgroundColor:option==='AVAILABLE'?COLORS.green:option==='OCCUPIED'?COLORS.red:option==='RESERVED'?COLORS.orange:'#666'}]}/><Text style={styles.optionText}>{displayStatus(option)}</Text></View>{status===option?<Ionicons name="checkmark-circle" size={19} color={COLORS.primaryDark}/>:null}</Pressable>; })}</Card>
     <ActionButton title="Save table status" busy={busy} disabled={status === table.status} onPress={save} style={{marginTop:2}}/><ActionButton title="Cancel" variant="outline" onPress={()=>router.back()} style={{marginTop:10}}/>

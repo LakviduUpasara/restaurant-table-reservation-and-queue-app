@@ -57,9 +57,9 @@ const validTransitions: Record<TableStatus, TableStatus[]> = {
   UNAVAILABLE: ['AVAILABLE'],
 };
 
-const colomboDay = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10);
+const colomboDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Colombo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const formatStatus = (status: string) => status.replaceAll('_', ' ').toLowerCase().replace(/^./, (letter) => letter.toUpperCase());
-const formatTime = (value: string) => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const formatTime = (value: string) => new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Colombo', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(value));
 
 function BackIcon() {
   return <StaffIcon color={colors.secondaryText} name="chevron-back" size={24} />;
@@ -153,9 +153,9 @@ export function StaffTableProfile() {
     queryFn: () => api<Table>(`/tables/${tableId}`),
   });
   const reservations = useQuery({
-    queryKey: ['reservations', restaurantId, day],
+    queryKey: ['reservations', restaurantId],
     enabled: !!restaurantId,
-    queryFn: () => api<ReservationWithCustomer[]>(`/reservations?restaurant_id=${restaurantId}&date=${day}`),
+    queryFn: () => api<ReservationWithCustomer[]>(`/reservations?restaurant_id=${restaurantId}`),
   });
   const queue = useQuery({
     queryKey: ['queue', restaurantId],
@@ -164,10 +164,18 @@ export function StaffTableProfile() {
   });
 
   const table = tableQuery.data;
-  const activeReservation = useMemo(() => reservations.data
-    ?.filter((item) => item.table_id === tableId && ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED'].includes(item.status))
-    .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0], [reservations.data, tableId]);
-  const seatedQueueEntry = queue.data?.find((item) => item.table_id === tableId && item.status === 'SEATED');
+  const activeReservation = useMemo(() => {
+    if (!reservations.data || !tableId) return undefined;
+    const tableRes = reservations.data.filter(
+      (item) => item.table_id === tableId && ['PENDING', 'CONFIRMED', 'ARRIVED', 'SEATED'].includes(item.status),
+    );
+    // Prioritize arrived/seated, then soonest confirmed/pending
+    const inProgress = tableRes.find((item) => ['ARRIVED', 'SEATED'].includes(item.status));
+    if (inProgress) return inProgress;
+    return tableRes.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())[0];
+  }, [reservations.data, tableId]);
+
+  const seatedQueueEntry = queue.data?.find((item) => item.table_id === tableId && ['SEATED', 'TABLE_READY'].includes(item.status));
   const guest: Guest | null = activeReservation
     ? {
         name: activeReservation.profiles?.full_name || 'Guest',
@@ -280,14 +288,37 @@ export function StaffTableProfile() {
                         <CalendarIcon value={guest.eventAt} />
                         <Text style={styles.detailText}>
                           {guest.source === 'reservation' && guest.reservation
-                            ? `Reservation · ${formatTime(guest.reservation.starts_at)}`
-                            : 'Walk-in customer'}
+                            ? (() => {
+                                const starts = new Date(guest.reservation.starts_at);
+                                const isToday = starts.toISOString().slice(0, 10) === colomboDay();
+                                const timeStr = formatTime(guest.reservation.starts_at);
+                                if (isToday) return `Reservation · Today, ${timeStr}`;
+                                const monthDay = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Colombo', month: 'short', day: 'numeric' }).format(starts);
+                                return `Reservation · ${monthDay}, ${timeStr}`;
+                              })()
+                            : `Walk-in customer · ${formatTime(guest.eventAt)}`}
                         </Text>
                       </View>
+                      {guest.reservation?.special_request ? (
+                        <View style={styles.detailRow}>
+                          <StaffIcon color={colors.text} name="document-text-outline" size={17} />
+                          <Text style={[styles.detailText, { fontStyle: 'italic' }]}>
+                            "{guest.reservation.special_request}"
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   </View>
                 ) : (
-                  <Text style={styles.emptyText}>No customer is currently assigned to this table.</Text>
+                  <Text style={styles.emptyText}>
+                    {table.status === 'OCCUPIED'
+                      ? 'Table is occupied (walk-in or manually seated).'
+                      : table.status === 'RESERVED'
+                        ? 'Table is reserved by staff.'
+                        : table.status === 'CLEANING'
+                          ? 'Table is currently being cleaned.'
+                          : 'No customer is currently assigned to this table.'}
+                  </Text>
                 )}
               </View>
 

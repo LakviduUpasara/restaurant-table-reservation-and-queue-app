@@ -60,8 +60,18 @@ function ChairIcon() {
   return <StaffIcon color={colors.text} name="restaurant-outline" size={22} />;
 }
 
-function waitingMinutes(entry: QueueEntry) {
-  return Math.max(0, Math.floor((Date.now() - new Date(entry.created_at).getTime()) / 60_000));
+function formatWaitingTime(entry: QueueEntry) {
+  const diffMinutes = Math.max(0, Math.floor((Date.now() - new Date(entry.created_at).getTime()) / 60_000));
+  if (diffMinutes < 60) {
+    return `Waiting ${diffMinutes} min`;
+  }
+  const hours = Math.floor(diffMinutes / 60);
+  const remainingMins = diffMinutes % 60;
+  if (hours < 24) {
+    return `Waiting ${hours}h ${remainingMins}m`;
+  }
+  const days = Math.floor(hours / 24);
+  return `Joined ${days}d ago`;
 }
 
 function estimateLabel(minutes: number) {
@@ -111,8 +121,13 @@ function QueueCard({
           </View>
           <View style={styles.metaRow}>
             <ClockIcon />
-            <Text style={styles.metaText}>Waiting {waitingMinutes(entry)} min</Text>
+            <Text style={styles.metaText}>{formatWaitingTime(entry)}</Text>
           </View>
+          {entry.special_request ? (
+            <Text numberOfLines={1} style={{ fontSize: 11, color: colors.secondary, fontStyle: 'italic', marginTop: 3 }}>
+              "{entry.special_request}"
+            </Text>
+          ) : null}
         </View>
       </Pressable>
 
@@ -295,7 +310,7 @@ export function StaffQueue() {
                     <View style={styles.seatedCopy}>
                       <Text style={styles.customerName}>{entry.customer_name}</Text>
                       <Text style={styles.metaText}>
-                        {entry.party_size} {entry.party_size === 1 ? 'Guest' : 'Guests'} · Seated
+                        {entry.party_size} {entry.party_size === 1 ? 'Guest' : 'Guests'} · Seated{entry.table_id && tables.data?.find(t => t.id === entry.table_id) ? ` at ${tables.data.find(t => t.id === entry.table_id)!.label}` : ''}
                       </Text>
                     </View>
                   </View>
