@@ -12,8 +12,8 @@ You can download the compiled standalone Android APKs directly from the [Officia
 
 | Application | Description | Direct APK Download |
 | :--- | :--- | :--- |
-| 📲 **DineFlow Customer App** | Table reservations, live queue status, menu & pre-orders | [Download Customer APK](https://expo.dev/artifacts/eas/67gTZnYk5W6iDZU9pXgoCw2jy2KagxPxqRyxFuxkFSM.apk) |
-| 🛠️ **DineFlow Operations App** | Restaurant staff management, walk-ins, queue & table management | [Download Operations APK](https://expo.dev/artifacts/eas/gIqkcyGQ5sZR67wJ5hq1a_YfgI0aon2bM_7FSQ0llYE.apk) |
+| 📲 **DineFlow Customer App** | Table reservations, live queue status, menu & pre-orders | [Download Customer APK (Expo)](https://expo.dev/artifacts/eas/N8cal7dgUA6fIsVu295iGG5r9kEvewUA5_dL91-my8M.apk) \| [GitHub Release APK](https://github.com/LakviduUpasara/restaurant-table-reservation-and-queue-app/releases/download/v1.0.0/DineFlow-Customer-v1.0.0.apk) |
+| 🛠️ **DineFlow Operations App** | Restaurant staff management, walk-ins, queue & table management | [Download Operations APK (Expo)](https://expo.dev/artifacts/eas/M4cggSEMWU24BhUymWvjY8Yv5foUu_DG0sDnoh-ye0U.apk) \| [GitHub Release APK](https://github.com/LakviduUpasara/restaurant-table-reservation-and-queue-app/releases/download/v1.0.0/DineFlow-Operations-v1.0.0.apk) |
 
 ---
 
