@@ -4,8 +4,19 @@
   "private": true,
   "main": "./index.ts",
   "types": "./index.ts",
-  "scripts": {"typecheck": "tsc --noEmit"},
-  "dependencies": {"zod": "^4.0.0"},
-  "peerDependencies": {"react": "*", "react-native": "*", "react-native-safe-area-context": "*"},
-  "devDependencies": {"@types/react": "^19.0.0", "typescript": "^5.9.0"}
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-safe-area-context": "~5.7.0"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.4",
+    "typescript": "~6.0.3"
+  }
 }

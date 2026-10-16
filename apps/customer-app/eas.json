@@ -1,1 +1,28 @@
-{ "build": { "preview": { "distribution": "internal", "android": { "buildType": "apk" } }, "production": { "android": { "buildType": "app-bundle" } } } }
+{
+  "cli": {
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://restaurant-table-reservation-and-qu.vercel.app/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://mdrlenmrvkfmhedfbrej.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_hK_Zn5WATslzY8PLPpQhxg_fV5mj3Wz"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://restaurant-table-reservation-and-qu.vercel.app/api",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://mdrlenmrvkfmhedfbrej.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_hK_Zn5WATslzY8PLPpQhxg_fV5mj3Wz"
+      }
+    }
+  }
+}
